@@ -17,14 +17,14 @@ export default function LoginPage() {
             <div className="flex justify-center items-center gap-2 mb-4">
                 <Logo />
             </div>
-            <h1 className="text-3xl font-bold font-headline">Login</h1>
+            <h1 className="text-3xl font-bold font-headline">Entrar</h1>
             <p className="text-balance text-muted-foreground">
-              Enter your email below to login to your account
+              Digite seu e-mail abaixo para entrar na sua conta
             </p>
           </div>
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mail</Label>
               <Input
                 id="email"
                 type="email"
@@ -34,27 +34,27 @@ export default function LoginPage() {
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Senha</Label>
                 <Link
                   href="/forgot-password"
                   className="ml-auto inline-block text-sm underline"
                 >
-                  Forgot your password?
+                  Esqueceu sua senha?
                 </Link>
               </div>
               <Input id="password" type="password" required />
             </div>
             <Button type="submit" className="w-full">
-              Login
+              Entrar
             </Button>
             <Button variant="outline" className="w-full">
-              Login with Google
+              Entrar com Google
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
+            Não tem uma conta?{" "}
             <Link href="#" className="underline">
-              Contact Admin
+              Contate o administrador
             </Link>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         <div className="absolute bottom-8 left-8 text-white">
             <h2 className="text-4xl font-bold font-headline">TreeCondo</h2>
-            <p className="text-lg mt-2">Community Living, Elevated.</p>
+            <p className="text-lg mt-2">Vida em comunidade, elevada.</p>
         </div>
       </div>
     </div>

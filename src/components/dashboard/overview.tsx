@@ -6,29 +6,26 @@ import { useState, useEffect } from "react";
 
 const chartConfig = {
   total: {
-    label: "Incidents",
+    label: "Incidentes",
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig
 
 export function Overview() {
   const [data, setData] = useState<any[]>([]);
+  const [months, setMonths] = useState<string[]>([]);
 
   useEffect(() => {
-    setData([
-      { name: "Jan", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Feb", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Mar", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Apr", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "May", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Jun", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Jul", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Aug", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Sep", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Oct", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Nov", total: Math.floor(Math.random() * 10) + 1 },
-      { name: "Dec", total: Math.floor(Math.random() * 10) + 1 },
-    ]);
+    // Using Portuguese month abbreviations
+    const ptMonths = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    setMonths(ptMonths);
+    
+    setData(
+      ptMonths.map((month) => ({
+        name: month,
+        total: Math.floor(Math.random() * 10) + 1,
+      }))
+    );
   }, []);
 
   if (data.length === 0) {
@@ -60,7 +57,7 @@ export function Overview() {
                 formatter={(value, name, item) => (
                   <div className="flex flex-col">
                     <span className="font-medium">{item.payload.name}</span>
-                    <span className="text-muted-foreground">{value} incidents</span>
+                    <span className="text-muted-foreground">{value} incidentes</span>
                   </div>
                 )}
               />}

@@ -13,12 +13,12 @@ export function RecentAnnouncements() {
           <AvatarFallback>OM</AvatarFallback>
         </Avatar>
         <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">Pool Maintenance</p>
+          <p className="text-sm font-medium leading-none">Manutenção da Piscina</p>
           <p className="text-sm text-muted-foreground">
-            The swimming pool will be closed for maintenance on July 25th.
+            A piscina estará fechada para manutenção no dia 25 de julho.
           </p>
         </div>
-        <div className="ml-auto font-medium text-xs text-muted-foreground">2d ago</div>
+        <div className="ml-auto font-medium text-xs text-muted-foreground">há 2d</div>
       </div>
       <div className="flex items-start">
         <Avatar className="flex h-9 w-9 items-center justify-center space-y-0 border">
@@ -26,12 +26,12 @@ export function RecentAnnouncements() {
           <AvatarFallback>JL</AvatarFallback>
         </Avatar>
         <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">Quarterly Pest Control</p>
+          <p className="text-sm font-medium leading-none">Controle de Pragas Trimestral</p>
           <p className="text-sm text-muted-foreground">
-            Scheduled for August 1st. Please ensure your units are accessible.
+            Agendado para 1º de agosto. Garanta que suas unidades estejam acessíveis.
           </p>
         </div>
-        <div className="ml-auto font-medium text-xs text-muted-foreground">5d ago</div>
+        <div className="ml-auto font-medium text-xs text-muted-foreground">há 5d</div>
       </div>
       <div className="flex items-start">
         <Avatar className="h-9 w-9">
@@ -39,12 +39,12 @@ export function RecentAnnouncements() {
           <AvatarFallback>OM</AvatarFallback>
         </Avatar>
         <div className="ml-4 space-y-1">
-          <p className="text-sm font-medium leading-none">National Day Celebration</p>
+          <p className="text-sm font-medium leading-none">Comemoração do Dia Nacional</p>
           <p className="text-sm text-muted-foreground">
-            Join us for a BBQ at the function hall on National Day!
+            Junte-se a nós para um churrasco no salão de festas no Dia Nacional!
           </p>
         </div>
-        <div className="ml-auto font-medium text-xs text-muted-foreground">1w ago</div>
+        <div className="ml-auto font-medium text-xs text-muted-foreground">há 1s</div>
       </div>
     </div>
   )
