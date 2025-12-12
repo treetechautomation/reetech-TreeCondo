@@ -144,4 +144,7 @@ export default function AcessoPage() {
               <p className="text-muted-foreground">Conteúdo da página de controle de acesso.</p>
           </div>
         </main>
-      </SidebarInset
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
