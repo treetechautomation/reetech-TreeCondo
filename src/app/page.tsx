@@ -35,7 +35,7 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { UserNav } from "@/components/user-nav";
+import { UserNavClient } from "@/components/user-nav-client";
 import { Logo } from "@/components/logo";
 import { Overview } from "@/components/dashboard/overview";
 import { RecentAnnouncements } from "@/components/dashboard/recent-announcements";
@@ -152,7 +152,7 @@ export default function Dashboard() {
                 />
               </div>
             </form>
-            <UserNav />
+            <UserNavClient />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">

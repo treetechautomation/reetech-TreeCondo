@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/logo";
 import { Input } from "@/components/ui/input";
-import { UserNav } from "@/components/user-nav";
+import { UserNavClient } from "@/components/user-nav-client";
 import { ActiveLink } from "@/components/active-link";
 import { Button } from "@/components/ui/button";
 import {
@@ -260,7 +260,7 @@ export default function ReunioesPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <UserNav />
+            <UserNavClient />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
