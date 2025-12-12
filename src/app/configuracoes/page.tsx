@@ -9,6 +9,10 @@ import {
   Settings,
   Search,
   Phone,
+  Vote,
+  KeyRound,
+  BookUser,
+  Building,
 } from "lucide-react";
 import {
   Sidebar,
@@ -81,6 +85,30 @@ export default function ConfiguracoesPage() {
               <ActiveLink href="/chamados">
                 <Phone />
                 Chamados
+              </ActiveLink>
+            </SidebarMenuItem>
+             <SidebarMenuItem>
+              <ActiveLink href="/enquetes">
+                <Vote />
+                Enquetes e Votações
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/acesso">
+                <KeyRound />
+                Controle de Acesso
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/cadastros">
+                <BookUser />
+                Gestão de Cadastro
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/condominios">
+                <Building />
+                Gestão de Condomínios
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>
