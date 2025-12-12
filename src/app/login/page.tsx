@@ -1,13 +1,54 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { toast } from "@/hooks/use-toast";
+
+const loginSchema = z.object({
+  email: z.string().email({ message: "Por favor, insira um e-mail válido." }),
+  password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),
+});
+
+type LoginFormInputs = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const loginImage = PlaceHolderImages.find(p => p.id === 'login-background');
+  const auth = useAuth();
+  const router = useRouter();
+
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      toast({
+        title: "Login bem-sucedido!",
+        description: "Redirecionando para o painel...",
+      });
+      router.push('/');
+    } catch (error: any) {
+      console.error("Erro de login:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao entrar",
+        description: "Verifique seu e-mail e senha e tente novamente.",
+      });
+    }
+  };
+
 
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2">
@@ -22,15 +63,16 @@ export default function LoginPage() {
               Digite seu e-mail abaixo para entrar na sua conta
             </p>
           </div>
-          <div className="grid gap-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">E-mail</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                required
+                {...register("email")}
               />
+               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
@@ -42,15 +84,16 @@ export default function LoginPage() {
                   Esqueceu sua senha?
                 </Link>
               </div>
-              <Input id="password" type="password" required />
+              <Input id="password" type="password" {...register("password")} />
+               {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
             </div>
             <Button type="submit" className="w-full">
               Entrar
             </Button>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" disabled>
               Entrar com Google
             </Button>
-          </div>
+          </form>
           <div className="mt-4 text-center text-sm">
             Não tem uma conta?{" "}
             <Link href="#" className="underline">
