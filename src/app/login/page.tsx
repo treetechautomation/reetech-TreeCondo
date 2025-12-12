@@ -27,7 +27,7 @@ export default function LoginPage() {
   const auth = useAuth();
   const router = useRouter();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
   });
 
@@ -41,10 +41,14 @@ export default function LoginPage() {
       router.push('/');
     } catch (error: any) {
       console.error("Erro de login:", error);
+      let description = "Verifique seu e-mail e senha e tente novamente.";
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        description = "E-mail ou senha incorretos. Por favor, tente novamente.";
+      }
       toast({
         variant: "destructive",
         title: "Erro ao entrar",
-        description: "Verifique seu e-mail e senha e tente novamente.",
+        description: description,
       });
     }
   };
@@ -71,6 +75,7 @@ export default function LoginPage() {
                 type="email"
                 placeholder="m@example.com"
                 {...register("email")}
+                disabled={isSubmitting}
               />
                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
@@ -84,11 +89,16 @@ export default function LoginPage() {
                   Esqueceu sua senha?
                 </Link>
               </div>
-              <Input id="password" type="password" {...register("password")} />
+              <Input 
+                id="password" 
+                type="password" 
+                {...register("password")} 
+                disabled={isSubmitting}
+              />
                {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
             </div>
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Entrando...' : 'Entrar'}
             </Button>
             <Button variant="outline" className="w-full" disabled>
               Entrar com Google

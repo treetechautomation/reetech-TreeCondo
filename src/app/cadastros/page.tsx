@@ -67,12 +67,47 @@ import {
 } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import React from "react";
+import { toast } from "@/hooks/use-toast";
 
-const moradores = [
-    { id: 1, nome: "João da Silva", unidade: "Apto 101", perfil: "Proprietário", contato: "(11) 98765-4321" },
-    { id: 2, nome: "Maria Oliveira", unidade: "Apto 203", perfil: "Inquilino", contato: "(21) 91234-5678" },
-    { id: 3, nome: "Carlos Pereira (Síndico)", unidade: "Apto 505", perfil: "Síndico", contato: "(31) 99999-8888" },
-];
+
+const funcionarioSchema = z.object({
+    nome: z.string().min(1, "Nome é obrigatório"),
+    cargo: z.string().min(1, "Cargo é obrigatório"),
+    horario: z.string().min(1, "Horário é obrigatório"),
+    contato: z.string().min(1, "Contato é obrigatório"),
+});
+
+const veiculoSchema = z.object({
+    placa: z.string().min(1, "Placa é obrigatória"),
+    modelo: z.string().min(1, "Modelo é obrigatório"),
+    unidade: z.string().min(1, "Unidade é obrigatória"),
+});
+
+const fornecedorSchema = z.object({
+    nome: z.string().min(1, "Nome é obrigatório"),
+    servico: z.string().min(1, "Serviço é obrigatório"),
+    contato: z.string().min(1, "Contato é obrigatório"),
+});
+
+const petSchema = z.object({
+    nome: z.string().min(1, "Nome é obrigatório"),
+    raca: z.string().min(1, "Raça é obrigatória"),
+    porte: z.string().min(1, "Porte é obrigatório"),
+    unidade: z.string().min(1, "Unidade é obrigatória"),
+});
+
+const blocoSchema = z.object({
+    nome: z.string().min(1, "Nome é obrigatório"),
+    unidades: z.preprocess((a) => parseInt(z.string().parse(a), 10),
+    z.number().positive("Deve ser um número positivo")),
+});
+
 
 const funcionarios = [
     { id: 1, nome: "José Almeida", cargo: "Zelador", horario: "08:00 - 17:00", contato: "(11) 98888-7777" },
@@ -99,8 +134,71 @@ const blocos = [
     { id: 2, nome: "Bloco B", unidades: 40 },
 ];
 
+const moradorSchema = z.object({
+  nome: z.string().min(1, { message: "O nome é obrigatório" }),
+  unidade: z.string().min(1, { message: "A unidade é obrigatória" }),
+  perfil: z.string().min(1, { message: "O perfil é obrigatório" }),
+  contato: z.string().min(1, { message: "O contato é obrigatório" }),
+  lgpd: z.boolean().refine(val => val === true, { message: "Você deve aceitar os termos da LGPD" }),
+});
+
+type MoradorFormData = z.infer<typeof moradorSchema>;
+type FuncionarioFormData = z.infer<typeof funcionarioSchema>;
+type VeiculoFormData = z.infer<typeof veiculoSchema>;
+type FornecedorFormData = z.infer<typeof fornecedorSchema>;
+type PetFormData = z.infer<typeof petSchema>;
+type BlocoFormData = z.infer<typeof blocoSchema>;
+
 
 export default function CadastrosPage() {
+    const firestore = useFirestore();
+    const residentsCollection = useMemoFirebase(() => collection(firestore, 'residents'), [firestore]);
+    const { data: moradores, isLoading } = useCollection(residentsCollection);
+    
+    const [openMorador, setOpenMorador] = React.useState(false);
+    const [openFuncionario, setOpenFuncionario] = React.useState(false);
+    const [openVeiculo, setOpenVeiculo] = React.useState(false);
+    const [openFornecedor, setOpenFornecedor] = React.useState(false);
+    const [openPet, setOpenPet] = React.useState(false);
+    const [openBloco, setOpenBloco] = React.useState(false);
+
+
+    const { register: registerMorador, handleSubmit: handleSubmitMorador, formState: { errors: errorsMorador }, reset: resetMorador } = useForm<MoradorFormData>({
+        resolver: zodResolver(moradorSchema),
+         defaultValues: { lgpd: false }
+    });
+
+    const { register: registerFuncionario, handleSubmit: handleSubmitFuncionario, formState: { errors: errorsFuncionario }, reset: resetFuncionario } = useForm<FuncionarioFormData>({ resolver: zodResolver(funcionarioSchema) });
+    const { register: registerVeiculo, handleSubmit: handleSubmitVeiculo, formState: { errors: errorsVeiculo }, reset: resetVeiculo } = useForm<VeiculoFormData>({ resolver: zodResolver(veiculoSchema) });
+    const { register: registerFornecedor, handleSubmit: handleSubmitFornecedor, formState: { errors: errorsFornecedor }, reset: resetFornecedor } = useForm<FornecedorFormData>({ resolver: zodResolver(fornecedorSchema) });
+    const { register: registerPet, handleSubmit: handleSubmitPet, formState: { errors: errorsPet }, reset: resetPet } = useForm<PetFormData>({ resolver: zodResolver(petSchema) });
+    const { register: registerBloco, handleSubmit: handleSubmitBloco, formState: { errors: errorsBloco }, reset: resetBloco } = useForm<BlocoFormData>({ resolver: zodResolver(blocoSchema) });
+
+
+    const onMoradorSubmit = async (data: MoradorFormData) => {
+        try {
+            await addDoc(collection(firestore, "residents"), {
+                firstName: data.nome.split(' ')[0],
+                lastName: data.nome.split(' ').slice(1).join(' '),
+                unitNumber: data.unidade,
+                profile: data.perfil,
+                phone: data.contato,
+            });
+            toast({ title: "Morador adicionado com sucesso!" });
+            resetMorador();
+            setOpenMorador(false);
+        } catch (error) {
+            console.error("Erro ao adicionar morador: ", error);
+            toast({ variant: "destructive", title: "Erro", description: "Não foi possível adicionar o morador." });
+        }
+    };
+    
+    const onFuncionarioSubmit = (data: FuncionarioFormData) => { console.log(data); setOpenFuncionario(false); resetFuncionario(); };
+    const onVeiculoSubmit = (data: VeiculoFormData) => { console.log(data); setOpenVeiculo(false); resetVeiculo(); };
+    const onFornecedorSubmit = (data: FornecedorFormData) => { console.log(data); setOpenFornecedor(false); resetFornecedor(); };
+    const onPetSubmit = (data: PetFormData) => { console.log(data); setOpenPet(false); resetPet(); };
+    const onBlocoSubmit = (data: BlocoFormData) => { console.log(data); setOpenBloco(false); resetBloco(); };
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -228,7 +326,7 @@ export default function CadastrosPage() {
             {/* Tab de Moradores */}
             <TabsContent value="moradores">
               <div className="flex justify-end mb-4">
-                <Dialog>
+                <Dialog open={openMorador} onOpenChange={setOpenMorador}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2" />Adicionar Morador</Button>
                     </DialogTrigger>
@@ -237,43 +335,50 @@ export default function CadastrosPage() {
                             <DialogTitle>Novo Morador</DialogTitle>
                             <DialogDescription>Insira os dados do novo morador.</DialogDescription>
                         </DialogHeader>
-                         <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="nome-morador" className="text-right">Nome</Label>
-                                <Input id="nome-morador" placeholder="Nome completo" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="unidade-morador" className="text-right">Unidade</Label>
-                                <Input id="unidade-morador" placeholder="Ex: Apto 101" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="perfil-morador" className="text-right">Perfil</Label>
-                                <Select>
-                                    <SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="proprietario">Proprietário</SelectItem>
-                                        <SelectItem value="inquilino">Inquilino</SelectItem>
-                                        <SelectItem value="sindico">Síndico</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="contato-morador" className="text-right">Contato</Label>
-                                <Input id="contato-morador" placeholder="(99) 99999-9999" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="lgpd" className="text-right">LGPD</Label>
-                                <div className="flex items-center space-x-2 col-span-3">
-                                    <Checkbox id="lgpd-terms" />
-                                    <label htmlFor="lgpd-terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                       Li e concordo com os termos.
-                                    </label>
+                         <form onSubmit={handleSubmitMorador(onMoradorSubmit)}>
+                             <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="nome-morador" className="text-right">Nome</Label>
+                                    <Input id="nome-morador" placeholder="Nome completo" className="col-span-3" {...registerMorador("nome")} />
                                 </div>
+                                 {errorsMorador.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.nome.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="unidade-morador" className="text-right">Unidade</Label>
+                                    <Input id="unidade-morador" placeholder="Ex: Apto 101" className="col-span-3" {...registerMorador("unidade")} />
+                                </div>
+                                 {errorsMorador.unidade && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.unidade.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="perfil-morador" className="text-right">Perfil</Label>
+                                    <Select onValueChange={(value) => registerMorador("perfil").onChange({ target: { value } })}>
+                                        <SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="proprietario">Proprietário</SelectItem>
+                                            <SelectItem value="inquilino">Inquilino</SelectItem>
+                                            <SelectItem value="sindico">Síndico</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {errorsMorador.perfil && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.perfil.message}</p>}
+                                 <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="contato-morador" className="text-right">Contato</Label>
+                                    <Input id="contato-morador" placeholder="(99) 99999-9999" className="col-span-3" {...registerMorador("contato")} />
+                                </div>
+                                {errorsMorador.contato && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.contato.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="lgpd" className="text-right">LGPD</Label>
+                                    <div className="flex items-center space-x-2 col-span-3">
+                                        <Checkbox id="lgpd-terms" onCheckedChange={(checked) => registerMorador("lgpd").onChange({ target: { checked } })}/>
+                                        <label htmlFor="lgpd-terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                           Li e concordo com os termos.
+                                        </label>
+                                    </div>
+                                </div>
+                                 {errorsMorador.lgpd && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.lgpd.message}</p>}
                             </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Salvar</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Salvar</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
               </div>
@@ -288,18 +393,22 @@ export default function CadastrosPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {moradores.map(m => (
-                        <TableRow key={m.id}>
-                            <TableCell>{m.nome}</TableCell>
-                            <TableCell>{m.unidade}</TableCell>
-                            <TableCell>{m.perfil}</TableCell>
-                            <TableCell>{m.contato}</TableCell>
-                            <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
-                                <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
+                    {isLoading ? (
+                        <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>
+                    ) : (
+                        moradores?.map(m => (
+                            <TableRow key={m.id}>
+                                <TableCell>{m.firstName} {m.lastName}</TableCell>
+                                <TableCell>{m.unitNumber}</TableCell>
+                                <TableCell>{m.profile}</TableCell>
+                                <TableCell>{m.phone}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                                    <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    )}
                 </TableBody>
               </Table>
             </TabsContent>
@@ -307,7 +416,7 @@ export default function CadastrosPage() {
             {/* Tab de Funcionários */}
              <TabsContent value="funcionarios">
               <div className="flex justify-end mb-4">
-                <Dialog>
+                 <Dialog open={openFuncionario} onOpenChange={setOpenFuncionario}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2" />Adicionar Funcionário</Button>
                     </DialogTrigger>
@@ -316,27 +425,33 @@ export default function CadastrosPage() {
                             <DialogTitle>Novo Funcionário</DialogTitle>
                             <DialogDescription>Insira os dados do novo funcionário.</DialogDescription>
                         </DialogHeader>
-                         <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="nome-funcionario" className="text-right">Nome</Label>
-                                <Input id="nome-funcionario" placeholder="Nome completo" className="col-span-3" />
+                        <form onSubmit={handleSubmitFuncionario(onFuncionarioSubmit)}>
+                             <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="nome-funcionario" className="text-right">Nome</Label>
+                                    <Input id="nome-funcionario" placeholder="Nome completo" className="col-span-3" {...registerFuncionario("nome")} />
+                                </div>
+                                {errorsFuncionario.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFuncionario.nome.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="cargo-funcionario" className="text-right">Cargo</Label>
+                                    <Input id="cargo-funcionario" placeholder="Ex: Zelador" className="col-span-3" {...registerFuncionario("cargo")} />
+                                </div>
+                                {errorsFuncionario.cargo && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFuncionario.cargo.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="horario-funcionario" className="text-right">Horário</Label>
+                                    <Input id="horario-funcionario" placeholder="Ex: 08:00 - 17:00" className="col-span-3" {...registerFuncionario("horario")} />
+                                </div>
+                                {errorsFuncionario.horario && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFuncionario.horario.message}</p>}
+                                 <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="contato-funcionario" className="text-right">Contato</Label>
+                                    <Input id="contato-funcionario" placeholder="(99) 99999-9999" className="col-span-3" {...registerFuncionario("contato")} />
+                                </div>
+                                {errorsFuncionario.contato && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFuncionario.contato.message}</p>}
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="cargo-funcionario" className="text-right">Cargo</Label>
-                                <Input id="cargo-funcionario" placeholder="Ex: Zelador" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="horario-funcionario" className="text-right">Horário</Label>
-                                <Input id="horario-funcionario" placeholder="Ex: 08:00 - 17:00" className="col-span-3" />
-                            </div>
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="contato-funcionario" className="text-right">Contato</Label>
-                                <Input id="contato-funcionario" placeholder="(99) 99999-9999" className="col-span-3" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Salvar</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Salvar</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
               </div>
@@ -370,7 +485,7 @@ export default function CadastrosPage() {
             {/* Tab de Veículos */}
              <TabsContent value="veiculos">
                <div className="flex justify-end mb-4">
-                <Dialog>
+                <Dialog open={openVeiculo} onOpenChange={setOpenVeiculo}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2" />Adicionar Veículo</Button>
                     </DialogTrigger>
@@ -379,23 +494,28 @@ export default function CadastrosPage() {
                             <DialogTitle>Novo Veículo</DialogTitle>
                             <DialogDescription>Insira os dados do novo veículo.</DialogDescription>
                         </DialogHeader>
-                         <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="placa-veiculo" className="text-right">Placa</Label>
-                                <Input id="placa-veiculo" placeholder="ABC-1234" className="col-span-3" />
+                         <form onSubmit={handleSubmitVeiculo(onVeiculoSubmit)}>
+                             <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="placa-veiculo" className="text-right">Placa</Label>
+                                    <Input id="placa-veiculo" placeholder="ABC-1234" className="col-span-3" {...registerVeiculo("placa")} />
+                                </div>
+                                {errorsVeiculo.placa && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsVeiculo.placa.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="modelo-veiculo" className="text-right">Modelo</Label>
+                                    <Input id="modelo-veiculo" placeholder="Ex: Honda Civic" className="col-span-3" {...registerVeiculo("modelo")} />
+                                </div>
+                                {errorsVeiculo.modelo && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsVeiculo.modelo.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="unidade-veiculo" className="text-right">Unidade</Label>
+                                    <Input id="unidade-veiculo" placeholder="Ex: Apto 101" className="col-span-3" {...registerVeiculo("unidade")} />
+                                </div>
+                                {errorsVeiculo.unidade && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsVeiculo.unidade.message}</p>}
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="modelo-veiculo" className="text-right">Modelo</Label>
-                                <Input id="modelo-veiculo" placeholder="Ex: Honda Civic" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="unidade-veiculo" className="text-right">Unidade</Label>
-                                <Input id="unidade-veiculo" placeholder="Ex: Apto 101" className="col-span-3" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Salvar</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Salvar</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
               </div>
@@ -427,7 +547,7 @@ export default function CadastrosPage() {
              {/* Tab de Fornecedores */}
              <TabsContent value="fornecedores">
                <div className="flex justify-end mb-4">
-                <Dialog>
+                <Dialog open={openFornecedor} onOpenChange={setOpenFornecedor}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2" />Adicionar Fornecedor</Button>
                     </DialogTrigger>
@@ -436,23 +556,28 @@ export default function CadastrosPage() {
                             <DialogTitle>Novo Fornecedor</DialogTitle>
                             <DialogDescription>Insira os dados do novo fornecedor.</DialogDescription>
                         </DialogHeader>
-                         <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="nome-fornecedor" className="text-right">Nome</Label>
-                                <Input id="nome-fornecedor" placeholder="Nome da empresa" className="col-span-3" />
+                         <form onSubmit={handleSubmitFornecedor(onFornecedorSubmit)}>
+                             <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="nome-fornecedor" className="text-right">Nome</Label>
+                                    <Input id="nome-fornecedor" placeholder="Nome da empresa" className="col-span-3" {...registerFornecedor("nome")} />
+                                </div>
+                                {errorsFornecedor.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFornecedor.nome.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="servico-fornecedor" className="text-right">Serviço</Label>
+                                    <Input id="servico-fornecedor" placeholder="Ex: Jardinagem" className="col-span-3" {...registerFornecedor("servico")} />
+                                </div>
+                                {errorsFornecedor.servico && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFornecedor.servico.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="contato-fornecedor" className="text-right">Contato</Label>
+                                    <Input id="contato-fornecedor" placeholder="Email ou telefone" className="col-span-3" {...registerFornecedor("contato")} />
+                                </div>
+                                {errorsFornecedor.contato && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsFornecedor.contato.message}</p>}
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="servico-fornecedor" className="text-right">Serviço</Label>
-                                <Input id="servico-fornecedor" placeholder="Ex: Jardinagem" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="contato-fornecedor" className="text-right">Contato</Label>
-                                <Input id="contato-fornecedor" placeholder="Email ou telefone" className="col-span-3" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Salvar</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Salvar</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
               </div>
@@ -484,7 +609,7 @@ export default function CadastrosPage() {
              {/* Tab de Pets */}
              <TabsContent value="pets">
                <div className="flex justify-end mb-4">
-                <Dialog>
+                <Dialog open={openPet} onOpenChange={setOpenPet}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2" />Adicionar Pet</Button>
                     </DialogTrigger>
@@ -493,34 +618,40 @@ export default function CadastrosPage() {
                             <DialogTitle>Novo Pet</DialogTitle>
                             <DialogDescription>Insira os dados do pet.</DialogDescription>
                         </DialogHeader>
-                         <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="nome-pet" className="text-right">Nome</Label>
-                                <Input id="nome-pet" placeholder="Nome do animal" className="col-span-3" />
+                         <form onSubmit={handleSubmitPet(onPetSubmit)}>
+                             <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="nome-pet" className="text-right">Nome</Label>
+                                    <Input id="nome-pet" placeholder="Nome do animal" className="col-span-3" {...registerPet("nome")} />
+                                </div>
+                                {errorsPet.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsPet.nome.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="raca-pet" className="text-right">Raça</Label>
+                                    <Input id="raca-pet" placeholder="Ex: Labrador" className="col-span-3" {...registerPet("raca")} />
+                                </div>
+                                {errorsPet.raca && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsPet.raca.message}</p>}
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="porte-pet" className="text-right">Porte</Label>
+                                     <Select onValueChange={(value) => registerPet("porte").onChange({ target: { value } })}>
+                                        <SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="pequeno">Pequeno</SelectItem>
+                                            <SelectItem value="medio">Médio</SelectItem>
+                                            <SelectItem value="grande">Grande</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {errorsPet.porte && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsPet.porte.message}</p>}
+                                 <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="unidade-pet" className="text-right">Unidade</Label>
+                                    <Input id="unidade-pet" placeholder="Ex: Apto 101" className="col-span-3" {...registerPet("unidade")} />
+                                </div>
+                                {errorsPet.unidade && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsPet.unidade.message}</p>}
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="raca-pet" className="text-right">Raça</Label>
-                                <Input id="raca-pet" placeholder="Ex: Labrador" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="porte-pet" className="text-right">Porte</Label>
-                                 <Select>
-                                    <SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="pequeno">Pequeno</SelectItem>
-                                        <SelectItem value="medio">Médio</SelectItem>
-                                        <SelectItem value="grande">Grande</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="unidade-pet" className="text-right">Unidade</Label>
-                                <Input id="unidade-pet" placeholder="Ex: Apto 101" className="col-span-3" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Salvar</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Salvar</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
               </div>
@@ -554,7 +685,7 @@ export default function CadastrosPage() {
             {/* Tab de Blocos */}
             <TabsContent value="blocos">
               <div className="flex justify-end mb-4">
-                <Dialog>
+                <Dialog open={openBloco} onOpenChange={setOpenBloco}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2" />Adicionar Bloco</Button>
                     </DialogTrigger>
@@ -563,19 +694,23 @@ export default function CadastrosPage() {
                             <DialogTitle>Novo Bloco</DialogTitle>
                             <DialogDescription>Insira os dados do novo bloco.</DialogDescription>
                         </DialogHeader>
-                         <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="nome-bloco" className="text-right">Nome</Label>
-                                <Input id="nome-bloco" placeholder="Ex: Bloco A" className="col-span-3" />
+                         <form onSubmit={handleSubmitBloco(onBlocoSubmit)}>
+                             <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="nome-bloco" className="text-right">Nome</Label>
+                                    <Input id="nome-bloco" placeholder="Ex: Bloco A" className="col-span-3" {...registerBloco("nome")} />
+                                </div>
+                                {errorsBloco.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsBloco.nome.message}</p>}
+                                 <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="unidades-bloco" className="text-right">Nº de Unidades</Label>
+                                    <Input id="unidades-bloco" type="number" placeholder="Ex: 40" className="col-span-3" {...registerBloco("unidades")} />
+                                </div>
+                                {errorsBloco.unidades && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsBloco.unidades.message}</p>}
                             </div>
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="unidades-bloco" className="text-right">Nº de Unidades</Label>
-                                <Input id="unidades-bloco" type="number" placeholder="Ex: 40" className="col-span-3" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Salvar</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Salvar</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
               </div>
