@@ -22,6 +22,7 @@ import {
   Dog,
   Trash2,
   Edit,
+  Blocks,
 } from "lucide-react";
 import {
   Sidebar,
@@ -91,6 +92,12 @@ const pets = [
     { id: 1, nome: "Rex", raca: "Labrador", porte: "Grande", unidade: "Apto 101" },
     { id: 2, nome: "Mimi", raca: "Siamês", porte: "Pequeno", unidade: "Apto 203" },
 ];
+
+const blocos = [
+    { id: 1, nome: "Bloco A", unidades: 40 },
+    { id: 2, nome: "Bloco B", unidades: 40 },
+];
+
 
 export default function CadastrosPage() {
   return (
@@ -208,6 +215,7 @@ export default function CadastrosPage() {
               <TabsTrigger value="veiculos"><Car className="mr-2"/>Veículos</TabsTrigger>
               <TabsTrigger value="fornecedores"><Truck className="mr-2"/>Fornecedores</TabsTrigger>
               <TabsTrigger value="pets"><Dog className="mr-2"/>Pets</TabsTrigger>
+              <TabsTrigger value="blocos"><Blocks className="mr-2"/>Blocos</TabsTrigger>
             </TabsList>
             
             {/* Tab de Moradores */}
@@ -535,6 +543,58 @@ export default function CadastrosPage() {
                 </TableBody>
               </Table>
             </TabsContent>
+
+            {/* Tab de Blocos */}
+            <TabsContent value="blocos">
+              <div className="flex justify-end mb-4">
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button><PlusCircle className="mr-2" />Adicionar Bloco</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Novo Bloco</DialogTitle>
+                            <DialogDescription>Insira os dados do novo bloco.</DialogDescription>
+                        </DialogHeader>
+                         <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="nome-bloco" className="text-right">Nome</Label>
+                                <Input id="nome-bloco" placeholder="Ex: Bloco A" className="col-span-3" />
+                            </div>
+                             <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="unidades-bloco" className="text-right">Nº de Unidades</Label>
+                                <Input id="unidades-bloco" type="number" placeholder="Ex: 40" className="col-span-3" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="submit">Salvar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+              </div>
+              <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Nome do Bloco</TableHead>
+                        <TableHead>Nº de Unidades</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                     {blocos.map(b => (
+                        <TableRow key={b.id}>
+                            <TableCell>{b.nome}</TableCell>
+                            <TableCell>{b.unidades}</TableCell>
+                            <TableCell className="text-right space-x-2">
+                                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                                <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
           </Tabs>
         </main>
       </SidebarInset>
