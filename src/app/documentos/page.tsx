@@ -1,3 +1,4 @@
+
 import {
   Home,
   Megaphone,
@@ -141,4 +142,8 @@ export default function DocumentosPage() {
           <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Conteúdo da página de documentos.</p>
           </div>
-        </
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
