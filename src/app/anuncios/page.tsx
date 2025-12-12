@@ -13,6 +13,7 @@ import {
   PlusCircle,
   Image as ImageIcon,
   Send,
+  Phone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -98,6 +99,12 @@ export default function AnunciosPage() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/chamados">
+                <Phone />
+                Chamados
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -259,5 +266,3 @@ export default function AnunciosPage() {
     </SidebarProvider>
   );
 }
-
-    

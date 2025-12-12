@@ -6,6 +6,7 @@ import {
   Home,
   Megaphone,
   Package,
+  Phone,
   Search,
   Settings,
   Users,
@@ -88,6 +89,12 @@ export default function Dashboard() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/chamados">
+                <Phone />
+                Chamados
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>

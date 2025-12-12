@@ -8,6 +8,7 @@ import {
   Contact,
   Settings,
   Search,
+  Phone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -74,6 +75,12 @@ export default function ReservasPage() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/chamados">
+                <Phone />
+                Chamados
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>
