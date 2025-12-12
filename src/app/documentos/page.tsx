@@ -1,4 +1,6 @@
 
+"use client";
+
 import {
   Home,
   Megaphone,
@@ -13,6 +15,10 @@ import {
   KeyRound,
   BookUser,
   Building,
+  Upload,
+  Download,
+  Eye,
+  FileUp,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,6 +35,78 @@ import { Logo } from "@/components/logo";
 import { Input } from "@/components/ui/input";
 import { UserNav } from "@/components/user-nav";
 import { ActiveLink } from "@/components/active-link";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+
+const balancetes = [
+    {
+        name: "Balancete Mensal - Junho 2024",
+        date: "05/07/2024",
+        size: "1.2 MB",
+    },
+    {
+        name: "Balancete Mensal - Maio 2024",
+        date: "04/06/2024",
+        size: "1.1 MB",
+    },
+    {
+        name: "Balancete Mensal - Abril 2024",
+        date: "05/05/2024",
+        size: "1.3 MB",
+    }
+];
+
+const atas = [
+    {
+        name: "Ata da Assembleia Geral Ordinária - 30/07/2024",
+        date: "01/08/2024",
+        size: "800 KB",
+    },
+    {
+        name: "Ata da Reunião do Conselho - 15/05/2024",
+        date: "16/05/2024",
+        size: "450 KB",
+    },
+];
+
+const regimento = [
+     {
+        name: "Regimento Interno - Versão 2023",
+        date: "10/01/2023",
+        size: "2.5 MB",
+    },
+    {
+        name: "Convenção do Condomínio - Versão 2020",
+        date: "15/02/2020",
+        size: "3.1 MB",
+    }
+]
+
 
 export default function DocumentosPage() {
   return (
@@ -135,15 +213,151 @@ export default function DocumentosPage() {
                 />
               </div>
             </form>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Upload />
+                  Carregar Documento
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Carregar Novo Documento</DialogTitle>
+                  <DialogDescription>
+                    Faça o upload de um novo documento para o condomínio.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="doc-name" className="text-right">
+                      Nome
+                    </Label>
+                    <Input id="doc-name" placeholder="Ex: Balancete de Agosto 2024" className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="doc-type" className="text-right">
+                      Tipo
+                    </Label>
+                    <Select>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="balancete">Balancete</SelectItem>
+                        <SelectItem value="ata">Ata</SelectItem>
+                        <SelectItem value="regimento">Regimento/Convenção</SelectItem>
+                        <SelectItem value="outro">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Arquivo</Label>
+                    <div className="col-span-3">
+                        <Button variant="outline">
+                            <FileUp className="mr-2" />
+                            Selecionar Arquivo
+                        </Button>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit">
+                    <Upload className="mr-2" />
+                    Enviar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <UserNav />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">Conteúdo da página de documentos.</p>
-          </div>
+            <Tabs defaultValue="balancetes">
+              <TabsList>
+                <TabsTrigger value="balancetes">Balancetes</TabsTrigger>
+                <TabsTrigger value="atas">Atas</TabsTrigger>
+                <TabsTrigger value="regimento">Regimento e Convenções</TabsTrigger>
+              </TabsList>
+              <TabsContent value="balancetes">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome do Arquivo</TableHead>
+                            <TableHead className="w-[150px]">Data de Publicação</TableHead>
+                            <TableHead className="w-[120px]">Tamanho</TableHead>
+                            <TableHead className="w-[180px] text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {balancetes.map((doc) => (
+                             <TableRow key={doc.name}>
+                                <TableCell className="font-medium">{doc.name}</TableCell>
+                                <TableCell>{doc.date}</TableCell>
+                                <TableCell>{doc.size}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="sm"><Eye /> Visualizar</Button>
+                                    <Button variant="secondary" size="sm"><Download /> Baixar</Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+              </TabsContent>
+              <TabsContent value="atas">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome do Arquivo</TableHead>
+                            <TableHead className="w-[150px]">Data de Publicação</TableHead>
+                            <TableHead className="w-[120px]">Tamanho</TableHead>
+                            <TableHead className="w-[180px] text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {atas.map((doc) => (
+                             <TableRow key={doc.name}>
+                                <TableCell className="font-medium">{doc.name}</TableCell>
+                                <TableCell>{doc.date}</TableCell>
+                                <TableCell>{doc.size}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="sm"><Eye /> Visualizar</Button>
+                                    <Button variant="secondary" size="sm"><Download /> Baixar</Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+              </TabsContent>
+              <TabsContent value="regimento">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome do Arquivo</TableHead>
+                            <TableHead className="w-[150px]">Data de Publicação</TableHead>
+                            <TableHead className="w-[120px]">Tamanho</TableHead>
+                            <TableHead className="w-[180px] text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {regimento.map((doc) => (
+                             <TableRow key={doc.name}>
+                                <TableCell className="font-medium">{doc.name}</TableCell>
+                                <TableCell>{doc.date}</TableCell>
+                                <TableCell>{doc.size}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="sm"><Eye /> Visualizar</Button>
+                                    <Button variant="secondary" size="sm"><Download /> Baixar</Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+              </TabsContent>
+            </Tabs>
         </main>
       </SidebarInset>
     </SidebarProvider>
   );
 }
+
+    
