@@ -7,7 +7,7 @@ import {
   Users,
   AlertTriangle,
   Package,
-  Contact,
+  FileText,
   Settings,
   Search,
   Vote,
@@ -77,9 +77,9 @@ export default function CadastrosPage() {
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <ActiveLink href="/diretorio">
-                <Contact />
-                Diretório
+              <ActiveLink href="/documentos">
+                <FileText />
+                Documentos
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>
@@ -145,6 +145,4 @@ export default function CadastrosPage() {
           </div>
         </main>
       </SidebarInset>
-    </SidebarProvider>
-  );
-}
+    </Sidebar

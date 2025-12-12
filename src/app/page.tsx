@@ -4,7 +4,7 @@ import {
   BookUser,
   Building,
   CalendarDays,
-  Contact,
+  FileText,
   Home,
   KeyRound,
   Megaphone,
@@ -86,9 +86,9 @@ export default function Dashboard() {
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <ActiveLink href="/diretorio">
-                <Contact />
-                Diretório
+              <ActiveLink href="/documentos">
+                <FileText />
+                Documentos
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>

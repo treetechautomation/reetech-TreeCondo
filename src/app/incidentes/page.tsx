@@ -8,7 +8,7 @@ import {
   Users,
   AlertTriangle,
   Package,
-  Contact,
+  FileText,
   Settings,
   Search,
   Vote,
@@ -100,9 +100,9 @@ export default function IncidentesPage() {
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <ActiveLink href="/diretorio">
-                <Contact />
-                Diretório
+              <ActiveLink href="/documentos">
+                <FileText />
+                Documentos
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>

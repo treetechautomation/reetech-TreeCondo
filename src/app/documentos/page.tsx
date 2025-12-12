@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Home,
   Megaphone,
@@ -31,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { UserNav } from "@/components/user-nav";
 import { ActiveLink } from "@/components/active-link";
 
-export default function AcessoPage() {
+export default function DocumentosPage() {
   return (
     <SidebarProvider>
       <Sidebar>
@@ -123,7 +121,7 @@ export default function AcessoPage() {
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Controle de Acesso
+            Documentos do Condomínio
           </h1>
           <div className="ml-auto flex items-center gap-4">
             <form>
@@ -131,7 +129,7 @@ export default function AcessoPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Pesquisar..."
+                  placeholder="Pesquisar documentos..."
                   className="w-full appearance-none bg-background pl-8 shadow-none md:w-[200px] lg:w-[320px]"
                 />
               </div>
@@ -141,7 +139,6 @@ export default function AcessoPage() {
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
           <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">Conteúdo da página de controle de acesso.</p>
+              <p className="text-muted-foreground">Conteúdo da página de documentos.</p>
           </div>
-        </main>
-      </SidebarInset
+        </

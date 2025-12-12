@@ -5,7 +5,7 @@ import {
   Users,
   AlertTriangle,
   Package,
-  Contact,
+  FileText,
   Settings,
   Search,
   Vote,
@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { UserNav } from "@/components/user-nav";
 import { ActiveLink } from "@/components/active-link";
 
-export default function DiretorioPage() {
+export default function ConfiguracoesPage() {
   return (
     <SidebarProvider>
       <Sidebar>
@@ -75,9 +75,9 @@ export default function DiretorioPage() {
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <ActiveLink href="/diretorio">
-                <Contact />
-                Diretório
+              <ActiveLink href="/documentos">
+                <FileText />
+                Documentos
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>
@@ -121,7 +121,7 @@ export default function DiretorioPage() {
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Diretório
+            Configurações
           </h1>
           <div className="ml-auto flex items-center gap-4">
             <form>
@@ -139,7 +139,7 @@ export default function DiretorioPage() {
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
           <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">Conteúdo da página do diretório.</p>
+              <p className="text-muted-foreground">Conteúdo da página de configurações.</p>
           </div>
         </main>
       </SidebarInset>

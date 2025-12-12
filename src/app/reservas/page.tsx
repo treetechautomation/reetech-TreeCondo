@@ -1,3 +1,4 @@
+
 import {
   Home,
   Megaphone,
@@ -5,7 +6,7 @@ import {
   Users,
   AlertTriangle,
   Package,
-  Contact,
+  FileText,
   Settings,
   Search,
   Vote,
@@ -75,9 +76,9 @@ export default function ReservasPage() {
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <ActiveLink href="/diretorio">
-                <Contact />
-                Diretório
+              <ActiveLink href="/documentos">
+                <FileText />
+                Documentos
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>
