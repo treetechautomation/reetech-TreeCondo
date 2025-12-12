@@ -7,14 +7,13 @@ import {
   Users,
   AlertTriangle,
   Package,
-  Contact,
+  FileText,
   Settings,
   Search,
   Vote,
   KeyRound,
   BookUser,
   Building,
-  FileText,
   Shield,
 } from "lucide-react";
 import {
@@ -33,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { UserNav } from "@/components/user-nav";
 import { ActiveLink } from "@/components/active-link";
 
-export default function ChamadosPage() {
+export default function AdministradorGlobalPage() {
   return (
     <SidebarProvider>
       <Sidebar>
@@ -108,7 +107,7 @@ export default function ChamadosPage() {
                 Gestão de Condomínios
               </ActiveLink>
             </SidebarMenuItem>
-             <SidebarMenuItem>
+            <SidebarMenuItem>
               <ActiveLink href="/administrador-global">
                 <Shield />
                 Administrador Global
@@ -131,7 +130,7 @@ export default function ChamadosPage() {
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Chamados
+            Administrador Global
           </h1>
           <div className="ml-auto flex items-center gap-4">
             <form>
@@ -149,7 +148,7 @@ export default function ChamadosPage() {
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
           <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">Conteúdo da página de chamados.</p>
+              <p className="text-muted-foreground">Conteúdo da página de administrador global.</p>
           </div>
         </main>
       </SidebarInset>

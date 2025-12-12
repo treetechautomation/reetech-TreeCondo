@@ -8,7 +8,7 @@ import {
   Users,
   AlertTriangle,
   Package,
-  Contact,
+  FileText,
   Settings,
   Search,
   Vote,
@@ -17,7 +17,8 @@ import {
   Building,
   PlusCircle,
   FileDown,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -108,9 +109,9 @@ export default function ReunioesPage() {
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <ActiveLink href="/diretorio">
-                <Contact />
-                Diretório
+              <ActiveLink href="/documentos">
+                <FileText />
+                Documentos
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>
@@ -135,6 +136,12 @@ export default function ReunioesPage() {
               <ActiveLink href="/condominios">
                 <Building />
                 Gestão de Condomínios
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/administrador-global">
+                <Shield />
+                Administrador Global
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>

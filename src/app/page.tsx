@@ -11,6 +11,7 @@ import {
   Package,
   Search,
   Settings,
+  Shield,
   Users,
   Vote,
 } from "lucide-react";
@@ -113,6 +114,12 @@ export default function Dashboard() {
               <ActiveLink href="/condominios">
                 <Building />
                 Gestão de Condomínios
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/administrador-global">
+                <Shield />
+                Administrador Global
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>

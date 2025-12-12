@@ -19,6 +19,7 @@ import {
   Download,
   Eye,
   FileUp,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -181,6 +182,12 @@ export default function DocumentosPage() {
               <ActiveLink href="/condominios">
                 <Building />
                 Gestão de Condomínios
+              </ActiveLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <ActiveLink href="/administrador-global">
+                <Shield />
+                Administrador Global
               </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>
