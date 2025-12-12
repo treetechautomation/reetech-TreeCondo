@@ -280,4 +280,10 @@ export default function AnunciosPage() {
                         O controle de pragas trimestral está agendado para 1º de Agosto. Por favor, garantam que as áreas comuns e, se necessário, suas unidades, estejam acessíveis para a equipe.
                         </p>
                     </CardContent>
-                </Card
+                </Card>
+            </div>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
