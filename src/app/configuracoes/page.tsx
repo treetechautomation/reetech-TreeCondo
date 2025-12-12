@@ -8,7 +8,6 @@ import {
   Contact,
   Settings,
   Search,
-  Phone,
   Vote,
   KeyRound,
   BookUser,
@@ -66,7 +65,7 @@ export default function ConfiguracoesPage() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Incidentes
+                Chamados e Incidentes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -79,12 +78,6 @@ export default function ConfiguracoesPage() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/chamados">
-                <Phone />
-                Chamados
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>

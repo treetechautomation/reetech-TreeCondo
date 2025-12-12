@@ -13,7 +13,6 @@ import {
   PlusCircle,
   Image as ImageIcon,
   Send,
-  Phone,
   Vote,
   KeyRound,
   BookUser,
@@ -90,7 +89,7 @@ export default function AnunciosPage() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Incidentes
+                Chamados e Incidentes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -103,12 +102,6 @@ export default function AnunciosPage() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/chamados">
-                <Phone />
-                Chamados
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>

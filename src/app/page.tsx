@@ -9,7 +9,6 @@ import {
   KeyRound,
   Megaphone,
   Package,
-  Phone,
   Search,
   Settings,
   Users,
@@ -77,7 +76,7 @@ export default function Dashboard() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Incidentes
+                Chamados e Incidentes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -90,12 +89,6 @@ export default function Dashboard() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/chamados">
-                <Phone />
-                Chamados
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>

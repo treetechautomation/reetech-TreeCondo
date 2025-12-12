@@ -11,15 +11,13 @@ import {
   Contact,
   Settings,
   Search,
-  Phone,
   Vote,
   KeyRound,
   BookUser,
   Building,
   PlusCircle,
   FileDown,
-  Calendar as CalendarIcon,
-  Clock
+  Calendar as CalendarIcon
 } from "lucide-react";
 import {
   Sidebar,
@@ -100,7 +98,7 @@ export default function ReunioesPage() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Incidentes
+                Chamados e Incidentes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -113,12 +111,6 @@ export default function ReunioesPage() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/chamados">
-                <Phone />
-                Chamados
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>

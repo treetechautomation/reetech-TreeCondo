@@ -8,7 +8,6 @@ import {
   Contact,
   Settings,
   Search,
-  Phone,
   Vote,
   KeyRound,
   BookUser,
@@ -66,7 +65,7 @@ export default function IncidentesPage() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Incidentes
+                Chamados e Incidentes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -79,12 +78,6 @@ export default function IncidentesPage() {
               <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/chamados">
-                <Phone />
-                Chamados
               </ActiveLink>
             </SidebarMenuItem>
              <SidebarMenuItem>
@@ -128,7 +121,7 @@ export default function IncidentesPage() {
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Incidentes
+            Chamados e Incidentes
           </h1>
           <div className="ml-auto flex items-center gap-4">
             <form>
@@ -146,7 +139,7 @@ export default function IncidentesPage() {
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
           <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">Conteúdo da página de incidentes.</p>
+              <p className="text-muted-foreground">Conteúdo da página de chamados e incidentes.</p>
           </div>
         </main>
       </SidebarInset>
