@@ -11,7 +11,6 @@ import {
   Users,
 } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Card,
   CardContent,
@@ -38,6 +37,7 @@ import { Overview } from "@/components/dashboard/overview";
 import { RecentAnnouncements } from "@/components/dashboard/recent-announcements";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ActiveLink } from "@/components/active-link";
 
 export default function Dashboard() {
   return (
@@ -49,56 +49,56 @@ export default function Dashboard() {
         <SidebarContent>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#" isActive>
+              <ActiveLink href="/">
                 <Home />
                 Painel
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/anuncios">
                 <Megaphone />
                 Anúncios
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/reservas">
                 <CalendarDays />
                 Reservas
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/reunioes">
                 <Users />
                 Reuniões
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/incidentes">
                 <AlertTriangle />
                 Incidentes
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/encomendas">
                 <Package />
                 Encomendas
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/diretorio">
                 <Contact />
                 Diretório
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
            <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#">
+              <ActiveLink href="/configuracoes">
                 <Settings />
                 Configurações
-              </SidebarMenuButton>
+              </ActiveLink>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
