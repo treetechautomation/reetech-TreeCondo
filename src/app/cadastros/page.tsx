@@ -292,7 +292,38 @@ export default function CadastrosPage() {
             {/* Tab de Funcionários */}
              <TabsContent value="funcionarios">
               <div className="flex justify-end mb-4">
-                <Button disabled><PlusCircle className="mr-2" />Adicionar Funcionário</Button>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button><PlusCircle className="mr-2" />Adicionar Funcionário</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Novo Funcionário</DialogTitle>
+                            <DialogDescription>Insira os dados do novo funcionário.</DialogDescription>
+                        </DialogHeader>
+                         <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="nome-funcionario" className="text-right">Nome</Label>
+                                <Input id="nome-funcionario" placeholder="Nome completo" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="cargo-funcionario" className="text-right">Cargo</Label>
+                                <Input id="cargo-funcionario" placeholder="Ex: Zelador" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="horario-funcionario" className="text-right">Horário</Label>
+                                <Input id="horario-funcionario" placeholder="Ex: 08:00 - 17:00" className="col-span-3" />
+                            </div>
+                             <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="contato-funcionario" className="text-right">Contato</Label>
+                                <Input id="contato-funcionario" placeholder="(99) 99999-9999" className="col-span-3" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="submit">Salvar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
               </div>
               <Table>
                 <TableHeader>
@@ -312,8 +343,8 @@ export default function CadastrosPage() {
                             <TableCell>{f.horario}</TableCell>
                              <TableCell>{f.contato}</TableCell>
                             <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon" disabled><Edit className="h-4 w-4"/></Button>
-                                <Button variant="destructive" size="icon" disabled><Trash2 className="h-4 w-4"/></Button>
+                                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                                <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
                             </TableCell>
                         </TableRow>
                     ))}
@@ -324,7 +355,34 @@ export default function CadastrosPage() {
             {/* Tab de Veículos */}
              <TabsContent value="veiculos">
                <div className="flex justify-end mb-4">
-                <Button disabled><PlusCircle className="mr-2" />Adicionar Veículo</Button>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button><PlusCircle className="mr-2" />Adicionar Veículo</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Novo Veículo</DialogTitle>
+                            <DialogDescription>Insira os dados do novo veículo.</DialogDescription>
+                        </DialogHeader>
+                         <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="placa-veiculo" className="text-right">Placa</Label>
+                                <Input id="placa-veiculo" placeholder="ABC-1234" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="modelo-veiculo" className="text-right">Modelo</Label>
+                                <Input id="modelo-veiculo" placeholder="Ex: Honda Civic" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="unidade-veiculo" className="text-right">Unidade</Label>
+                                <Input id="unidade-veiculo" placeholder="Ex: Apto 101" className="col-span-3" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="submit">Salvar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
               </div>
               <Table>
                 <TableHeader>
@@ -342,8 +400,8 @@ export default function CadastrosPage() {
                             <TableCell>{v.modelo}</TableCell>
                             <TableCell>{v.unidade}</TableCell>
                             <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon" disabled><Edit className="h-4 w-4"/></Button>
-                                <Button variant="destructive" size="icon" disabled><Trash2 className="h-4 w-4"/></Button>
+                                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                                <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
                             </TableCell>
                         </TableRow>
                     ))}
@@ -354,7 +412,34 @@ export default function CadastrosPage() {
              {/* Tab de Fornecedores */}
              <TabsContent value="fornecedores">
                <div className="flex justify-end mb-4">
-                <Button disabled><PlusCircle className="mr-2" />Adicionar Fornecedor</Button>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button><PlusCircle className="mr-2" />Adicionar Fornecedor</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Novo Fornecedor</DialogTitle>
+                            <DialogDescription>Insira os dados do novo fornecedor.</DialogDescription>
+                        </DialogHeader>
+                         <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="nome-fornecedor" className="text-right">Nome</Label>
+                                <Input id="nome-fornecedor" placeholder="Nome da empresa" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="servico-fornecedor" className="text-right">Serviço</Label>
+                                <Input id="servico-fornecedor" placeholder="Ex: Jardinagem" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="contato-fornecedor" className="text-right">Contato</Label>
+                                <Input id="contato-fornecedor" placeholder="Email ou telefone" className="col-span-3" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="submit">Salvar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
               </div>
               <Table>
                 <TableHeader>
@@ -372,8 +457,8 @@ export default function CadastrosPage() {
                             <TableCell>{f.servico}</TableCell>
                             <TableCell>{f.contato}</TableCell>
                             <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon" disabled><Edit className="h-4 w-4"/></Button>
-                                <Button variant="destructive" size="icon" disabled><Trash2 className="h-4 w-4"/></Button>
+                                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                                <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
                             </TableCell>
                         </TableRow>
                     ))}
@@ -384,7 +469,45 @@ export default function CadastrosPage() {
              {/* Tab de Pets */}
              <TabsContent value="pets">
                <div className="flex justify-end mb-4">
-                <Button disabled><PlusCircle className="mr-2" />Adicionar Pet</Button>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button><PlusCircle className="mr-2" />Adicionar Pet</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Novo Pet</DialogTitle>
+                            <DialogDescription>Insira os dados do pet.</DialogDescription>
+                        </DialogHeader>
+                         <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="nome-pet" className="text-right">Nome</Label>
+                                <Input id="nome-pet" placeholder="Nome do animal" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="raca-pet" className="text-right">Raça</Label>
+                                <Input id="raca-pet" placeholder="Ex: Labrador" className="col-span-3" />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="porte-pet" className="text-right">Porte</Label>
+                                 <Select>
+                                    <SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="pequeno">Pequeno</SelectItem>
+                                        <SelectItem value="medio">Médio</SelectItem>
+                                        <SelectItem value="grande">Grande</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="unidade-pet" className="text-right">Unidade</Label>
+                                <Input id="unidade-pet" placeholder="Ex: Apto 101" className="col-span-3" />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="submit">Salvar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
               </div>
               <Table>
                 <TableHeader>
@@ -404,8 +527,8 @@ export default function CadastrosPage() {
                             <TableCell>{p.porte}</TableCell>
                             <TableCell>{p.unidade}</TableCell>
                             <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon" disabled><Edit className="h-4 w-4"/></Button>
-                                <Button variant="destructive" size="icon" disabled><Trash2 className="h-4 w-4"/></Button>
+                                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                                <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
                             </TableCell>
                         </TableRow>
                     ))}
