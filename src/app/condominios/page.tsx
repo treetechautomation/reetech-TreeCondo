@@ -44,6 +44,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -54,13 +65,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCondominios } from "@/hooks/useCondominios";
-import { useFirestore } from "@/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { useFirestore, useUser } from "@/firebase";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React from "react";
 import { toast } from "@/hooks/use-toast";
+import { criarCondominio, deletarCondominio } from "@/firebase/firestore/condominios.service";
 
 const condominioSchema = z.object({
   nome: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
@@ -75,6 +86,7 @@ type CondominioFormData = z.infer<typeof condominioSchema>;
 export default function CondominiosPage() {
     const { data: condominios, loading } = useCondominios();
     const firestore = useFirestore();
+    const { user } = useUser();
     const [open, setOpen] = React.useState(false);
 
     const { register, handleSubmit, formState: { errors }, reset } = useForm<CondominioFormData>({
@@ -82,12 +94,13 @@ export default function CondominiosPage() {
     });
 
     const onSubmit = async (data: CondominioFormData) => {
+        if (!user) {
+            toast({ variant: "destructive", title: "Erro", description: "Você precisa estar logado para criar um condomínio." });
+            return;
+        }
+
         try {
-            await addDoc(collection(firestore, "condominios"), {
-                ...data,
-                ativo: true,
-                createdAt: serverTimestamp(),
-            });
+            await criarCondominio(firestore, user.uid, data);
             toast({ title: "Condomínio adicionado com sucesso!" });
             reset();
             setOpen(false);
@@ -100,6 +113,20 @@ export default function CondominiosPage() {
             });
         }
     };
+
+    const handleDelete = async (condominioId: string) => {
+        try {
+            await deletarCondominio(firestore, condominioId);
+            toast({ title: "Condomínio excluído com sucesso!" });
+        } catch (error) {
+             console.error("Erro ao excluir condomínio: ", error);
+             toast({
+                variant: "destructive",
+                title: "Erro",
+                description: "Não foi possível excluir o condomínio.",
+            });
+        }
+    }
 
 
   return (
@@ -321,9 +348,27 @@ export default function CondominiosPage() {
                         <Button variant="outline" size="icon">
                         <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="destructive" size="icon">
-                        <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="icon">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Essa ação não pode ser desfeita. Isso excluirá permanentemente o condomínio.
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(condo.id)}>
+                                    Excluir
+                                </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </TableCell>
                     </TableRow>
                 ))
