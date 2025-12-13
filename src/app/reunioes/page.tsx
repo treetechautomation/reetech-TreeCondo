@@ -99,7 +99,7 @@ export default function ReunioesPage() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Chamados e Incidentes
+                Incidentes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -117,25 +117,25 @@ export default function ReunioesPage() {
              <SidebarMenuItem>
               <ActiveLink href="/enquetes">
                 <Vote />
-                Enquetes e Votações
+                Enquetes
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <ActiveLink href="/acesso">
                 <KeyRound />
-                Controle de Acesso
+                Acesso
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <ActiveLink href="/cadastros">
                 <BookUser />
-                Gestão de Cadastro
+                Cadastros
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <ActiveLink href="/condominios">
                 <Building />
-                Gestão de Condomínios
+                Condomínios
               </ActiveLink>
             </SidebarMenuItem>
             <SidebarMenuItem>

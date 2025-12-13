@@ -67,13 +67,13 @@ const modules = [
   { id: "anuncios", name: "Anúncios", icon: Megaphone, roles: { sindico: true, morador: true, porteiro: false } },
   { id: "reservas", name: "Reservas", icon: CalendarDays, roles: { sindico: true, morador: true, porteiro: false } },
   { id: "reunioes", name: "Reuniões", icon: Users, roles: { sindico: true, morador: true, porteiro: false } },
-  { id: "incidentes", name: "Chamados e Incidentes", icon: AlertTriangle, roles: { sindico: true, morador: true, porteiro: true } },
+  { id: "incidentes", name: "Incidentes", icon: AlertTriangle, roles: { sindico: true, morador: true, porteiro: true } },
   { id: "encomendas", name: "Encomendas", icon: Package, roles: { sindico: true, morador: true, porteiro: true } },
   { id: "documentos", name: "Documentos", icon: FileText, roles: { sindico: true, morador: true, porteiro: false } },
-  { id: "enquetes", name: "Enquetes e Votações", icon: Vote, roles: { sindico: true, morador: true, porteiro: false } },
-  { id: "acesso", name: "Controle de Acesso", icon: KeyRound, roles: { sindico: true, morador: true, porteiro: true } },
-  { id: "cadastros", name: "Gestão de Cadastro", icon: BookUser, roles: { sindico: true, morador: false, porteiro: false } },
-  { id: "condominios", name: "Gestão de Condomínios", icon: Building, roles: { sindico: false, morador: false, porteiro: false } },
+  { id: "enquetes", name: "Enquetes", icon: Vote, roles: { sindico: true, morador: true, porteiro: false } },
+  { id: "acesso", name: "Acesso", icon: KeyRound, roles: { sindico: true, morador: true, porteiro: true } },
+  { id: "cadastros", name: "Cadastros", icon: BookUser, roles: { sindico: true, morador: false, porteiro: false } },
+  { id: "condominios", name: "Condomínios", icon: Building, roles: { sindico: false, morador: false, porteiro: false } },
   { id: "configuracoes", name: "Configurações", icon: Settings, roles: { sindico: true, morador: true, porteiro: true } },
 ];
 
@@ -133,7 +133,7 @@ export default function AdministradorGlobalPage() {
             <SidebarMenuItem>
               <ActiveLink href="/incidentes">
                 <AlertTriangle />
-                Chamados e Incidentes
+                Incidentes
               </ActiveLink>
             </SidebarMenuItem>
 
@@ -154,28 +154,28 @@ export default function AdministradorGlobalPage() {
             <SidebarMenuItem>
               <ActiveLink href="/enquetes">
                 <Vote />
-                Enquetes e Votações
+                Enquetes
               </ActiveLink>
             </SidebarMenuItem>
 
             <SidebarMenuItem>
               <ActiveLink href="/acesso">
                 <KeyRound />
-                Controle de Acesso
+                Acesso
               </ActiveLink>
             </SidebarMenuItem>
 
             <SidebarMenuItem>
               <ActiveLink href="/cadastros">
                 <BookUser />
-                Gestão de Cadastro
+                Cadastros
               </ActiveLink>
             </SidebarMenuItem>
 
             <SidebarMenuItem>
               <ActiveLink href="/condominios">
                 <Building />
-                Gestão de Condomínios
+                Condomínios
               </ActiveLink>
             </SidebarMenuItem>
 
