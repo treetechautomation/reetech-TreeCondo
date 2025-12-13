@@ -32,7 +32,7 @@ service cloud.firestore {
     // Leitura permitida para usuários autenticados para listagem.
     match /condominios/{condominioId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
 
       // Sub-coleção de membros. Acesso de escrita restrito a síndicos e super_admins.
       match /membros/{uid} {
@@ -42,24 +42,26 @@ service cloud.firestore {
 
       // Documento de configuração do menu. Acesso de escrita para síndicos e super_admins.
       match /config/menu {
-        allow read: if isMember(condominioId);
+        allow read: if isMember(condominioId) || isSuperAdmin();
         allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin();
       }
       
       // Regra genérica para as demais sub-coleções (anuncios, reservas, etc.)
       match /{subcollection}/{docId} {
-        allow read, list: if isMember(condominioId);
-        allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin() || (subcollection == 'incidentes' && request.auth.uid == resource.data.createdBy);
+        allow read, list: if isMember(condominioId) || isSuperAdmin();
+        // A escrita é permitida para síndicos ou super_admins.
+        // Moradores/Porteiros podem criar incidentes, mas não editar outros dados.
+        allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin() || (subcollection == 'incidentes' && request.method == 'create');
       }
     }
 
     // Coleção de índice para consulta rápida dos vínculos do usuário.
-    // O usuário só pode ler seus próprios vínculos. A escrita é controlada por Cloud Functions (processo administrativo).
+    // O usuário só pode ler seus próprios vínculos. A escrita é controlada por Cloud Functions ou pelo super_admin.
     match /userCondominios/{uid} {
-      allow read, write: if request.auth.uid == uid;
+      allow read, write: if request.auth.uid == uid || isSuperAdmin();
       
       match /vinculos/{condominioId} {
-        allow read, list: if request.auth.uid == uid;
+        allow read, list: if request.auth.uid == uid || isSuperAdmin();
         allow write: if isSuperAdmin(); // Apenas super_admin pode vincular/desvincular
       }
     }
