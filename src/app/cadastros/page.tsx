@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -152,10 +153,15 @@ type BlocoFormData = z.infer<typeof blocoSchema>;
 
 export default function CadastrosPage() {
     const firestore = useFirestore();
-    // const residentsCollection = useMemoFirebase(() => collection(firestore, 'residents'), [firestore]);
-    // const { data: moradores, isLoading } = useCollection(residentsCollection);
-    const moradores: any[] = [];
-    const isLoading = true;
+    // FIXME: This needs to be a dynamic selection
+    const condominioId = "Ea5xIeIlcsLhTta3HSSQ"; 
+
+    const cadastrosRef = useMemoFirebase(() => {
+        if (!firestore || !condominioId) return null;
+        return collection(firestore, `condominios/${condominioId}/cadastros`);
+    }, [firestore, condominioId]);
+
+    const { data: moradores, isLoading } = useCollection(cadastrosRef);
     
     const [openMorador, setOpenMorador] = React.useState(false);
     const [openFuncionario, setOpenFuncionario] = React.useState(false);
@@ -178,10 +184,19 @@ export default function CadastrosPage() {
 
 
     const onMoradorSubmit = async (data: MoradorFormData) => {
-        // TODO: Implementar a lógica para adicionar morador em um condomínio específico
-        console.log(data);
-        toast({ title: "Funcionalidade de adicionar morador em implementação." });
-        setOpenMorador(false);
+        if (!cadastrosRef) {
+            toast({ title: "Erro", description: "Referência do condomínio não encontrada.", variant: "destructive" });
+            return;
+        }
+        try {
+            await addDoc(cadastrosRef, { ...data, type: 'morador' });
+            toast({ title: "Sucesso!", description: "Novo morador adicionado." });
+            setOpenMorador(false);
+            resetMorador();
+        } catch (error) {
+            console.error("Erro ao adicionar morador: ", error);
+            toast({ title: "Erro ao adicionar morador", description: "Tente novamente.", variant: "destructive" });
+        }
     };
     
     const onFuncionarioSubmit = (data: FuncionarioFormData) => { console.log(data); setOpenFuncionario(false); resetFuncionario(); };
@@ -328,43 +343,42 @@ export default function CadastrosPage() {
                         </DialogHeader>
                          <form onSubmit={handleSubmitMorador(onMoradorSubmit)}>
                              <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="nome-morador" className="text-right">Nome</Label>
-                                    <Input id="nome-morador" placeholder="Nome completo" className="col-span-3" {...registerMorador("nome")} />
+                                <div className="space-y-2">
+                                    <Label htmlFor="nome-morador">Nome</Label>
+                                    <Input id="nome-morador" placeholder="Nome completo" {...registerMorador("nome")} />
+                                    {errorsMorador.nome && <p className="text-xs text-destructive">{errorsMorador.nome.message}</p>}
                                 </div>
-                                 {errorsMorador.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.nome.message}</p>}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="unidade-morador" className="text-right">Unidade</Label>
-                                    <Input id="unidade-morador" placeholder="Ex: Apto 101" className="col-span-3" {...registerMorador("unidade")} />
+                                <div className="space-y-2">
+                                    <Label htmlFor="unidade-morador">Unidade</Label>
+                                    <Input id="unidade-morador" placeholder="Ex: Apto 101" {...registerMorador("unidade")} />
+                                    {errorsMorador.unidade && <p className="text-xs text-destructive">{errorsMorador.unidade.message}</p>}
                                 </div>
-                                 {errorsMorador.unidade && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.unidade.message}</p>}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="perfil-morador" className="text-right">Perfil</Label>
+                                <div className="space-y-2">
+                                    <Label htmlFor="perfil-morador">Perfil</Label>
                                     <Select onValueChange={(value) => registerMorador("perfil").onChange({ target: { value } })}>
-                                        <SelectTrigger className="col-span-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="proprietario">Proprietário</SelectItem>
                                             <SelectItem value="inquilino">Inquilino</SelectItem>
                                             <SelectItem value="sindico">Síndico</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    {errorsMorador.perfil && <p className="text-xs text-destructive">{errorsMorador.perfil.message}</p>}
                                 </div>
-                                {errorsMorador.perfil && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.perfil.message}</p>}
-                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="contato-morador" className="text-right">Contato</Label>
-                                    <Input id="contato-morador" placeholder="(99) 99999-9999" className="col-span-3" {...registerMorador("contato")} />
+                                 <div className="space-y-2">
+                                    <Label htmlFor="contato-morador">Contato</Label>
+                                    <Input id="contato-morador" placeholder="(99) 99999-9999" {...registerMorador("contato")} />
+                                    {errorsMorador.contato && <p className="text-xs text-destructive">{errorsMorador.contato.message}</p>}
                                 </div>
-                                {errorsMorador.contato && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.contato.message}</p>}
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="lgpd" className="text-right">LGPD</Label>
-                                    <div className="flex items-center space-x-2 col-span-3">
+                                <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
                                         <Checkbox id="lgpd-terms" onCheckedChange={(checked) => registerMorador("lgpd").onChange({ target: { checked } })}/>
                                         <label htmlFor="lgpd-terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                           Li e concordo com os termos.
+                                           Li e concordo com os termos da LGPD.
                                         </label>
                                     </div>
+                                    {errorsMorador.lgpd && <p className="text-xs text-destructive">{errorsMorador.lgpd.message}</p>}
                                 </div>
-                                 {errorsMorador.lgpd && <p className="col-start-2 col-span-3 text-xs text-destructive">{errorsMorador.lgpd.message}</p>}
                             </div>
                             <DialogFooter>
                                 <Button type="submit">Salvar</Button>
@@ -389,10 +403,10 @@ export default function CadastrosPage() {
                     ) : (
                         moradores?.map(m => (
                             <TableRow key={m.id}>
-                                <TableCell>{m.firstName} {m.lastName}</TableCell>
-                                <TableCell>{m.unitNumber}</TableCell>
-                                <TableCell>{m.profile}</TableCell>
-                                <TableCell>{m.phone}</TableCell>
+                                <TableCell>{m.nome}</TableCell>
+                                <TableCell>{m.unidade}</TableCell>
+                                <TableCell>{m.perfil}</TableCell>
+                                <TableCell>{m.contato}</TableCell>
                                 <TableCell className="text-right space-x-2">
                                     <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
                                     <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
@@ -734,3 +748,6 @@ export default function CadastrosPage() {
     </SidebarProvider>
   );
 }
+
+
+    
