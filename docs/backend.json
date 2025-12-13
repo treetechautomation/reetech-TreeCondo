@@ -1,478 +1,104 @@
 {
   "entities": {
-    "Resident": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Resident",
+    "Condominio": {
+      "title": "Condominio",
+      "description": "Representa um único condomínio dentro do sistema SaaS.",
       "type": "object",
-      "description": "Represents a resident within the condominium.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the resident."
-        },
-        "firstName": {
-          "type": "string",
-          "description": "The first name of the resident."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The last name of the resident."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the resident.",
-          "format": "email"
-        },
-        "phone": {
-          "type": "string",
-          "description": "The phone number of the resident."
-        },
-        "unitNumber": {
-          "type": "string",
-          "description": "The unit number of the resident."
-        }
+        "nome": { "type": "string", "description": "Nome do condomínio." },
+        "cnpj": { "type": "string", "description": "CNPJ do condomínio." },
+        "cep": { "type": "string", "description": "CEP do endereço do condomínio." },
+        "sindico": { "type": "string", "description": "Nome do síndico responsável." },
+        "contato": { "type": "string", "description": "Telefone ou e-mail de contato." },
+        "ativo": { "type": "boolean", "description": "Indica se o condomínio está ativo na plataforma." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Data de criação do registro." },
+        "createdBy": { "type": "string", "description": "UID do super_admin que criou o condomínio." }
       },
-      "required": [
-        "id",
-        "firstName",
-        "lastName",
-        "email",
-        "unitNumber"
-      ]
+      "required": ["nome", "ativo", "createdAt", "createdBy"]
     },
-    "Staff": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Staff",
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Perfil de usuário global, ligando um UID de autenticação a papéis em um ou mais condomínios.",
       "type": "object",
-      "description": "Represents a staff member of the condominium.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the staff member."
-        },
-        "firstName": {
-          "type": "string",
-          "description": "The first name of the staff member."
-        },
-        "lastName": {
-          "type": "string",
-          "description": "The last name of the staff member."
-        },
-        "email": {
-          "type": "string",
-          "description": "The email address of the staff member.",
-          "format": "email"
-        },
-        "phone": {
-          "type": "string",
-          "description": "The phone number of the staff member."
-        },
-        "position": {
-          "type": "string",
-          "description": "The job title or position of the staff member."
-        }
-      },
-      "required": [
-        "id",
-        "firstName",
-        "lastName",
-        "email",
-        "position"
-      ]
-    },
-    "Vehicle": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Vehicle",
-      "type": "object",
-      "description": "Represents a vehicle owned by a resident.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the vehicle."
-        },
-        "residentId": {
-          "type": "string",
-          "description": "Reference to Resident. (Relationship: Resident 1:N Vehicle)"
-        },
-        "make": {
-          "type": "string",
-          "description": "The make of the vehicle."
-        },
-        "model": {
-          "type": "string",
-          "description": "The model of the vehicle."
-        },
-        "year": {
-          "type": "number",
-          "description": "The year the vehicle was manufactured."
-        },
-        "licensePlate": {
-          "type": "string",
-          "description": "The license plate number of the vehicle."
-        }
-      },
-      "required": [
-        "id",
-        "residentId",
-        "make",
-        "model",
-        "year",
-        "licensePlate"
-      ]
-    },
-    "Package": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Package",
-      "type": "object",
-      "description": "Represents a package delivered to the condominium.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the package."
-        },
-        "residentId": {
-          "type": "string",
-          "description": "Reference to Resident. (Relationship: Resident 1:N Package)"
-        },
-        "trackingNumber": {
-          "type": "string",
-          "description": "The tracking number of the package."
-        },
-        "carrier": {
-          "type": "string",
-          "description": "The carrier that delivered the package (e.g., USPS, UPS, FedEx)."
-        },
-        "deliveryDate": {
-          "type": "string",
-          "description": "The date and time the package was delivered.",
-          "format": "date-time"
-        },
-        "pickupDate": {
-          "type": "string",
-          "description": "The date and time the package was picked up by the resident.",
-          "format": "date-time"
-        },
-        "receivedBy": {
-          "type": "string",
-          "description": "The staff member who received the package. (Reference to Staff if tracking who received it)"
-        }
-      },
-      "required": [
-        "id",
-        "residentId",
-        "trackingNumber",
-        "carrier",
-        "deliveryDate"
-      ]
-    },
-    "CommonArea": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "CommonArea",
-      "type": "object",
-      "description": "Represents a common area within the condominium that can be booked.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the common area."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the common area (e.g., Gym, Pool, Clubhouse)."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the common area."
-        },
-        "capacity": {
-          "type": "number",
-          "description": "The maximum capacity of the common area."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description",
-        "capacity"
-      ]
-    },
-    "Booking": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Booking",
-      "type": "object",
-      "description": "Represents a booking for a common area.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the booking."
-        },
-        "residentId": {
-          "type": "string",
-          "description": "Reference to Resident. (Relationship: Resident 1:N Booking)"
-        },
-        "commonAreaId": {
-          "type": "string",
-          "description": "Reference to CommonArea. (Relationship: CommonArea 1:N Booking)"
-        },
-        "startTime": {
-          "type": "string",
-          "description": "The start date and time of the booking.",
-          "format": "date-time"
-        },
-        "endTime": {
-          "type": "string",
-          "description": "The end date and time of the booking.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The status of the booking (e.g., Pending, Approved, Cancelled)."
-        }
-      },
-      "required": [
-        "id",
-        "residentId",
-        "commonAreaId",
-        "startTime",
-        "endTime",
-        "status"
-      ]
-    },
-    "Incident": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Incident",
-      "type": "object",
-      "description": "Represents an incident reported by a resident or staff member.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the incident."
-        },
-        "reporterId": {
-          "type": "string",
-          "description": "Reference to Resident or Staff who reported the incident.  (Can determine the table via a prefix or separate fields)"
-        },
-        "incidentType": {
-          "type": "string",
-          "description": "The type of incident (e.g., Maintenance Request, Complaint, Security Issue)."
-        },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the incident."
-        },
-        "location": {
-          "type": "string",
-          "description": "The location where the incident occurred."
-        },
-        "dateReported": {
-          "type": "string",
-          "description": "The date and time the incident was reported.",
-          "format": "date-time"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the incident (e.g., Open, In Progress, Resolved)."
-        }
-      },
-      "required": [
-        "id",
-        "reporterId",
-        "incidentType",
-        "description",
-        "location",
-        "dateReported",
-        "status"
-      ]
-    },
-    "Meeting": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Meeting",
-      "type": "object",
-      "description": "Represents a meeting or assembly.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the meeting."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the meeting."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the meeting."
-        },
-        "startTime": {
-          "type": "string",
-          "description": "The start date and time of the meeting.",
-          "format": "date-time"
-        },
-        "endTime": {
-          "type": "string",
-          "description": "The end date and time of the meeting.",
-          "format": "date-time"
-        },
-        "attendeeIds": {
-          "type": "array",
-          "description": "References to Residents attending the meeting. (Relationship: Meeting 1:N Resident)",
-          "items": {
-            "type": "string"
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "condominios": {
+          "type": "object",
+          "description": "Mapa de condomínios aos quais o usuário pertence, com seu papel em cada um.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["sindico", "morador", "porteiro"]
           }
         }
       },
-      "required": [
-        "id",
-        "title",
-        "description",
-        "startTime",
-        "endTime"
-      ]
+      "required": ["displayName", "email", "condominios"]
+    },
+    "Resident": {
+      "title": "Resident",
+      "description": "Representa um morador dentro de um condomínio específico.",
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "unitNumber": { "type": "string" }
+      },
+      "required": ["firstName", "lastName", "email", "unitNumber"]
+    },
+    "Staff": {
+      "title": "Staff",
+      "description": "Representa um funcionário de um condomínio específico.",
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "position": { "type": "string" }
+      },
+      "required": ["firstName", "lastName", "email", "position"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"],
+    "customClaims": ["super_admin"]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/residents/{residentId}",
+        "path": "/condominios/{condominioId}",
+        "definition": {
+          "entityName": "Condominio",
+          "schema": { "$ref": "#/entities/Condominio" },
+          "description": "Coleção principal que armazena cada condomínio como um documento. Acesso de escrita restrito a super_admins."
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": { "$ref": "#/entities/UserProfile" },
+          "description": "Coleção de perfis de usuário globais. Cada documento mapeia um UID de autenticação para seus papéis nos condomínios. Essencial para controle de acesso multi-condomínio."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/residents/{residentId}",
         "definition": {
           "entityName": "Resident",
-          "schema": {
-            "$ref": "#/backend/entities/Resident"
-          },
-          "description": "Collection of resident profiles. Each document is uniquely identified by the residentId.  This allows path-based rules for secure access to resident-specific data.",
-          "params": [
-            {
-              "name": "residentId",
-              "description": "The unique identifier for a resident."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Resident" },
+          "description": "Sub-coleção de moradores para um condomínio específico. Isolado por condominioId."
         }
       },
       {
-        "path": "/staff/{staffId}",
+        "path": "/condominios/{condominioId}/staff/{staffId}",
         "definition": {
           "entityName": "Staff",
-          "schema": {
-            "$ref": "#/backend/entities/Staff"
-          },
-          "description": "Collection of staff profiles. Each document is uniquely identified by the staffId.",
-          "params": [
-            {
-              "name": "staffId",
-              "description": "The unique identifier for a staff member."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/residents/{residentId}/vehicles/{vehicleId}",
-        "definition": {
-          "entityName": "Vehicle",
-          "schema": {
-            "$ref": "#/backend/entities/Vehicle"
-          },
-          "description": "Subcollection of vehicles owned by a specific resident. Uses path-based ownership for security. The residentId is denormalized in the vehicle document to enable independent authorization checks. Includes denormalized 'residentId' for authorization independence.",
-          "params": [
-            {
-              "name": "residentId",
-              "description": "The unique identifier for a resident."
-            },
-            {
-              "name": "vehicleId",
-              "description": "The unique identifier for a vehicle."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/residents/{residentId}/packages/{packageId}",
-        "definition": {
-          "entityName": "Package",
-          "schema": {
-            "$ref": "#/backend/entities/Package"
-          },
-          "description": "Subcollection of packages belonging to a specific resident. Uses path-based ownership for security. The residentId is denormalized in the package document to enable independent authorization checks. Includes denormalized 'residentId' for authorization independence.",
-          "params": [
-            {
-              "name": "residentId",
-              "description": "The unique identifier for a resident."
-            },
-            {
-              "name": "packageId",
-              "description": "The unique identifier for a package."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/common_areas/{commonAreaId}",
-        "definition": {
-          "entityName": "CommonArea",
-          "schema": {
-            "$ref": "#/backend/entities/CommonArea"
-          },
-          "description": "Collection of common areas that can be booked. ",
-          "params": [
-            {
-              "name": "commonAreaId",
-              "description": "The unique identifier for a common area."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/bookings/{bookingId}",
-        "definition": {
-          "entityName": "Booking",
-          "schema": {
-            "$ref": "#/backend/entities/Booking"
-          },
-          "description": "Collection of bookings for common areas. Access controlled by the residentId and commonAreaId stored in the document, enforcing the relationship between residents, common areas, and bookings.",
-          "params": [
-            {
-              "name": "bookingId",
-              "description": "The unique identifier for a booking."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/incidents/{incidentId}",
-        "definition": {
-          "entityName": "Incident",
-          "schema": {
-            "$ref": "#/backend/entities/Incident"
-          },
-          "description": "Collection of incidents reported by residents or staff.  Consider denormalizing a `staff_flag: true` field for incidents created by staff if they require broader read access.",
-          "params": [
-            {
-              "name": "incidentId",
-              "description": "The unique identifier for an incident."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/meetings/{meetingId}",
-        "definition": {
-          "entityName": "Meeting",
-          "schema": {
-            "$ref": "#/backend/entities/Meeting"
-          },
-          "description": "Collection of meetings. Access is controlled via the 'attendeeIds' array, which requires array-contains-any for list operations.  Consider a 'members' map instead.",
-          "params": [
-            {
-              "name": "meetingId",
-              "description": "The unique identifier for a meeting."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Staff" },
+          "description": "Sub-coleção de funcionários para um condomínio específico. Isolado por condominioId."
         }
       }
-    ],
-    "reasoning": "The Firestore data structure is designed to support the TreeCondo application, focusing on security, scalability, and ease of management. The structure leverages path-based ownership for private user data (residents), and membership maps for collaborative data. \n\nAuthorization Independence is achieved by avoiding `get()` calls in security rules. This is accomplished by denormalizing relevant authorization data (e.g., roles, membership lists) directly into the documents that require authorization checks.  For example, while not explicitly collaborative, if 'Staff' require elevated permissions to read/write 'Incidents', denormalizing a `staff_flag: true` into the `Incident` document would eliminate the need to read a staff record during a security check.\n\nThe design also supports secure `list` operations by structurally segregating data based on access requirements. For example, resident-owned data is stored under `/residents/{residentId}`, ensuring that listing operations are always scoped to the current user.  The membership map approach allows for controlled access to shared resources like common areas and meetings, allowing authorized users to be efficiently listed."
+    ]
   }
 }
