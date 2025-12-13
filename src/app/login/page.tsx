@@ -1,0 +1,133 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from 'next/navigation';
+import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Logo } from "@/components/logo";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { toast } from "@/hooks/use-toast";
+
+const loginSchema = z.object({
+  email: z.string().email({ message: "Por favor, insira um e-mail válido." }),
+  password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),
+});
+
+type LoginFormInputs = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const loginImage = PlaceHolderImages.find(p => p.id === 'login-background');
+  const auth = useAuth();
+  const router = useRouter();
+
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormInputs>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      toast({
+        title: "Login bem-sucedido!",
+        description: "Redirecionando para o painel...",
+      });
+      router.push('/');
+    } catch (error: any) {
+      console.error("Erro de login:", error);
+      let description = "Verifique seu e-mail e senha e tente novamente.";
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        description = "E-mail ou senha incorretos. Por favor, tente novamente.";
+      }
+      toast({
+        variant: "destructive",
+        title: "Erro ao entrar",
+        description: description,
+      });
+    }
+  };
+
+
+  return (
+    <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2">
+      <div className="flex items-center justify-center py-12">
+        <div className="mx-auto grid w-[350px] gap-6">
+          <div className="grid gap-2 text-center">
+            <div className="flex justify-center items-center gap-2 mb-4">
+                <Logo />
+            </div>
+            <h1 className="text-3xl font-bold font-headline">Entrar</h1>
+            <p className="text-balance text-muted-foreground">
+              Digite seu e-mail abaixo para entrar na sua conta
+            </p>
+          </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                {...register("email")}
+                disabled={isSubmitting}
+              />
+               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center">
+                <Label htmlFor="password">Senha</Label>
+                <Link
+                  href="/forgot-password"
+                  className="ml-auto inline-block text-sm underline"
+                >
+                  Esqueceu sua senha?
+                </Link>
+              </div>
+              <Input 
+                id="password" 
+                type="password" 
+                {...register("password")} 
+                disabled={isSubmitting}
+              />
+               {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+            </div>
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Entrando...' : 'Entrar'}
+            </Button>
+            <Button variant="outline" className="w-full" disabled>
+              Entrar com Google
+            </Button>
+          </form>
+          <div className="mt-4 text-center text-sm">
+            Não tem uma conta?{" "}
+            <Link href="#" className="underline">
+              Contate o administrador
+            </Link>
+          </div>
+        </div>
+      </div>
+      <div className="hidden bg-muted lg:block relative">
+        {loginImage && (
+            <Image
+                src={loginImage.imageUrl}
+                alt={loginImage.description}
+                fill
+                className="object-cover"
+                data-ai-hint={loginImage.imageHint}
+            />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        <div className="absolute bottom-8 left-8 text-white">
+            <h2 className="text-4xl font-bold font-headline">TreeCondo</h2>
+            <p className="text-lg mt-2">Vida em comunidade, elevada.</p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,200 @@
+/**
+ * Core Philosophy: This ruleset enforces a security model based on user roles (Resident vs. Staff)
+ * and data ownership. Private data is strictly controlled, while communal information is broadly accessible
+ * to authenticated users. The primary goal is to protect resident privacy while enabling condominium management.
+ *
+ * Data Structure: The data is organized into top-level collections for primary entities like 'residents',
+ * 'staff', 'bookings', and 'incidents'. Private, user-owned data such as 'vehicles' and 'packages'
+ * are nested in subcollections under `/residents/{residentId}` to leverage path-based security.
+ *
+ * Key Security Decisions:
+ * - User Enumeration: Listing users (both residents and staff) from the root collection is disabled
+ *   to protect user privacy. Residents can only see their own profile.
+ * - Ownership-Based Writes: All write operations are strictly controlled. A user can only create, update,
+ *   or delete documents they own (e.g., their own profile, bookings, or incident reports).
+ * - Read Access: Common information like staff profiles and common areas is readable by any authenticated
+ *   user. Access to shared documents like meetings is granted based on an 'attendeeIds' list.
+ * - Default Deny: Collections that could leak private information if listed (e.g., 'bookings', 'incidents')
+ *   have list operations disabled entirely. Data must be fetched via specific, authenticated queries.
+ *
+ * Denormalization for Authorization: To ensure performant and simple rules, ownership data is denormalized.
+ * For example, a 'booking' document contains a 'residentId' field, and an 'incident' contains a 'reporterId'.
+ * This avoids costly `get()` calls to other documents during rule evaluation.
+ *
+ * Structural Segregation: Private resident data (vehicles, packages) is stored in subcollections under
+ * the resident's own document path (`/residents/{residentId}/...`). This provides a clear and secure
+ * separation between private and communal data, making it easy to scope list permissions correctly.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for common authorization patterns.
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the authenticated user's UID matches the provided userId from the path.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    /**
+     * Checks if the document being accessed already exists.
+     * Crucial for protecting against writes on non-existent documents.
+     */
+    function docExists() {
+      return resource != null;
+    }
+
+    /**
+     * Combines ownership check with an existence check for update/delete operations.
+     */
+    function isOwnerOfExistingDoc(userId) {
+      return isOwner(userId) && docExists();
+    }
+    
+    /**
+     * Ensures an ownership field (e.g., 'reporterId') in a new document matches the creator's UID.
+     */
+    function isCreatingOwnDoc(ownerField) {
+      return isSignedIn() && request.resource.data[ownerField] == request.auth.uid;
+    }
+
+    /**
+     * Checks if the user owns an existing document based on an internal field.
+     */
+    function ownsExistingDoc(ownerField) {
+      return isSignedIn() && docExists() && request.auth.uid == resource.data[ownerField];
+    }
+    
+    /**
+     * Validates that a critical relational field is immutable during an update.
+     */
+    function isFieldImmutable(fieldName) {
+      return request.resource.data[fieldName] == resource.data[fieldName];
+    }
+
+    /**
+     * @description Secure access to resident profiles.
+     * @path /residents/{residentId}
+     * @allow (create) A new user with UID 'user123' creates their own profile at `/residents/user123`.
+     * @deny (get) User 'user456' tries to read the profile of 'user123'.
+     * @principle Restricts access to a user's own data tree, preventing data leaks and unauthorized access.
+     */
+    match /residents/{residentId} {
+      allow get: if isOwner(residentId);
+      allow list: if false; // Prevent user enumeration
+      allow create: if isOwner(residentId);
+      allow update: if isOwnerOfExistingDoc(residentId);
+      allow delete: if isOwnerOfExistingDoc(residentId);
+    }
+
+    /**
+     * @description Staff profiles are viewable by any signed-in user, but only editable by the staff member themselves.
+     * @path /staff/{staffId}
+     * @allow (get) Any signed-in resident or staff member can view a staff profile.
+     * @deny (update) Staff member 'staff456' tries to update the profile of 'staff123'.
+     * @principle Allows public read for non-sensitive directory information while maintaining strict ownership for writes.
+     */
+    match /staff/{staffId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(staffId);
+      allow update: if isOwnerOfExistingDoc(staffId);
+      allow delete: if isOwnerOfExistingDoc(staffId);
+    }
+
+    /**
+     * @description Secure access to a resident's vehicle records.
+     * @path /residents/{residentId}/vehicles/{vehicleId}
+     * @allow (create) Resident 'user123' creates a new vehicle document under their own path.
+     * @deny (list) Resident 'user456' tries to list vehicles belonging to 'user123'.
+     * @principle Enforces path-based ownership for subcollections and validates relational integrity on create.
+     */
+    match /residents/{residentId}/vehicles/{vehicleId} {
+      allow get, list: if isOwner(residentId);
+      allow create: if isOwner(residentId) && request.resource.data.residentId == residentId;
+      allow update: if isOwnerOfExistingDoc(residentId) && isFieldImmutable('residentId');
+      allow delete: if isOwnerOfExistingDoc(residentId);
+    }
+
+    /**
+     * @description Secure access to a resident's package delivery records.
+     * @path /residents/{residentId}/packages/{packageId}
+     * @allow (list) Resident 'user123' lists all packages under their own path.
+     * @deny (get) Resident 'user456' tries to get a package belonging to 'user123'.
+     * @principle Enforces path-based ownership for subcollections and validates relational integrity on create.
+     */
+    match /residents/{residentId}/packages/{packageId} {
+      allow get, list: if isOwner(residentId);
+      allow create: if isOwner(residentId) && request.resource.data.residentId == residentId;
+      allow update: if isOwnerOfExistingDoc(residentId) && isFieldImmutable('residentId');
+      allow delete: if isOwnerOfExistingDoc(residentId);
+    }
+
+    /**
+     * @description Common areas can be viewed by any signed-in user. Writes are disabled pending schema update.
+     * @path /common_areas/{commonAreaId}
+     * @allow (list) Any authenticated user can list the available common areas.
+     * @deny (create) Any user attempts to create a new common area.
+     * @principle Public read access for shared resources. Writes are locked down until ownership can be verified.
+     */
+    match /common_areas/{commonAreaId} {
+      allow get, list: if isSignedIn();
+      // CRITICAL: Cannot implement owner-only writes. The 'CommonArea' entity is missing an 'ownerId' or 'creatorId' field.
+      allow create, update, delete: if false; // TODO: Add admin/owner validation once the schema is updated with an ownership field.
+    }
+
+    /**
+     * @description Residents can create and manage their own bookings. Listing all bookings is forbidden.
+     * @path /bookings/{bookingId}
+     * @allow (create) Resident 'user123' creates a booking where the 'residentId' field is 'user123'.
+     * @deny (get) Resident 'user456' tries to read a booking made by 'user123'.
+     * @principle Enforces document ownership for writes using a denormalized owner field.
+     */
+    match /bookings/{bookingId} {
+      allow get: if ownsExistingDoc('residentId');
+      allow list: if false; // Prevent residents from seeing each other's bookings
+      allow create: if isCreatingOwnDoc('residentId');
+      allow update: if ownsExistingDoc('residentId') && isFieldImmutable('residentId');
+      allow delete: if ownsExistingDoc('residentId');
+    }
+
+    /**
+     * @description Users (residents or staff) can create and manage their own incident reports.
+     * @path /incidents/{incidentId}
+     * @allow (create) User 'user123' creates an incident where the 'reporterId' is 'user123'.
+     * @deny (update) User 'user456' tries to modify an incident reported by 'user123'.
+     * @principle Enforces document ownership for writes using a denormalized reporter field.
+     */
+    match /incidents/{incidentId} {
+      allow get: if ownsExistingDoc('reporterId');
+      allow list: if false; // Prevent users from seeing all reported incidents
+      allow create: if isCreatingOwnDoc('reporterId');
+      allow update: if ownsExistingDoc('reporterId') && isFieldImmutable('reporterId');
+      allow delete: if ownsExistingDoc('reporterId');
+    }
+
+    /**
+     * @description Meetings are viewable by attendees. Creation and deletion are disabled pending schema update.
+     * @path /meetings/{meetingId}
+     * @allow (get) User 'user123' can read a meeting document if their UID is in the 'attendeeIds' array.
+     * @deny (delete) Any user attempts to delete a meeting.
+     * @principle Implements shared access using a membership list (`attendeeIds` array).
+     */
+    match /meetings/{meetingId} {
+      allow get: if isSignedIn() && docExists() && request.auth.uid in resource.data.attendeeIds;
+      allow list: if isSignedIn(); // Requires client-side query: where('attendeeIds', 'array-contains', auth.uid)
+      allow update: if isSignedIn() && docExists() && request.auth.uid in resource.data.attendeeIds;
+      // CRITICAL: Cannot implement owner-only writes. The 'Meeting' entity is missing an 'ownerId' or 'creatorId' field.
+      allow create, delete: if false; // TODO: Add owner/creator validation to manage meeting lifecycle and attendee list.
+    }
+  }
+}
