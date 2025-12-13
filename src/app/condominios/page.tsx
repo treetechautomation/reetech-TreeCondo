@@ -44,6 +44,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -66,12 +77,10 @@ export default function CondominiosPage() {
   const { claims, isClaimsLoading } = useClaims();
   const { toast } = useToast();
 
-  // ✅ opcional: travar só pra super_admin (recomendado)
   const isSuperAdmin = claims?.super_admin === true;
 
   const { data: condominios, loading } = useCondominios();
 
-  // Form state do modal
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -87,7 +96,7 @@ export default function CondominiosPage() {
     return true;
   }, [isUserLoading, isClaimsLoading, user, isSuperAdmin]);
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     if (!user) return;
 
     if (!nome.trim()) {
@@ -95,42 +104,46 @@ export default function CondominiosPage() {
       return;
     }
 
-    try {
-      setSaving(true);
+    setSaving(true);
 
-      await criarCondominio(firestore, user.uid, {
+    const payload = {
         nome: nome.trim(),
         cnpj: cnpj.trim() || undefined,
         cep: cep.trim() || undefined,
         sindico: sindico.trim() || undefined,
         contato: contato.trim() || undefined,
+      };
+
+    criarCondominio(firestore, user.uid, payload)
+      .then(() => {
+          toast({ title: "Condomínio criado com sucesso!" });
+          setNome("");
+          setCnpj("");
+          setCep("");
+          setSindico("");
+          setContato("");
+          setOpen(false);
+      })
+      .catch((e: any) => {
+          // O erro de permissão já é tratado pelo emitter,
+          // mas podemos exibir um erro genérico para outras falhas.
+          console.error(e);
+          toast({ variant: "destructive", title: "Erro ao criar condomínio", description: e?.message || "Tente novamente." });
+      })
+      .finally(() => {
+          setSaving(false);
       });
-
-      toast({ title: "Condomínio criado com sucesso!" });
-
-      // limpa form
-      setNome("");
-      setCnpj("");
-      setCep("");
-      setSindico("");
-      setContato("");
-      setOpen(false);
-    } catch (e: any) {
-      console.error(e);
-      toast({ title: "Erro ao criar condomínio", description: e?.message || "Tente novamente." });
-    } finally {
-      setSaving(false);
-    }
   };
 
-  const handleDelete = async (condominioId: string) => {
-    try {
-      await deletarCondominio(firestore, condominioId);
-      toast({ title: "Condomínio excluído." });
-    } catch (e: any) {
-      console.error(e);
-      toast({ title: "Erro ao excluir", description: e?.message || "Tente novamente." });
-    }
+  const handleDelete = (condominioId: string) => {
+    deletarCondominio(firestore, condominioId)
+        .then(() => {
+             toast({ title: "Condomínio excluído." });
+        })
+        .catch((e: any) => {
+            console.error(e);
+            toast({ variant: "destructive", title: "Erro ao excluir", description: e?.message || "Tente novamente." });
+        });
   };
 
   if (!canRender) return null;
@@ -371,11 +384,11 @@ export default function CondominiosPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5}>Carregando...</TableCell>
+                  <TableCell colSpan={5} className="text-center py-4">Carregando...</TableCell>
                 </TableRow>
               ) : condominios.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>Nenhum condomínio cadastrado.</TableCell>
+                  <TableCell colSpan={5} className="text-center py-4">Nenhum condomínio cadastrado.</TableCell>
                 </TableRow>
               ) : (
                 condominios.map((condo) => (
@@ -388,13 +401,28 @@ export default function CondominiosPage() {
                       <Button variant="outline" size="icon" disabled>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleDelete(condo.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                           <Button variant="destructive" size="icon">
+                             <Trash2 className="h-4 w-4" />
+                           </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente o condomínio
+                                e removerá seus dados de nossos servidores.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(condo.id)}>
+                                Continuar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))
