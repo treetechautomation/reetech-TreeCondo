@@ -1,65 +1,79 @@
+
 {
   "entities": {
     "Condominio": {
       "title": "Condominio",
-      "description": "Representa um único condomínio dentro do sistema SaaS.",
+      "description": "Representa um único condomínio. Contém todas as suas sub-coleções de dados.",
       "type": "object",
       "properties": {
         "nome": { "type": "string", "description": "Nome do condomínio." },
         "cnpj": { "type": "string", "description": "CNPJ do condomínio." },
         "cep": { "type": "string", "description": "CEP do endereço do condomínio." },
-        "sindico": { "type": "string", "description": "Nome do síndico responsável." },
-        "contato": { "type": "string", "description": "Telefone ou e-mail de contato." },
         "ativo": { "type": "boolean", "description": "Indica se o condomínio está ativo na plataforma." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Data de criação do registro." },
         "createdBy": { "type": "string", "description": "UID do super_admin que criou o condomínio." }
       },
       "required": ["nome", "ativo", "createdAt", "createdBy"]
     },
-    "UserProfile": {
-      "title": "User Profile",
-      "description": "Perfil de usuário global, ligando um UID de autenticação a papéis em um ou mais condomínios.",
+    "MembroCondominio": {
+      "title": "Membro do Condomínio",
+      "description": "Define o papel e o status de um usuário (membro) dentro de um condomínio específico.",
       "type": "object",
       "properties": {
-        "displayName": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "condominios": {
-          "type": "object",
-          "description": "Mapa de condomínios aos quais o usuário pertence, com seu papel em cada um.",
-          "additionalProperties": {
-            "type": "string",
-            "enum": ["sindico", "morador", "porteiro"]
-          }
+        "role": { "type": "string", "enum": ["sindico", "morador", "porteiro"], "description": "Papel do usuário neste condomínio." },
+        "status": { "type": "string", "enum": ["ativo", "inativo", "pendente"], "description": "Status do vínculo do usuário com o condomínio." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "UID de quem adicionou o membro." }
+      },
+      "required": ["role", "status", "createdAt", "createdBy"]
+    },
+    "ConfigMenu": {
+        "title": "Configuração de Menu",
+        "description": "Define as permissões de acesso aos módulos do menu para cada papel (role) dentro de um condomínio.",
+        "type": "object",
+        "properties": {
+            "sindico": { "$ref": "#/entities/PermissoesMenu" },
+            "morador": { "$ref": "#/entities/PermissoesMenu" },
+            "porteiro": { "$ref": "#/entities/PermissoesMenu" }
         }
-      },
-      "required": ["displayName", "email", "condominios"]
     },
-    "Resident": {
-      "title": "Resident",
-      "description": "Representa um morador dentro de um condomínio específico.",
-      "type": "object",
-      "properties": {
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
-        "unitNumber": { "type": "string" }
-      },
-      "required": ["firstName", "lastName", "email", "unitNumber"]
+    "PermissoesMenu": {
+        "title": "Permissões de Módulo",
+        "description": "Mapa booleano que indica a visibilidade de cada módulo do sistema.",
+        "type": "object",
+        "properties": {
+            "anuncios": { "type": "boolean" },
+            "reservas": { "type": "boolean" },
+            "reunioes": { "type": "boolean" },
+            "incidentes": { "type": "boolean" },
+            "encomendas": { "type": "boolean" },
+            "documentos": { "type": "boolean" },
+            "enquetes": { "type": "boolean" },
+            "acesso": { "type": "boolean" },
+            "cadastros": { "type": "boolean" }
+        }
     },
-    "Staff": {
-      "title": "Staff",
-      "description": "Representa um funcionário de um condomínio específico.",
-      "type": "object",
-      "properties": {
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
-        "position": { "type": "string" }
-      },
-      "required": ["firstName", "lastName", "email", "position"]
-    }
+    "VinculoUsuario": {
+        "title": "Vínculo do Usuário com Condomínio",
+        "description": "Documento de índice que espelha o vínculo de um usuário a um condomínio para consultas rápidas.",
+        "type": "object",
+        "properties": {
+            "condominioId": { "type": "string" },
+            "condominioNome": { "type": "string" },
+            "role": { "type": "string", "enum": ["sindico", "morador", "porteiro"] },
+            "status": { "type": "string", "enum": ["ativo", "inativo", "pendente"] }
+        },
+        "required": ["condominioId", "condominioNome", "role", "status"]
+    },
+    "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" }}},
+    "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" }}},
+    "Reuniao": { "title": "Reuniao", "type": "object", "properties": { "title": { "type": "string" }}},
+    "Incidente": { "title": "Incidente", "type": "object", "properties": { "description": { "type": "string" }}},
+    "Encomenda": { "title": "Encomenda", "type": "object", "properties": { "trackingCode": { "type": "string" }}},
+    "Documento": { "title": "Documento", "type": "object", "properties": { "fileName": { "type": "string" }}},
+    "Enquete": { "title": "Enquete", "type": "object", "properties": { "question": { "type": "string" }}},
+    "Acesso": { "title": "Acesso", "type": "object", "properties": { "visitorName": { "type": "string" }}},
+    "Cadastro": { "title": "Cadastro", "type": "object", "properties": { "type": { "type": "string" }}}
   },
   "auth": {
     "providers": ["password", "anonymous"],
@@ -76,29 +90,64 @@
         }
       },
       {
-        "path": "/users/{userId}",
+        "path": "/condominios/{condominioId}/membros/{uid}",
         "definition": {
-          "entityName": "UserProfile",
-          "schema": { "$ref": "#/entities/UserProfile" },
-          "description": "Coleção de perfis de usuário globais. Cada documento mapeia um UID de autenticação para seus papéis nos condomínios. Essencial para controle de acesso multi-condomínio."
+            "entityName": "MembroCondominio",
+            "schema": { "$ref": "#/entities/MembroCondominio" },
+            "description": "Sub-coleção que mapeia um UID de usuário ao seu papel e status dentro de um condomínio específico. Controla o acesso granular."
         }
       },
       {
-        "path": "/condominios/{condominioId}/residents/{residentId}",
+        "path": "/condominios/{condominioId}/config/menu",
         "definition": {
-          "entityName": "Resident",
-          "schema": { "$ref": "#/entities/Resident" },
-          "description": "Sub-coleção de moradores para um condomínio específico. Isolado por condominioId."
+            "entityName": "ConfigMenu",
+            "schema": { "$ref": "#/entities/ConfigMenu" },
+            "description": "Documento singleton para armazenar as configurações de visibilidade do menu por papel para um condomínio."
         }
       },
+      { "path": "/condominios/{condominioId}/anuncios/{anuncioId}", "definition": { "schema": { "$ref": "#/entities/Anuncio" }, "description": "Anúncios do condomínio." }},
+      { "path": "/condominios/{condominioId}/reservas/{reservaId}", "definition": { "schema": { "$ref": "#/entities/Reserva" }, "description": "Reservas de áreas comuns." }},
+      { "path": "/condominios/{condominioId}/reunioes/{reuniaoId}", "definition": { "schema": { "$ref": "#/entities/Reuniao" }, "description": "Reuniões e assembleias." }},
+      { "path": "/condominios/{condominioId}/incidentes/{incidenteId}", "definition": { "schema": { "$ref": "#/entities/Incidente" }, "description": "Incidentes e chamados." }},
+      { "path": "/condominios/{condominioId}/encomendas/{encomendaId}", "definition": { "schema": { "$ref": "#/entities/Encomenda" }, "description": "Encomendas recebidas." }},
+      { "path": "/condominios/{condominioId}/documentos/{documentoId}", "definition": { "schema": { "$ref": "#/entities/Documento" }, "description": "Documentos gerais." }},
+      { "path": "/condominios/{condominioId}/enquetes/{enqueteId}", "definition": { "schema": { "$ref": "#/entities/Enquete" }, "description": "Enquetes e votações." }},
+      { "path": "/condominios/{condominioId}/acessos/{acessoId}", "definition": { "schema": { "$ref": "#/entities/Acesso" }, "description": "Controle de acesso." }},
+      { "path": "/condominios/{condominioId}/cadastros/{cadastroId}", "definition": { "schema": { "$ref": "#/entities/Cadastro" }, "description": "Cadastros diversos (moradores, veículos, etc.)." }},
       {
-        "path": "/condominios/{condominioId}/staff/{staffId}",
+        "path": "/userCondominios/{uid}/vinculos/{condominioId}",
         "definition": {
-          "entityName": "Staff",
-          "schema": { "$ref": "#/entities/Staff" },
-          "description": "Sub-coleção de funcionários para um condomínio específico. Isolado por condominioId."
+            "entityName": "VinculoUsuario",
+            "schema": { "$ref": "#/entities/VinculoUsuario" },
+            "description": "Coleção de índice para consulta rápida. Permite que um usuário logado encontre todos os condomínios aos quais ele está associado."
         }
       }
+    ],
+    "queries": [
+        {
+            "description": "Listar todos os condomínios (Apenas Super Admin).",
+            "query": "firestore.collection('condominios').get()"
+        },
+        {
+            "description": "Listar os condomínios aos quais um usuário pertence.",
+            "query": "firestore.collection(`userCondominios/${uid}/vinculos`).get()"
+        },
+        {
+            "description": "Obter os detalhes de um condomínio específico.",
+            "query": "firestore.collection('condominios').doc(condominioId).get()"
+        },
+        {
+            "description": "Listar todos os membros (com seus papéis) de um condomínio.",
+            "query": "firestore.collection(`condominios/${condominioId}/membros`).get()"
+        },
+        {
+            "description": "Obter o papel de um usuário específico em um condomínio.",
+            "query": "firestore.collection(`condominios/${condominioId}/membros`).doc(uid).get()"
+        },
+        {
+            "description": "Listar todos os anúncios de um condomínio.",
+            "query": "firestore.collection(`condominios/${condominioId}/anuncios`).orderBy('createdAt', 'desc').get()"
+        }
     ]
   }
 }
