@@ -15,54 +15,47 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.super_admin == true;
     }
     
+    // Verifica se o usuário é um membro (independente do status)
     function isMember(condominioId) {
         return exists(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid));
     }
 
+    // Verifica se o usuário é um membro ATIVO
+    function isActiveMember(condominioId) {
+        return isMember(condominioId) && get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid)).data.status == 'ativo';
+    }
+
     function hasRole(condominioId, role) {
-        let userRole = get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid)).data.role;
-        return userRole == role;
+        return isActiveMember(condominioId) && get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid)).data.role == role;
     }
 
     // =================================
     // Collections
     // =================================
 
-    // Coleção de condomínios. Acesso de escrita restrito a super_admins.
-    // Leitura permitida para usuários autenticados para listagem.
+    // Coleção principal de condomínios
     match /condominios/{condominioId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSuperAdmin();
+      // Super admin pode tudo. Membros ativos podem ler os dados do seu condomínio.
+      allow read: if isSuperAdmin() || isActiveMember(condominioId);
+      // Apenas super admins podem criar, editar ou apagar condomínios.
+      allow write: if isSuperAdmin();
 
-      // Sub-coleção de membros. Acesso de escrita restrito a síndicos e super_admins.
-      match /membros/{uid} {
-          allow read, list: if isMember(condominioId) || isSuperAdmin();
-          allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin();
-      }
-
-      // Documento de configuração do menu. Acesso de escrita para síndicos e super_admins.
-      match /config/menu {
-        allow read: if isMember(condominioId) || isSuperAdmin();
-        allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin();
-      }
-      
-      // Regra genérica para as demais sub-coleções (anuncios, reservas, etc.)
+      // Sub-coleções dentro de um condomínio
       match /{subcollection}/{docId} {
-        allow read, list: if isMember(condominioId) || isSuperAdmin();
-        // A escrita é permitida para síndicos ou super_admins.
-        // Moradores/Porteiros podem criar incidentes, mas não editar outros dados.
-        allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin() || (subcollection == 'incidentes' && request.method == 'create');
+        // Acesso de leitura/escrita para super admins ou membros ativos do condomínio.
+        allow read, write: if isSuperAdmin() || isActiveMember(condominioId);
       }
     }
 
     // Coleção de índice para consulta rápida dos vínculos do usuário.
-    // O usuário só pode ler seus próprios vínculos. A escrita é controlada por Cloud Functions ou pelo super_admin.
     match /userCondominios/{uid} {
-      allow read, write: if request.auth.uid == uid || isSuperAdmin();
+      // Um usuário só pode ler/escrever em seu próprio documento de vínculos.
+      // Super admin pode acessar qualquer um.
+      allow read, write: if isSuperAdmin() || request.auth.uid == uid;
       
       match /vinculos/{condominioId} {
-        allow read, list: if request.auth.uid == uid || isSuperAdmin();
-        allow write: if isSuperAdmin(); // Apenas super_admin pode vincular/desvincular
+         // A regra do pai já cobre, mas podemos ser explícitos.
+        allow read, write: if isSuperAdmin() || request.auth.uid == uid;
       }
     }
   }
