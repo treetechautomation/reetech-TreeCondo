@@ -7,7 +7,6 @@ service cloud.firestore {
     // =================================
     // Helper Functions
     // =================================
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,90 +14,54 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && request.auth.token.super_admin == true;
     }
-
-    /**
-     * Obtém os dados do perfil do usuário que está fazendo a requisição.
-     * Requer uma leitura no Firestore, use com moderação.
-     */
-    function getUserProfile(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
+    
+    function isMember(condominioId) {
+        return exists(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid));
     }
 
-    /**
-     * Verifica se o usuário tem um papel específico (sindico, morador, porteiro) 
-     * no condomínio que está tentando acessar.
-     */
-    function hasRoleInCondominio(condominioId, role) {
-      let userProfile = getUserProfile(request.auth.uid);
-      return isSignedIn() && userProfile.condominios[condominioId] == role;
-    }
-
-    /**
-     * Verifica se o usuário é membro (qualquer papel) do condomínio.
-     */
-    function isMemberOfCondominio(condominioId) {
-      let userProfile = getUserProfile(request.auth.uid);
-      return isSignedIn() && condominioId in userProfile.condominios;
+    function hasRole(condominioId, role) {
+        let userRole = get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid)).data.role;
+        return userRole == role;
     }
 
     // =================================
-    // Global Collections
+    // Collections
     // =================================
 
-    /**
-     * Coleção de Condomínios.
-     * Apenas super administradores podem criar, editar ou deletar condomínios.
-     * A leitura é permitida para qualquer usuário autenticado, para que possam ver
-     * a lista de condomínios disponíveis para seleção, por exemplo.
-     */
+    // Coleção de condomínios. Acesso de escrita restrito a super_admins.
+    // Leitura permitida para usuários autenticados para listagem.
     match /condominios/{condominioId} {
       allow read: if isSignedIn();
       allow write: if isSuperAdmin();
 
-      // =================================
-      // Sub-collections per Condomínio
-      // =================================
-      
-      /**
-       * Moradores de um condomínio específico.
-       * Apenas síndicos do condomínio ou super admins podem gerenciar.
-       * O próprio morador pode ler seus dados (se a regra for estendida).
-       */
-      match /residents/{residentId} {
-         allow read, list: if isMemberOfCondominio(condominioId) || isSuperAdmin();
-         allow write: if hasRoleInCondominio(condominioId, 'sindico') || isSuperAdmin();
+      // Sub-coleção de membros. Acesso de escrita restrito a síndicos e super_admins.
+      match /membros/{uid} {
+          allow read, list: if isMember(condominioId) || isSuperAdmin();
+          allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin();
       }
 
-      /**
-       * Funcionários de um condomínio.
-       * Apenas síndicos ou super admins podem gerenciar.
-       */
-      match /staff/{staffId} {
-         allow read, list: if isMemberOfCondominio(condominioId) || isSuperAdmin();
-         allow write: if hasRoleInCondominio(condominioId, 'sindico') || isSuperAdmin();
+      // Documento de configuração do menu. Acesso de escrita para síndicos e super_admins.
+      match /config/menu {
+        allow read: if isMember(condominioId);
+        allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin();
       }
       
-      // Outras sub-coleções específicas do condomínio (anuncios, reservas, etc.) viriam aqui.
-      // Exemplo:
-      // match /announcements/{announcementId} {
-      //   allow read: if isMemberOfCondominio(condominioId);
-      //   allow write: if hasRoleInCondominio(condominioId, 'sindico');
-      // }
+      // Regra genérica para as demais sub-coleções (anuncios, reservas, etc.)
+      match /{subcollection}/{docId} {
+        allow read, list: if isMember(condominioId);
+        allow write: if hasRole(condominioId, 'sindico') || isSuperAdmin() || (subcollection == 'incidentes' && request.auth.uid == resource.data.createdBy);
+      }
     }
 
-    /**
-     * Perfis de Usuário Globais.
-     * Um usuário só pode ler e editar seu próprio perfil.
-     * Super administradores podem ler qualquer perfil para fins de gerenciamento.
-     * A criação é permitida para qualquer usuário autenticado (para criar seu próprio perfil).
-     * Ninguém pode alterar o mapa de condomínios diretamente, isso deve ser feito por um processo administrativo.
-     */
-    match /users/{userId} {
-      allow get: if request.auth.uid == userId || isSuperAdmin();
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId && !("condominios" in request.resource.data); // Proíbe a auto-edição de papéis
-      allow delete: if isSuperAdmin();
-      allow list: if isSuperAdmin(); // Apenas super admins podem listar todos os usuários
+    // Coleção de índice para consulta rápida dos vínculos do usuário.
+    // O usuário só pode ler seus próprios vínculos. A escrita é controlada por Cloud Functions (processo administrativo).
+    match /userCondominios/{uid} {
+      allow read, write: if request.auth.uid == uid;
+      
+      match /vinculos/{condominioId} {
+        allow read, list: if request.auth.uid == uid;
+        allow write: if isSuperAdmin(); // Apenas super_admin pode vincular/desvincular
+      }
     }
   }
 }

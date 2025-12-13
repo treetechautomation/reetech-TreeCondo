@@ -152,8 +152,10 @@ type BlocoFormData = z.infer<typeof blocoSchema>;
 
 export default function CadastrosPage() {
     const firestore = useFirestore();
-    const residentsCollection = useMemoFirebase(() => collection(firestore, 'residents'), [firestore]);
-    const { data: moradores, isLoading } = useCollection(residentsCollection);
+    // const residentsCollection = useMemoFirebase(() => collection(firestore, 'residents'), [firestore]);
+    // const { data: moradores, isLoading } = useCollection(residentsCollection);
+    const moradores: any[] = [];
+    const isLoading = true;
     
     const [openMorador, setOpenMorador] = React.useState(false);
     const [openFuncionario, setOpenFuncionario] = React.useState(false);
@@ -176,21 +178,10 @@ export default function CadastrosPage() {
 
 
     const onMoradorSubmit = async (data: MoradorFormData) => {
-        try {
-            await addDoc(collection(firestore, "residents"), {
-                firstName: data.nome.split(' ')[0],
-                lastName: data.nome.split(' ').slice(1).join(' '),
-                unitNumber: data.unidade,
-                profile: data.perfil,
-                phone: data.contato,
-            });
-            toast({ title: "Morador adicionado com sucesso!" });
-            resetMorador();
-            setOpenMorador(false);
-        } catch (error) {
-            console.error("Erro ao adicionar morador: ", error);
-            toast({ variant: "destructive", title: "Erro", description: "Não foi possível adicionar o morador." });
-        }
+        // TODO: Implementar a lógica para adicionar morador em um condomínio específico
+        console.log(data);
+        toast({ title: "Funcionalidade de adicionar morador em implementação." });
+        setOpenMorador(false);
     };
     
     const onFuncionarioSubmit = (data: FuncionarioFormData) => { console.log(data); setOpenFuncionario(false); resetFuncionario(); };
