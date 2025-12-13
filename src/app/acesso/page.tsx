@@ -71,6 +71,7 @@ import { ptBR } from 'date-fns/locale';
 import React from "react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { CondominioSelector } from "@/components/condominio-selector";
 
 const upcomingVisitors = [
   { name: "Ana Silva (Personal)", type: "Recorrente", details: "Seg, Qua, Sex - 08:00", unit: "Apto 101" },
@@ -90,8 +91,9 @@ export default function AcessoPage() {
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="p-4">
+        <SidebarHeader className="p-4 space-y-4">
           <Logo />
+          <CondominioSelector />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>

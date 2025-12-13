@@ -75,6 +75,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React from "react";
 import { toast } from "@/hooks/use-toast";
+import { useCondominio } from "@/contexts/CondominioContext";
+import { CondominioSelector } from "@/components/condominio-selector";
 
 
 const funcionarioSchema = z.object({
@@ -153,13 +155,12 @@ type BlocoFormData = z.infer<typeof blocoSchema>;
 
 export default function CadastrosPage() {
     const firestore = useFirestore();
-    // FIXME: This needs to be a dynamic selection
-    const condominioId = "Ea5xIeIlcsLhTta3HSSQ"; 
+    const { condominioAtivoId } = useCondominio();
 
     const cadastrosRef = useMemoFirebase(() => {
-        if (!firestore || !condominioId) return null;
-        return collection(firestore, `condominios/${condominioId}/cadastros`);
-    }, [firestore, condominioId]);
+        if (!firestore || !condominioAtivoId) return null;
+        return collection(firestore, `condominios/${condominioAtivoId}/cadastros`);
+    }, [firestore, condominioAtivoId]);
 
     const { data: moradores, isLoading } = useCollection(cadastrosRef);
     
@@ -171,10 +172,11 @@ export default function CadastrosPage() {
     const [openBloco, setOpenBloco] = React.useState(false);
 
 
-    const { register: registerMorador, handleSubmit: handleSubmitMorador, formState: { errors: errorsMorador }, reset: resetMorador } = useForm<MoradorFormData>({
+    const { register: registerMorador, handleSubmit: handleSubmitMorador, formState: { errors: errorsMorador }, reset: resetMorador, setValue: setMoradorValue } = useForm<MoradorFormData>({
         resolver: zodResolver(moradorSchema),
-         defaultValues: { lgpd: false }
+        defaultValues: { lgpd: false, perfil: '' },
     });
+    
 
     const { register: registerFuncionario, handleSubmit: handleSubmitFuncionario, formState: { errors: errorsFuncionario }, reset: resetFuncionario } = useForm<FuncionarioFormData>({ resolver: zodResolver(funcionarioSchema) });
     const { register: registerVeiculo, handleSubmit: handleSubmitVeiculo, formState: { errors: errorsVeiculo }, reset: resetVeiculo } = useForm<VeiculoFormData>({ resolver: zodResolver(veiculoSchema) });
@@ -185,7 +187,7 @@ export default function CadastrosPage() {
 
     const onMoradorSubmit = async (data: MoradorFormData) => {
         if (!cadastrosRef) {
-            toast({ title: "Erro", description: "Referência do condomínio não encontrada.", variant: "destructive" });
+            toast({ title: "Erro", description: "Selecione um condomínio para continuar.", variant: "destructive" });
             return;
         }
         try {
@@ -208,8 +210,9 @@ export default function CadastrosPage() {
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="p-4">
+        <SidebarHeader className="p-4 space-y-4">
           <Logo />
+          <CondominioSelector />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -342,20 +345,20 @@ export default function CadastrosPage() {
                             <DialogDescription>Insira os dados do novo morador.</DialogDescription>
                         </DialogHeader>
                          <form onSubmit={handleSubmitMorador(onMoradorSubmit)}>
-                             <div className="grid gap-4 py-4">
-                                <div className="space-y-2">
+                            <div className="grid gap-4 py-4">
+                                <div className="space-y-1">
                                     <Label htmlFor="nome-morador">Nome</Label>
                                     <Input id="nome-morador" placeholder="Nome completo" {...registerMorador("nome")} />
                                     {errorsMorador.nome && <p className="text-xs text-destructive">{errorsMorador.nome.message}</p>}
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-1">
                                     <Label htmlFor="unidade-morador">Unidade</Label>
                                     <Input id="unidade-morador" placeholder="Ex: Apto 101" {...registerMorador("unidade")} />
                                     {errorsMorador.unidade && <p className="text-xs text-destructive">{errorsMorador.unidade.message}</p>}
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-1">
                                     <Label htmlFor="perfil-morador">Perfil</Label>
-                                    <Select onValueChange={(value) => registerMorador("perfil").onChange({ target: { value } })}>
+                                    <Select onValueChange={(value) => setMoradorValue("perfil", value)}>
                                         <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="proprietario">Proprietário</SelectItem>
@@ -365,20 +368,18 @@ export default function CadastrosPage() {
                                     </Select>
                                     {errorsMorador.perfil && <p className="text-xs text-destructive">{errorsMorador.perfil.message}</p>}
                                 </div>
-                                 <div className="space-y-2">
+                                 <div className="space-y-1">
                                     <Label htmlFor="contato-morador">Contato</Label>
                                     <Input id="contato-morador" placeholder="(99) 99999-9999" {...registerMorador("contato")} />
                                     {errorsMorador.contato && <p className="text-xs text-destructive">{errorsMorador.contato.message}</p>}
                                 </div>
-                                <div className="space-y-2">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox id="lgpd-terms" onCheckedChange={(checked) => registerMorador("lgpd").onChange({ target: { checked } })}/>
-                                        <label htmlFor="lgpd-terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                           Li e concordo com os termos da LGPD.
-                                        </label>
-                                    </div>
-                                    {errorsMorador.lgpd && <p className="text-xs text-destructive">{errorsMorador.lgpd.message}</p>}
+                                <div className="flex items-center space-x-2 pt-2">
+                                    <Checkbox id="lgpd-terms" onCheckedChange={(checked) => setMoradorValue("lgpd", !!checked)} />
+                                    <label htmlFor="lgpd-terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                        Li e concordo com os termos da LGPD.
+                                    </label>
                                 </div>
+                                {errorsMorador.lgpd && <p className="text-xs text-destructive">{errorsMorador.lgpd.message}</p>}
                             </div>
                             <DialogFooter>
                                 <Button type="submit">Salvar</Button>
@@ -400,8 +401,12 @@ export default function CadastrosPage() {
                 <TableBody>
                     {isLoading ? (
                         <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>
+                    ) : !condominioAtivoId ? (
+                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Selecione um condomínio para ver os cadastros.</TableCell></TableRow>
+                    ) : moradores?.length === 0 ? (
+                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nenhum morador cadastrado neste condomínio.</TableCell></TableRow>
                     ) : (
-                        moradores?.map(m => (
+                        moradores?.filter(m => m.type === 'morador').map(m => (
                             <TableRow key={m.id}>
                                 <TableCell>{m.nome}</TableCell>
                                 <TableCell>{m.unidade}</TableCell>
@@ -748,6 +753,3 @@ export default function CadastrosPage() {
     </SidebarProvider>
   );
 }
-
-
-    

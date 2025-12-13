@@ -40,13 +40,15 @@ import { Logo } from "@/components/logo";
 import { Overview } from "@/components/dashboard/overview";
 import { RecentAnnouncements } from "@/components/dashboard/recent-announcements";
 import { ActiveLink } from "@/components/active-link";
+import { CondominioSelector } from "@/components/condominio-selector";
 
 export default function Dashboard() {
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="p-4">
+        <SidebarHeader className="p-4 space-y-4">
           <Logo />
+          <CondominioSelector />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>

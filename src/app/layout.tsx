@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthGate } from "@/components/authgate";
+import { CondominioProvider } from '@/contexts/CondominioContext';
 
 export const metadata: Metadata = {
   title: 'TreeCondo',
@@ -27,7 +28,9 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <FirebaseClientProvider>
           <AuthGate>
-            {children}
+            <CondominioProvider>
+              {children}
+            </CondominioProvider>
           </AuthGate>
         </FirebaseClientProvider>
         <Toaster />
