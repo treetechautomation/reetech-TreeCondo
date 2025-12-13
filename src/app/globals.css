@@ -12,8 +12,8 @@
     --popover-foreground: 20 15% 25%;
     --primary: 149 18% 41%; /* Soft Green */
     --primary-foreground: 32 80% 96%;
-    --secondary: 14 27% 71%; /* Rosy Brown */
-    --secondary-foreground: 20 15% 25%;
+    --secondary: 17 21% 51%; /* New Rosy Brown #98766A */
+    --secondary-foreground: 20 15% 95%;
     --muted: 32 81% 88%;
     --muted-foreground: 20 15% 45%;
     --accent: 14 27% 85%;
@@ -24,9 +24,9 @@
     --input: 32 81% 88%;
     --ring: 149 18% 41%;
     --chart-1: 149 18% 41%;
-    --chart-2: 14 27% 71%;
+    --chart-2: 17 21% 51%;
     --chart-3: 149 18% 61%;
-    --chart-4: 14 27% 81%;
+    --chart-4: 17 21% 71%;
     --chart-5: 149 10% 51%;
     --radius: 0.5rem;
 
@@ -48,8 +48,8 @@
     --popover-foreground: 32 81% 92%;
     --primary: 149 18% 51%;
     --primary-foreground: 20 15% 10%;
-    --secondary: 14 27% 61%;
-    --secondary-foreground: 20 15% 10%;
+    --secondary: 17 21% 41%;
+    --secondary-foreground: 20 15% 95%;
     --muted: 20 15% 20%;
     --muted-foreground: 32 81% 80%;
     --accent: 14 27% 40%;
@@ -60,9 +60,9 @@
     --input: 20 15% 25%;
     --ring: 149 18% 51%;
     --chart-1: 149 18% 51%;
-    --chart-2: 14 27% 61%;
+    --chart-2: 17 21% 41%;
     --chart-3: 149 18% 71%;
-    --chart-4: 14 27% 81%;
+    --chart-4: 17 21% 61%;
     --chart-5: 149 10% 61%;
 
     /* Adicionado para o menu lateral */
