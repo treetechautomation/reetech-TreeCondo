@@ -53,13 +53,55 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCondominios } from "@/hooks/useCondominios";
+import { useFirestore } from "@/firebase";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import React from "react";
+import { toast } from "@/hooks/use-toast";
 
-const condominios = [
-    { id: 1, nome: "Condomínio Vila das Flores", cnpj: "12.345.678/0001-99", sindico: "Carlos Pereira", contato: "(11) 98765-4321" },
-    { id: 2, nome: "Residencial Bosque Verde", cnpj: "98.765.432/0001-11", sindico: "Mariana Costa", contato: "(21) 91234-5678" },
-]
+const condominioSchema = z.object({
+  nome: z.string().min(3, "O nome deve ter pelo menos 3 caracteres."),
+  cnpj: z.string().optional(),
+  cep: z.string().optional(),
+  sindico: z.string().optional(),
+  contato: z.string().optional(),
+});
+
+type CondominioFormData = z.infer<typeof condominioSchema>;
 
 export default function CondominiosPage() {
+    const { data: condominios, loading } = useCondominios();
+    const firestore = useFirestore();
+    const [open, setOpen] = React.useState(false);
+
+    const { register, handleSubmit, formState: { errors }, reset } = useForm<CondominioFormData>({
+        resolver: zodResolver(condominioSchema),
+    });
+
+    const onSubmit = async (data: CondominioFormData) => {
+        try {
+            await addDoc(collection(firestore, "condominios"), {
+                ...data,
+                ativo: true,
+                createdAt: serverTimestamp(),
+            });
+            toast({ title: "Condomínio adicionado com sucesso!" });
+            reset();
+            setOpen(false);
+        } catch (error) {
+            console.error("Erro ao adicionar condomínio: ", error);
+            toast({
+                variant: "destructive",
+                title: "Erro",
+                description: "Não foi possível adicionar o condomínio.",
+            });
+        }
+    };
+
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -170,7 +212,7 @@ export default function CondominiosPage() {
                 />
               </div>
             </form>
-            <Dialog>
+            <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <PlusCircle className="mr-2" />
@@ -184,61 +226,69 @@ export default function CondominiosPage() {
                     Insira as informações do novo condomínio.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="nome-condo" className="text-right">
-                      Nome
-                    </Label>
-                    <Input
-                      id="nome-condo"
-                      placeholder="Nome do Condomínio"
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="cnpj-condo" className="text-right">
-                      CNPJ
-                    </Label>
-                    <Input
-                      id="cnpj-condo"
-                      placeholder="00.000.000/0001-00"
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="cep-condo" className="text-right">
-                      CEP
-                    </Label>
-                    <Input
-                      id="cep-condo"
-                      placeholder="00000-000"
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="sindico-condo" className="text-right">
-                      Síndico
-                    </Label>
-                    <Input
-                      id="sindico-condo"
-                      placeholder="Nome do síndico responsável"
-                      className="col-span-3"
-                    />
-                  </div>
-                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="contato-condo" className="text-right">
-                      Contato
-                    </Label>
-                    <Input
-                      id="contato-condo"
-                      placeholder="Telefone ou e-mail"
-                      className="col-span-3"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit">Salvar</Button>
-                </DialogFooter>
+                 <form onSubmit={handleSubmit(onSubmit)}>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="nome-condo" className="text-right">
+                          Nome
+                        </Label>
+                        <Input
+                          id="nome-condo"
+                          placeholder="Nome do Condomínio"
+                          className="col-span-3"
+                          {...register("nome")}
+                        />
+                      </div>
+                      {errors.nome && <p className="col-start-2 col-span-3 text-xs text-destructive">{errors.nome.message}</p>}
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="cnpj-condo" className="text-right">
+                          CNPJ
+                        </Label>
+                        <Input
+                          id="cnpj-condo"
+                          placeholder="00.000.000/0001-00"
+                          className="col-span-3"
+                           {...register("cnpj")}
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="cep-condo" className="text-right">
+                          CEP
+                        </Label>
+                        <Input
+                          id="cep-condo"
+                          placeholder="00000-000"
+                          className="col-span-3"
+                           {...register("cep")}
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="sindico-condo" className="text-right">
+                          Síndico
+                        </Label>
+                        <Input
+                          id="sindico-condo"
+                          placeholder="Nome do síndico responsável"
+                          className="col-span-3"
+                           {...register("sindico")}
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="contato-condo" className="text-right">
+                          Contato
+                        </Label>
+                        <Input
+                          id="contato-condo"
+                          placeholder="Telefone ou e-mail"
+                          className="col-span-3"
+                           {...register("contato")}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit">Salvar</Button>
+                    </DialogFooter>
+                </form>
               </DialogContent>
             </Dialog>
             <UserNavClient />
@@ -256,22 +306,28 @@ export default function CondominiosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {condominios.map((condo) => (
-                <TableRow key={condo.id}>
-                  <TableCell className="font-medium">{condo.nome}</TableCell>
-                  <TableCell>{condo.cnpj}</TableCell>
-                  <TableCell>{condo.sindico}</TableCell>
-                  <TableCell>{condo.contato}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="destructive" size="icon">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+              {loading ? (
+                 <TableRow>
+                    <TableCell colSpan={5} className="text-center">Carregando...</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                condominios.map((condo) => (
+                    <TableRow key={condo.id}>
+                    <TableCell className="font-medium">{condo.nome}</TableCell>
+                    <TableCell>{condo.cnpj}</TableCell>
+                    <TableCell>{condo.sindico}</TableCell>
+                    <TableCell>{condo.contato}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                        <Button variant="outline" size="icon">
+                        <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon">
+                        <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </TableCell>
+                    </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </main>
@@ -279,5 +335,3 @@ export default function CondominiosPage() {
     </SidebarProvider>
   );
 }
-
-    
