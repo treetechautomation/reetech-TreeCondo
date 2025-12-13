@@ -82,6 +82,13 @@ service cloud.firestore {
     }
 
     /**
+      * @description Checks if the user is a super admin based on custom claims.
+      */
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.super_admin == true;
+    }
+
+    /**
      * @description Secure access to resident profiles.
      * @path /residents/{residentId}
      * @allow (create) A new user with UID 'user123' creates their own profile at `/residents/user123`.
@@ -195,6 +202,17 @@ service cloud.firestore {
       allow update: if isSignedIn() && docExists() && request.auth.uid in resource.data.attendeeIds;
       // CRITICAL: Cannot implement owner-only writes. The 'Meeting' entity is missing an 'ownerId' or 'creatorId' field.
       allow create, delete: if false; // TODO: Add owner/creator validation to manage meeting lifecycle and attendee list.
+    }
+    
+    /**
+     * @description Condominium data can only be managed by super admins.
+     * @path /condominios/{condominioId}
+     * @allow (read, write) Any user with a `super_admin` custom claim can read/write.
+     * @deny (write) Any user without the `super_admin` claim attempts to write.
+     * @principle Restricts high-level data management to authorized super administrators.
+     */
+    match /condominios/{condominioId} {
+      allow read, write: if isSuperAdmin();
     }
   }
 }
