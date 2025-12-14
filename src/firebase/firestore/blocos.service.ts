@@ -11,18 +11,20 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  type DocumentReference,
   type Firestore,
 } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "../error-emitter";
 import { FirestorePermissionError } from "../errors";
+import { getBlocoDocRef, getBlocosRef } from "./paths";
 
 export type Bloco = {
   id: string;
   nome: string;
   ordem?: number;
   ativo: boolean;
-  createdAt: ReturnType<typeof serverTimestamp>;
+  createdAt: any;
 };
 
 export type NewBlocoPayload = {
@@ -47,8 +49,8 @@ export function useBlocos(condominioId: string | null) {
     }
 
     setLoading(true);
-    const blocosRef = collection(firestore, `condominios/${condominioId}/blocos`);
-    const q = query(blocosRef, orderBy("ordem", "asc"), orderBy("nome", "asc"));
+    const blocosCollectionRef = getBlocosRef(firestore, condominioId);
+    const q = query(blocosCollectionRef, orderBy("ordem", "asc"), orderBy("nome", "asc"));
 
     const unsub = onSnapshot(
       q,
@@ -80,29 +82,31 @@ export function useBlocos(condominioId: string | null) {
  * @param condominioId O ID do condomínio.
  * @param payload Dados do novo bloco.
  */
-export function criarBloco(
+export async function criarBloco(
   firestore: Firestore,
   condominioId: string,
   payload: NewBlocoPayload
-) {
-  const blocosRef = collection(firestore, `condominios/${condominioId}/blocos`);
+): Promise<DocumentReference> {
+  const blocosCollectionRef = getBlocosRef(firestore, condominioId);
   const data = {
     ...payload,
     ativo: true,
     createdAt: serverTimestamp(),
   };
 
-  addDoc(blocosRef, data)
-    .catch((error) => {
-      console.error("Erro ao criar bloco: ", error);
-      const contextualError = new FirestorePermissionError({
-        path: `condominios/${condominioId}/blocos`,
-        operation: 'create',
-        requestResourceData: data,
-      });
-      errorEmitter.emit('permission-error', contextualError);
-      throw error; // Propaga o erro para a UI
+  try {
+    const docRef = await addDoc(blocosCollectionRef, data);
+    return docRef;
+  } catch (error) {
+    console.error("Erro ao criar bloco: ", error);
+    const contextualError = new FirestorePermissionError({
+      path: `condominios/${condominioId}/blocos`,
+      operation: 'create',
+      requestResourceData: data,
     });
+    errorEmitter.emit('permission-error', contextualError);
+    throw error; // Propaga o erro para a UI
+  }
 }
 
 /**
@@ -111,21 +115,22 @@ export function criarBloco(
  * @param condominioId O ID do condomínio.
  * @param blocoId O ID do bloco a ser deletado.
  */
-export function deletarBloco(
+export async function deletarBloco(
   firestore: Firestore,
   condominioId: string,
   blocoId: string
-) {
-  const docRef = doc(firestore, `condominios/${condominioId}/blocos`, blocoId);
+): Promise<void> {
+  const docRef = getBlocoDocRef(firestore, condominioId, blocoId);
 
-  deleteDoc(docRef)
-    .catch((error) => {
-      console.error("Erro ao deletar bloco: ", error);
-      const contextualError = new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', contextualError);
-      throw error; // Propaga o erro para a UI
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Erro ao deletar bloco: ", error);
+    const contextualError = new FirestorePermissionError({
+      path: docRef.path,
+      operation: 'delete',
     });
+    errorEmitter.emit('permission-error', contextualError);
+    throw error; // Propaga o erro para a UI
+  }
 }
