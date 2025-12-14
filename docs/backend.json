@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Condominio": {
@@ -61,30 +60,7 @@
             "createdAt": "2024-07-30T10:10:00Z"
         }
     },
-    "Morador": {
-        "title": "Morador",
-        "description": "Representa um morador associado a uma unidade específica.",
-        "type": "object",
-        "properties": {
-            "uid": { "type": "string", "description": "O UID do usuário do Firebase Authentication." },
-            "nome": { "type": "string" },
-            "email": { "type": "string", "format": "email" },
-            "role": { "type": "string", "enum": ["MORADOR"], "description": "Papel fixo de Morador." },
-            "isResponsavel": { "type": "boolean", "description": "Indica se é o morador principal/responsável pela unidade." },
-            "status": { "type": "string", "enum": ["ATIVO"], "description": "Status do morador na unidade." },
-            "createdAt": { "type": "string", "format": "date-time" }
-        },
-        "required": ["uid", "nome", "role", "isResponsavel", "status", "createdAt"],
-        "example": {
-            "uid": "aBcDeFgHiJkLmNoPqRsTuVwXyZ12345",
-            "nome": "João da Silva",
-            "email": "joao.silva@email.com",
-            "role": "MORADOR",
-            "isResponsavel": true,
-            "status": "ATIVO",
-            "createdAt": "2024-07-30T11:00:00Z"
-        }
-    },
+    "Morador": { "title": "Morador", "type": "object", "properties": { "uid": { "type": "string" }}},
     "MembroCondominio": {
       "title": "Membro do Condomínio",
       "description": "Define o papel de um usuário (não-morador) dentro de um condomínio (ex: síndico, porteiro).",
@@ -103,32 +79,8 @@
           "createdBy": "p0XWt3ed7VgiEjHoItfmNq31cT62"
       }
     },
-    "ConfigMenu": {
-        "title": "Configuração de Menu",
-        "description": "Define as permissões de acesso aos módulos do menu para cada papel (role) dentro de um condomínio.",
-        "type": "object",
-        "properties": {
-            "sindico": { "$ref": "#/entities/PermissoesMenu" },
-            "morador": { "$ref": "#/entities/PermissoesMenu" },
-            "porteiro": { "$ref": "#/entities/PermissoesMenu" }
-        }
-    },
-    "PermissoesMenu": {
-        "title": "Permissões de Módulo",
-        "description": "Mapa booleano que indica a visibilidade de cada módulo do sistema.",
-        "type": "object",
-        "properties": {
-            "anuncios": { "type": "boolean" },
-            "reservas": { "type": "boolean" },
-            "reunioes": { "type": "boolean" },
-            "incidentes": { "type": "boolean" },
-            "encomendas": { "type": "boolean" },
-            "documentos": { "type": "boolean" },
-            "enquetes": { "type": "boolean" },
-            "acesso": { "type": "boolean" },
-            "cadastros": { "type": "boolean" }
-        }
-    },
+    "ConfigMenu": { "title": "ConfigMenu", "type": "object", "properties": {}},
+    "PermissoesMenu": { "title": "PermissoesMenu", "type": "object", "properties": {}},
     "VinculoUsuario": {
         "title": "Vínculo do Usuário com Condomínio",
         "description": "Documento de índice que espelha o vínculo de um usuário a um condomínio para consultas rápidas.",
@@ -141,38 +93,7 @@
             "blocoId": { "type": "string", "description": "ID do bloco, OBRIGATÓRIO se o papel for 'MORADOR'." },
             "unidadeId": { "type": "string", "description": "ID da unidade, OBRIGATÓRIO se o papel for 'MORADOR'." }
         },
-        "required": ["condominioId", "condominioNome", "role", "status"],
-        "examples": [
-          {
-            "description": "Exemplo de vínculo para um MORADOR.",
-            "value": {
-              "condominioId": "condo123",
-              "condominioNome": "Condomínio Vila das Flores",
-              "role": "MORADOR",
-              "status": "ATIVO",
-              "blocoId": "blocoA",
-              "unidadeId": "unidade101"
-            }
-          },
-          {
-            "description": "Exemplo de vínculo para um SÍNDICO.",
-            "value": {
-              "condominioId": "condo123",
-              "condominioNome": "Condomínio Vila das Flores",
-              "role": "SINDICO",
-              "status": "ATIVO"
-            }
-          },
-          {
-            "description": "Exemplo de vínculo para um PORTEIRO.",
-            "value": {
-              "condominioId": "condo456",
-              "condominioNome": "Residencial Bosque Verde",
-              "role": "PORTEIRO",
-              "status": "ATIVO"
-            }
-          }
-        ]
+        "required": ["condominioId", "condominioNome", "role", "status"]
     },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" }}},
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" }}},
@@ -222,22 +143,6 @@
             "description": "Sub-coleção para as unidades de um bloco."
         }
       },
-      {
-        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/moradores/{uid}",
-        "definition": {
-            "entityName": "Morador",
-            "schema": { "$ref": "#/entities/Morador" },
-            "description": "Sub-coleção que lista os moradores (com papel MORADOR) de uma unidade específica."
-        }
-      },
-      {
-        "path": "/condominios/{condominioId}/config/menu",
-        "definition": {
-            "entityName": "ConfigMenu",
-            "schema": { "$ref": "#/entities/ConfigMenu" },
-            "description": "Documento singleton para armazenar as configurações de visibilidade do menu por papel para um condomínio."
-        }
-      },
       { "path": "/condominios/{condominioId}/anuncios/{anuncioId}", "definition": { "schema": { "$ref": "#/entities/Anuncio" }, "description": "Anúncios do condomínio." }},
       { "path": "/condominios/{condominioId}/reservas/{reservaId}", "definition": { "schema": { "$ref": "#/entities/Reserva" }, "description": "Reservas de áreas comuns." }},
       { "path": "/condominios/{condominioId}/reunioes/{reuniaoId}", "definition": { "schema": { "$ref": "#/entities/Reuniao" }, "description": "Reuniões e assembleias." }},
@@ -264,26 +169,6 @@
         {
             "description": "Listar os condomínios aos quais um usuário pertence.",
             "query": "firestore.collection(`userCondominios/${uid}/vinculos`).get()"
-        },
-        {
-            "description": "Listar todos os blocos de um condomínio.",
-            "query": "firestore.collection(`condominios/${condominioId}/blocos`).orderBy('ordem').get()"
-        },
-        {
-            "description": "Listar todas as unidades de um bloco.",
-            "query": "firestore.collection(`condominios/${condominioId}/blocos/${blocoId}/unidades`).orderBy('numero').get()"
-        },
-        {
-            "description": "Listar todos os moradores de uma unidade.",
-            "query": "firestore.collection(`condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`).get()"
-        },
-        {
-            "description": "Obter os detalhes de um vínculo específico do usuário.",
-            "query": "firestore.collection(`userCondominios/${uid}/vinculos`).doc(condominioId).get()"
-        },
-        {
-            "description": "Listar todos os membros (síndicos/porteiros) de um condomínio.",
-            "query": "firestore.collection(`condominios/${condominioId}/membros`).get()"
         }
     ]
   }
