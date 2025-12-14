@@ -126,13 +126,13 @@ export async function salvarMorador(
   } catch (error: any) {
     if (error.code === 'permission-denied') {
         try {
-            // Se a leitura falhou, tentamos escrever como se fosse um documento novo.
-            // O `merge: true` impede que `createdAt` seja sobrescrito se já existir.
-            const dataWithTimestamp = { ...payload, createdAt: serverTimestamp() };
-            await setDoc(moradorRef, dataWithTimestamp, { merge: true });
+            // Se a leitura falhou por permissão, tentamos escrever como se fosse um documento novo.
+            // O `merge: true` impede que `createdAt` seja sobrescrito se já existir por uma corrida de condição.
+            await setDoc(moradorRef, { ...payload, createdAt: serverTimestamp() }, { merge: true });
             return; // Sucesso no fallback.
         } catch (writeError) {
             // Se a escrita do fallback também falhar, emitimos o erro e propagamos.
+            console.error('Erro de fallback ao salvar morador:', writeError);
             const contextualError = await createFirestorePermissionError({
                 path: moradorRef.path,
                 operation: 'write', 

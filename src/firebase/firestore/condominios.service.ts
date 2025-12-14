@@ -20,7 +20,7 @@ import {
   getMembroDocRef,
   getUserVinculoDocRef,
 } from './paths';
-import { createFirestorePermissionError } from '../errors';
+import { createFirestorePermissionError, FirestorePermissionError } from '../errors';
 import { errorEmitter } from '../error-emitter';
 
 // Tipos baseados no backend.json
@@ -61,7 +61,15 @@ export function subscribeCondominios(
       );
       onData(data);
     },
-    onError
+    (err) => {
+      // Listeners são síncronos, então usamos o construtor síncrono do erro.
+      const contextualError = new FirestorePermissionError({
+        operation: 'list',
+        path: condominiosRef.path,
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      onError(err);
+    }
   );
 
   return unsubscribe;
@@ -111,6 +119,7 @@ export async function criarCondominio(
     });
   } catch (error) {
     console.error('Falha na transação de criar condomínio:', error);
+    // Operações async usam a factory async para incluir claims.
     const contextualError = await createFirestorePermissionError({
       path: `condominios/${condominioRef.id}`,
       operation: 'write', // transação é uma escrita
