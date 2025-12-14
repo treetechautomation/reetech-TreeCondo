@@ -63,6 +63,11 @@ service cloud.firestore {
        
        return isVago || isProprietario || isAlugado;
     }
+
+    function isMoradorSelfUpdateValid() {
+      let allowedKeys = ['nome', 'email', 'updatedAt'];
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
     
     // =====================================================================
     // USER VINCULOS COLLECTION
@@ -105,7 +110,7 @@ service cloud.firestore {
       match /blocos/{blocoId}/unidades/{unidadeId}/moradores/{moradorUid} {
           allow read: if isSuperAdmin() || isCondoStaff(condominioId) || (isMoradorAtivo(condominioId) && getVinculo(request.auth.uid, condominioId).unidadeId == unidadeId);
           allow create, delete: if isSuperAdmin() || isSindico(condominioId);
-          allow update: if (isSuperAdmin() || isSindico(condominioId) || isOwner(moradorUid)) && isCreatedAtUnchanged();
+          allow update: if (isSuperAdmin() || isSindico(condominioId) || (isOwner(moradorUid) && isMoradorSelfUpdateValid())) && isCreatedAtUnchanged();
       }
       
       match /blocos/{blocoId}/unidades/{unidadeId}/veiculos/{veiculoId} {
