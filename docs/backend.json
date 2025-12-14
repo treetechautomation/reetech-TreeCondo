@@ -13,48 +13,95 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Data de criação do registro." },
         "createdBy": { "type": "string", "description": "UID do super_admin que criou o condomínio." }
       },
-      "required": ["nome", "ativo", "createdAt", "createdBy"]
+      "required": ["nome", "ativo", "createdAt", "createdBy"],
+      "example": {
+        "nome": "Condomínio Vila das Flores",
+        "cnpj": "12.345.678/0001-99",
+        "cep": "01234-567",
+        "ativo": true,
+        "createdAt": "2024-07-30T10:00:00Z",
+        "createdBy": "p0XWt3ed7VgiEjHoItfmNq31cT62"
+      }
     },
     "Bloco": {
         "title": "Bloco",
         "description": "Representa um bloco, torre ou setor dentro de um condomínio.",
         "type": "object",
         "properties": {
-            "nome": { "type": "string", "description": "Nome ou identificador do bloco (Ex: 'Bloco A', 'Torre 1')." }
+            "nome": { "type": "string", "description": "Nome ou identificador do bloco (Ex: 'Bloco A', 'Torre 1')." },
+            "ordem": { "type": "number", "description": "Número para ordenação da exibição dos blocos." },
+            "ativo": { "type": "boolean", "description": "Indica se o bloco está ativo." },
+            "createdAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["nome"]
+        "required": ["nome", "ordem", "ativo", "createdAt"],
+        "example": {
+            "nome": "Bloco A",
+            "ordem": 1,
+            "ativo": true,
+            "createdAt": "2024-07-30T10:05:00Z"
+        }
     },
     "Unidade": {
         "title": "Unidade",
         "description": "Representa uma unidade individual (apartamento, casa) dentro de um bloco.",
         "type": "object",
         "properties": {
-            "numero": { "type": "string", "description": "Número ou identificador da unidade (Ex: '101', 'Casa 23')." }
+            "numero": { "type": "string", "description": "Número ou identificador da unidade (Ex: '101', 'Casa 23')." },
+            "andar": { "type": "number", "description": "Andar da unidade." },
+            "tipo": { "type": "string", "enum": ["APARTAMENTO"], "description": "Tipo de unidade." },
+            "ativo": { "type": "boolean" },
+            "createdAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["numero"]
+        "required": ["numero", "ativo", "createdAt"],
+        "example": {
+            "numero": "302",
+            "andar": 3,
+            "tipo": "APARTAMENTO",
+            "ativo": true,
+            "createdAt": "2024-07-30T10:10:00Z"
+        }
     },
     "Morador": {
         "title": "Morador",
         "description": "Representa um morador associado a uma unidade específica.",
         "type": "object",
         "properties": {
+            "uid": { "type": "string", "description": "O UID do usuário do Firebase Authentication." },
             "nome": { "type": "string" },
             "email": { "type": "string", "format": "email" },
-            "isResponsavel": { "type": "boolean", "description": "Indica se é o morador principal/responsável pela unidade." }
+            "role": { "type": "string", "enum": ["MORADOR"], "description": "Papel fixo de Morador." },
+            "isResponsavel": { "type": "boolean", "description": "Indica se é o morador principal/responsável pela unidade." },
+            "status": { "type": "string", "enum": ["ATIVO"], "description": "Status do morador na unidade." },
+            "createdAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["nome", "isResponsavel"]
+        "required": ["uid", "nome", "role", "isResponsavel", "status", "createdAt"],
+        "example": {
+            "uid": "aBcDeFgHiJkLmNoPqRsTuVwXyZ12345",
+            "nome": "João da Silva",
+            "email": "joao.silva@email.com",
+            "role": "MORADOR",
+            "isResponsavel": true,
+            "status": "ATIVO",
+            "createdAt": "2024-07-30T11:00:00Z"
+        }
     },
     "MembroCondominio": {
       "title": "Membro do Condomínio",
       "description": "Define o papel de um usuário (não-morador) dentro de um condomínio (ex: síndico, porteiro).",
       "type": "object",
       "properties": {
-        "role": { "type": "string", "enum": ["sindico", "porteiro"], "description": "Papel do usuário neste condomínio." },
-        "status": { "type": "string", "enum": ["ativo", "inativo"], "description": "Status do vínculo do usuário com o condomínio." },
+        "role": { "type": "string", "enum": ["SINDICO", "PORTEIRO"], "description": "Papel do usuário neste condomínio." },
+        "status": { "type": "string", "enum": ["ATIVO", "INATIVO"], "description": "Status do vínculo do usuário com o condomínio." },
         "createdAt": { "type": "string", "format": "date-time" },
         "createdBy": { "type": "string", "description": "UID de quem adicionou o membro." }
       },
-      "required": ["role", "status", "createdAt", "createdBy"]
+      "required": ["role", "status", "createdAt", "createdBy"],
+      "example": {
+          "role": "SINDICO",
+          "status": "ATIVO",
+          "createdAt": "2024-07-30T10:02:00Z",
+          "createdBy": "p0XWt3ed7VgiEjHoItfmNq31cT62"
+      }
     },
     "ConfigMenu": {
         "title": "Configuração de Menu",
@@ -89,12 +136,20 @@
         "properties": {
             "condominioId": { "type": "string" },
             "condominioNome": { "type": "string" },
-            "role": { "type": "string", "enum": ["sindico", "morador", "porteiro"] },
-            "status": { "type": "string", "enum": ["ativo", "inativo", "pendente"] },
-            "blocoId": { "type": "string", "description": "ID do bloco, se o papel for 'morador'." },
-            "unidadeId": { "type": "string", "description": "ID da unidade, se o papel for 'morador'." }
+            "role": { "type": "string", "enum": ["SINDICO", "MORADOR", "PORTEIRO"] },
+            "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
+            "blocoId": { "type": "string", "description": "ID do bloco, se o papel for 'MORADOR'." },
+            "unidadeId": { "type": "string", "description": "ID da unidade, se o papel for 'MORADOR'." }
         },
-        "required": ["condominioId", "condominioNome", "role", "status"]
+        "required": ["condominioId", "condominioNome", "role", "status"],
+        "example": {
+            "condominioId": "condo123",
+            "condominioNome": "Condomínio Vila das Flores",
+            "role": "MORADOR",
+            "status": "ATIVO",
+            "blocoId": "blocoA",
+            "unidadeId": "unidade101"
+        }
     },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" }}},
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" }}},
@@ -125,7 +180,7 @@
         "definition": {
             "entityName": "MembroCondominio",
             "schema": { "$ref": "#/entities/MembroCondominio" },
-            "description": "Sub-coleção que mapeia um UID de usuário a seu papel (síndico, porteiro) e status. Controla o acesso de não-moradores."
+            "description": "Sub-coleção que mapeia um UID de usuário a seu papel (SINDICO, PORTEIRO) e status. Controla o acesso de não-moradores."
         }
       },
       {
@@ -149,7 +204,7 @@
         "definition": {
             "entityName": "Morador",
             "schema": { "$ref": "#/entities/Morador" },
-            "description": "Sub-coleção que lista os moradores de uma unidade específica."
+            "description": "Sub-coleção que lista os moradores (com papel MORADOR) de uma unidade específica."
         }
       },
       {
@@ -189,11 +244,11 @@
         },
         {
             "description": "Listar todos os blocos de um condomínio.",
-            "query": "firestore.collection(`condominios/${condominioId}/blocos`).get()"
+            "query": "firestore.collection(`condominios/${condominioId}/blocos`).orderBy('ordem').get()"
         },
         {
             "description": "Listar todas as unidades de um bloco.",
-            "query": "firestore.collection(`condominios/${condominioId}/blocos/${blocoId}/unidades`).get()"
+            "query": "firestore.collection(`condominios/${condominioId}/blocos/${blocoId}/unidades`).orderBy('numero').get()"
         },
         {
             "description": "Listar todos os moradores de uma unidade.",
@@ -202,7 +257,13 @@
         {
             "description": "Obter os detalhes de um vínculo específico do usuário.",
             "query": "firestore.collection(`userCondominios/${uid}/vinculos`).doc(condominioId).get()"
+        },
+        {
+            "description": "Listar todos os membros (síndicos/porteiros) de um condomínio.",
+            "query": "firestore.collection(`condominios/${condominioId}/membros`).get()"
         }
     ]
   }
 }
+
+    
