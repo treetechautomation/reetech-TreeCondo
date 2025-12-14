@@ -14,7 +14,7 @@ import {
   type FirestoreError,
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
+import { createFirestorePermissionError, FirestorePermissionError } from '../errors';
 import { getMoradorDocRef, getMoradoresRef, getUserVinculoDocRef } from './paths';
 
 // Tipos baseados no backend.json
@@ -115,23 +115,25 @@ export async function salvarMorador(
   try {
     const docSnap = await getDoc(moradorRef);
     
-    const data = docSnap.exists()
-      ? payload // Se existe, só atualiza o payload, preservando createdAt
-      : { ...payload, createdAt: serverTimestamp() }; // Se não existe, adiciona createdAt
-
-    await setDoc(moradorRef, data, { merge: true });
+    if (docSnap.exists()) {
+      // Documento existe, atualiza sem 'createdAt'
+      await setDoc(moradorRef, payload, { merge: true });
+    } else {
+      // Documento não existe, cria com 'createdAt'
+      await setDoc(moradorRef, { ...payload, createdAt: serverTimestamp() }, { merge: true });
+    }
 
   } catch (error: any) {
-    // Se getDoc falhar (ex: por regras de segurança), tentamos escrever assumindo que é uma criação.
-    // Isso garante que `createdAt` seja definido na primeira tentativa de escrita.
     if (error.code === 'permission-denied') {
         try {
+            // Se a leitura falhou, tentamos escrever como se fosse um documento novo.
+            // O `merge: true` impede que `createdAt` seja sobrescrito se já existir.
             const dataWithTimestamp = { ...payload, createdAt: serverTimestamp() };
             await setDoc(moradorRef, dataWithTimestamp, { merge: true });
-            return; // Sucesso no fallback, sai da função.
+            return; // Sucesso no fallback.
         } catch (writeError) {
-             // Se a escrita do fallback também falhar, emitimos o erro e propagamos.
-            const contextualError = new FirestorePermissionError({
+            // Se a escrita do fallback também falhar, emitimos o erro e propagamos.
+            const contextualError = await createFirestorePermissionError({
                 path: moradorRef.path,
                 operation: 'write', 
                 requestResourceData: payload,
@@ -141,9 +143,9 @@ export async function salvarMorador(
         }
     }
     
-    // Se o erro não for de permissão na leitura, propaga o erro original.
+    // Se o erro inicial não foi de permissão na leitura, propaga o erro original.
     console.error('Erro ao salvar morador:', error);
-    const contextualError = new FirestorePermissionError({
+    const contextualError = await createFirestorePermissionError({
       path: moradorRef.path,
       operation: 'write',
       requestResourceData: payload,
@@ -152,6 +154,7 @@ export async function salvarMorador(
     throw error;
   }
 }
+
 
 /**
  * Remove um morador de uma unidade.
@@ -174,7 +177,7 @@ export async function removerMorador(
     await deleteDoc(moradorRef);
   } catch (error) {
     console.error("Erro ao remover morador:", error);
-    const contextualError = new FirestorePermissionError({
+    const contextualError = await createFirestorePermissionError({
       path: moradorRef.path,
       operation: 'delete',
     });
@@ -198,7 +201,6 @@ export async function upsertVinculoMorador(
   const data = {
     ...payload,
     role: 'MORADOR',
-    updatedAt: serverTimestamp(),
   };
 
   try {
@@ -207,15 +209,15 @@ export async function upsertVinculoMorador(
 
       if (vinculoDoc.exists()) {
         // Documento existe, atualiza com updatedAt
-        transaction.update(vinculoRef, data);
+        transaction.update(vinculoRef, { ...data, updatedAt: serverTimestamp() });
       } else {
         // Documento não existe, cria com createdAt e updatedAt
-        transaction.set(vinculoRef, { ...data, createdAt: serverTimestamp() });
+        transaction.set(vinculoRef, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       }
     });
   } catch (error) {
     console.error('Erro ao fazer upsert do vínculo do morador:', error);
-     const contextualError = new FirestorePermissionError({
+     const contextualError = await createFirestorePermissionError({
       path: vinculoRef.path,
       operation: 'write',
       requestResourceData: data,

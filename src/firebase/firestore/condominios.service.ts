@@ -20,6 +20,8 @@ import {
   getMembroDocRef,
   getUserVinculoDocRef,
 } from './paths';
+import { createFirestorePermissionError } from '../errors';
+import { errorEmitter } from '../error-emitter';
 
 // Tipos baseados no backend.json
 export type Condominio = {
@@ -76,10 +78,13 @@ export async function criarCondominio(
   superAdminUid: string,
   payload: NewCondominioPayload
 ): Promise<void> {
+  const condominioRef = doc(collection(firestore, 'condominios'));
+  const membroRef = getMembroDocRef(firestore, condominioRef.id, superAdminUid);
+  const vinculoRef = getUserVinculoDocRef(firestore, superAdminUid, condominioRef.id);
+      
   try {
     await runTransaction(firestore, async (transaction) => {
-      const condominioRef = doc(collection(firestore, 'condominios'));
-
+      
       // 1. Cria o documento principal do condomínio
       transaction.set(condominioRef, {
         ...payload,
@@ -89,7 +94,6 @@ export async function criarCondominio(
       });
 
       // 2. Associa o criador como o primeiro síndico
-      const membroRef = getMembroDocRef(firestore, condominioRef.id, superAdminUid);
       transaction.set(membroRef, {
         role: 'SINDICO',
         status: 'ATIVO',
@@ -98,7 +102,6 @@ export async function criarCondominio(
       });
 
       // 3. Cria o vínculo de acesso para o síndico
-      const vinculoRef = getUserVinculoDocRef(firestore, superAdminUid, condominioRef.id);
       transaction.set(vinculoRef, {
         condominioId: condominioRef.id,
         condominioNome: payload.nome,
@@ -108,6 +111,12 @@ export async function criarCondominio(
     });
   } catch (error) {
     console.error('Falha na transação de criar condomínio:', error);
+    const contextualError = await createFirestorePermissionError({
+      path: `condominios/${condominioRef.id}`,
+      operation: 'write', // transação é uma escrita
+      requestResourceData: payload
+    });
+    errorEmitter.emit('permission-error', contextualError);
     // Propaga o erro para que a UI possa lidar com ele.
     throw error;
   }
@@ -126,7 +135,18 @@ export async function atualizarCondominio(
 ): Promise<void> {
   const docRef = getCondominioDocRef(firestore, condominioId);
   const data = { ...patch, updatedAt: serverTimestamp() };
-  return await updateDoc(docRef, data);
+  try {
+    await updateDoc(docRef, data);
+  } catch (error) {
+    console.error('Erro ao atualizar condomínio:', error);
+    const contextualError = await createFirestorePermissionError({
+      path: docRef.path,
+      operation: 'update',
+      requestResourceData: data,
+    });
+    errorEmitter.emit('permission-error', contextualError);
+    throw error;
+  }
 }
 
 /**
@@ -140,5 +160,15 @@ export async function deletarCondominio(
   condominioId: string
 ): Promise<void> {
   const docRef = getCondominioDocRef(firestore, condominioId);
-  return await deleteDoc(docRef);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error('Erro ao deletar condomínio:', error);
+    const contextualError = await createFirestorePermissionError({
+      path: docRef.path,
+      operation: 'delete',
+    });
+    errorEmitter.emit('permission-error', contextualError);
+    throw error;
+  }
 }

@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "../error-emitter";
-import { FirestorePermissionError } from "../errors";
+import { createFirestorePermissionError, FirestorePermissionError } from "../errors";
 import { getBlocoDocRef, getBlocosRef } from "./paths";
 
 export type Bloco = {
@@ -97,7 +97,7 @@ export async function criarBloco(
     return docRef;
   } catch (error) {
     console.error("Erro ao criar bloco: ", error);
-    const contextualError = new FirestorePermissionError({
+    const contextualError = await createFirestorePermissionError({
       path: `condominios/${condominioId}/blocos`,
       operation: 'create',
       requestResourceData: data,
@@ -124,7 +124,7 @@ export async function deletarBloco(
     await deleteDoc(docRef);
   } catch (error) {
     console.error("Erro ao deletar bloco: ", error);
-    const contextualError = new FirestorePermissionError({
+    const contextualError = await createFirestorePermissionError({
       path: docRef.path,
       operation: 'delete',
     });

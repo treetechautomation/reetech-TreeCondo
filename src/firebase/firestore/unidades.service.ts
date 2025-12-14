@@ -4,9 +4,7 @@
 import { useEffect, useState } from "react";
 import {
   addDoc,
-  collection,
   deleteDoc,
-  doc,
   onSnapshot,
   orderBy,
   query,
@@ -17,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "../error-emitter";
-import { FirestorePermissionError } from "../errors";
+import { createFirestorePermissionError, FirestorePermissionError } from "../errors";
 import { getUnidadeDocRef, getUnidadesRef } from "./paths";
 
 export type Unidade = {
@@ -123,7 +121,7 @@ export async function criarUnidade(
     return await addDoc(unidadesRef, data);
   } catch (error) {
       console.error("Erro ao criar unidade: ", error);
-      const contextualError = new FirestorePermissionError({
+      const contextualError = await createFirestorePermissionError({
         path: `condominios/${condominioId}/blocos/${blocoId}/unidades`,
         operation: 'create',
         requestResourceData: data,
@@ -154,7 +152,7 @@ export async function atualizarUnidade(
     return await updateDoc(docRef, data);
   } catch(error) {
      console.error("Erro ao atualizar unidade: ", error);
-      const contextualError = new FirestorePermissionError({
+      const contextualError = await createFirestorePermissionError({
         path: docRef.path,
         operation: 'update',
         requestResourceData: data,
@@ -182,7 +180,7 @@ export async function deletarUnidade(
     return await deleteDoc(docRef);
   } catch(error) {
       console.error("Erro ao deletar unidade: ", error);
-      const contextualError = new FirestorePermissionError({
+      const contextualError = await createFirestorePermissionError({
         path: docRef.path,
         operation: 'delete',
       });
@@ -250,14 +248,13 @@ export async function setOcupacaoUnidade(
         });
     } catch (error) {
         console.error("Erro na transação de setOcupacaoUnidade: ", error);
-        if (!(error instanceof FirestorePermissionError)) {
-            const contextualError = new FirestorePermissionError({
-                path: unidadeRef.path,
-                operation: 'update',
-                requestResourceData: updatePayload
-            });
-            errorEmitter.emit('permission-error', contextualError);
-        }
+        
+        const contextualError = await createFirestorePermissionError({
+            path: unidadeRef.path,
+            operation: 'update',
+            requestResourceData: updatePayload
+        });
+        errorEmitter.emit('permission-error', contextualError);
         throw error;
     }
 }

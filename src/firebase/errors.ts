@@ -1,7 +1,7 @@
 'use client';
 import { getAuth, type User } from 'firebase/auth';
 
-type SecurityRuleContext = {
+export type SecurityRuleContext = {
   path: string;
   operation: 'get' | 'list' | 'create' | 'update' | 'delete' | 'write';
   requestResourceData?: any;
@@ -18,14 +18,17 @@ interface FirebaseAuthToken {
     sign_in_provider: string;
     tenant: string | null;
   };
+  // Adicionado para carregar custom claims
+  claims?: Record<string, any>;
+  claims_unavailable?: boolean;
 }
 
-interface FirebaseAuthObject {
+export interface FirebaseAuthObject {
   uid: string;
   token: FirebaseAuthToken;
 }
 
-interface SecurityRuleRequest {
+export interface SecurityRuleRequest {
   auth: FirebaseAuthObject | null;
   method: string;
   path: string;
@@ -36,10 +39,12 @@ interface SecurityRuleRequest {
 
 /**
  * Builds a security-rule-compliant auth object from the Firebase User.
+ * This is the SYNCHRONOUS version, used for listeners where we cannot await.
+ * It does not fetch custom claims.
  * @param currentUser The currently authenticated Firebase user.
  * @returns An object that mirrors request.auth in security rules, or null.
  */
-function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
+function buildAuthObjectSync(currentUser: User | null): FirebaseAuthObject | null {
   if (!currentUser) {
     return null;
   }
@@ -60,6 +65,8 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
       sign_in_provider: currentUser.providerData[0]?.providerId || 'custom',
       tenant: currentUser.tenantId,
     },
+    // Mark claims as unavailable in sync mode
+    claims_unavailable: true,
   };
 
   return {
@@ -69,32 +76,46 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
 }
 
 /**
- * Builds the complete, simulated request object for the error message.
- * It safely tries to get the current authenticated user.
- * @param context The context of the failed Firestore operation.
- * @returns A structured request object.
+ * Builds a security-rule-compliant auth object from the Firebase User.
+ * This is the ASYNCHRONOUS version, used for async operations where we can await.
+ * It fetches fresh custom claims.
+ * @param currentUser The currently authenticated Firebase user.
+ * @returns A promise that resolves to an object mirroring request.auth, or null.
  */
-function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
-  let authObject: FirebaseAuthObject | null = null;
-  try {
-    // Safely attempt to get the current user.
-    const firebaseAuth = getAuth();
-    const currentUser = firebaseAuth.currentUser;
-    if (currentUser) {
-      authObject = buildAuthObject(currentUser);
-    }
-  } catch {
-    // This will catch errors if the Firebase app is not yet initialized.
-    // In this case, we'll proceed without auth information.
+async function buildAuthObjectAsync(currentUser: User | null): Promise<FirebaseAuthObject | null> {
+  if (!currentUser) {
+    return null;
   }
 
+  // Force refresh to get latest claims set by backend functions.
+  const tokenResult = await currentUser.getIdTokenResult(true);
+
+  const token: FirebaseAuthToken = {
+    name: currentUser.displayName,
+    email: currentUser.email,
+    email_verified: currentUser.emailVerified,
+    phone_number: currentUser.phoneNumber,
+    sub: currentUser.uid,
+    firebase: {
+      identities: currentUser.providerData.reduce((acc, p) => {
+        if (p.providerId) {
+          acc[p.providerId] = [p.uid];
+        }
+        return acc;
+      }, {} as Record<string, string[]>),
+      sign_in_provider: currentUser.providerData[0]?.providerId || 'custom',
+      tenant: currentUser.tenantId,
+    },
+    // Include the fetched custom claims
+    claims: tokenResult.claims,
+  };
+
   return {
-    auth: authObject,
-    method: context.operation,
-    path: `/databases/(default)/documents/${context.path}`,
-    resource: context.requestResourceData ? { data: context.requestResourceData } : undefined,
+    uid: currentUser.uid,
+    token: token,
   };
 }
+
 
 /**
  * Builds the final, formatted error message for the LLM.
@@ -114,10 +135,71 @@ ${JSON.stringify(requestObject, null, 2)}`;
 export class FirestorePermissionError extends Error {
   public readonly request: SecurityRuleRequest;
 
+  /**
+   * Use this constructor for SYNCHRONOUS contexts like onSnapshot listeners.
+   * It will NOT contain custom claims.
+   * For async operations, use the `createFirestorePermissionError` factory.
+   */
   constructor(context: SecurityRuleContext) {
-    const requestObject = buildRequestObject(context);
+    let authObject: FirebaseAuthObject | null = null;
+    try {
+      const firebaseAuth = getAuth();
+      authObject = buildAuthObjectSync(firebaseAuth.currentUser);
+    } catch {
+      // This will catch errors if the Firebase app is not yet initialized.
+    }
+    
+    const requestObject: SecurityRuleRequest = {
+        auth: authObject,
+        method: context.operation,
+        path: `/databases/(default)/documents/${context.path}`,
+        resource: context.requestResourceData ? { data: context.requestResourceData } : undefined,
+    };
+    
     super(buildErrorMessage(requestObject));
     this.name = 'FirebaseError';
     this.request = requestObject;
   }
+}
+
+/**
+ * ASYNCHRONOUS factory to create a FirestorePermissionError enriched with custom claims.
+ * Use this in `async` functions (create, update, delete, transactions).
+ * @param context The context of the failed Firestore operation.
+ * @returns A promise that resolves to a FirestorePermissionError instance.
+ */
+export async function createFirestorePermissionError(context: SecurityRuleContext): Promise<FirestorePermissionError> {
+    let authObject: FirebaseAuthObject | null = null;
+    try {
+        const firebaseAuth = getAuth();
+        if (firebaseAuth.currentUser) {
+            authObject = await buildAuthObjectAsync(firebaseAuth.currentUser);
+        }
+    } catch {
+        // This will catch errors if the Firebase app is not yet initialized.
+    }
+
+    const requestObject: SecurityRuleRequest = {
+        auth: authObject,
+        method: context.operation,
+        path: `/databases/(default)/documents/${context.path}`,
+        resource: context.requestResourceData ? { data: context.requestResourceData } : undefined,
+    };
+
+    // We create a generic Error to capture the stack trace from the call site.
+    const errorForStackTrace = new Error();
+
+    // Create an instance of the error class but bypass its constructor logic
+    const permissionError = new FirestorePermissionError(context);
+
+    // Manually set the properties with the async-built request and correct message
+    (permissionError as any).request = requestObject;
+    permissionError.message = buildErrorMessage(requestObject);
+
+    // Restore the original stack trace
+    if (errorForStackTrace.stack) {
+        permissionError.stack = errorForStackTrace.stack;
+    }
+    
+    return permissionError;
 }
