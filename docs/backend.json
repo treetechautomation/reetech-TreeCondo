@@ -120,6 +120,24 @@
         "createdAt": "2024-07-30T11:00:00Z"
       }
     },
+    "Veiculo": {
+      "title": "Veículo",
+      "description": "Representa um veículo (carro, moto) associado a uma unidade.",
+      "type": "object",
+      "properties": {
+        "placa": { "type": "string", "description": "Placa do veículo." },
+        "modelo": { "type": "string", "description": "Modelo e cor do veículo (Ex: 'Honda Civic Preto')." },
+        "tipo": { "type": "string", "enum": ["CARRO", "MOTO"], "description": "Tipo do veículo." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["placa", "modelo", "tipo", "createdAt"],
+      "example": {
+        "placa": "BRA2E19",
+        "modelo": "Honda Civic Preto",
+        "tipo": "CARRO",
+        "createdAt": "2024-07-30T10:20:00Z"
+      }
+    },
     "ConfigMenu": { "title": "ConfigMenu", "type": "object", "properties": {} },
     "PermissoesMenu": { "title": "PermissoesMenu", "type": "object", "properties": {} },
     "VinculoUsuario": {
@@ -190,6 +208,14 @@
             "entityName": "Morador",
             "schema": { "$ref": "#/entities/Morador" },
             "description": "Sub-coleção que armazena os moradores de uma unidade específica."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/veiculos/{veiculoId}",
+        "definition": {
+            "entityName": "Veiculo",
+            "schema": { "$ref": "#/entities/Veiculo" },
+            "description": "Sub-coleção que armazena os veículos de uma unidade específica."
         }
       },
       { 
