@@ -42,7 +42,7 @@
     },
     "Unidade": {
       "title": "Unidade",
-      "description": "Representa uma unidade individual (apartamento, casa) dentro de um bloco.",
+      "description": "Representa uma unidade individual (apartamento, casa) dentro de um bloco. Regras de consistência: se 'ocupacao' = 'ALUGADO', 'inquilinoUid' é obrigatório. Se 'ocupacao' = 'PROPRIETARIO', 'inquilinoUid' deve ser nulo. Se 'ocupacao' = 'VAGO', 'inquilinoUid' e 'responsavelUid' podem ser nulos.",
       "type": "object",
       "properties": {
         "numero": { "type": "string", "description": "Número ou identificador da unidade (Ex: '101', 'Casa 23')." },
@@ -55,7 +55,7 @@
         "responsavelUid": { "type": "string", "description": "UID do morador responsável (financeiro/legal) pela unidade." },
         "ocupacao": { "type": "string", "enum": ["VAGO", "PROPRIETARIO", "ALUGADO"], "description": "Status de ocupação da unidade." }
       },
-      "required": ["numero", "ativo", "createdAt", "proprietarioUid", "responsavelUid", "ocupacao"],
+      "required": ["numero", "ativo", "createdAt", "responsavelUid", "ocupacao"],
       "example": {
         "numero": "302",
         "andar": 3,
