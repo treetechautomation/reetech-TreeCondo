@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -15,86 +14,118 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.super_admin == true;
     }
 
-    // Verifica se o usuário é um membro GERAL (sindico, porteiro) e ATIVO do condomínio.
-    function isActiveMember(condominioId) {
-      let memberDoc = get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid));
-      return exists(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid))
-             && memberDoc.data.status == 'ativo';
+    // Verifica se o usuário é um membro da equipe (SINDICO/PORTEIRO) e ATIVO no condomínio.
+    function isCondoStaff(condominioId) {
+      let staffPath = /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
+      return exists(staffPath) && get(staffPath).data.status == 'ATIVO';
     }
     
-    // Verifica o papel de um membro GERAL
-    function hasRole(condominioId, role) {
-        return isActiveMember(condominioId)
-               && get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid)).data.role == role;
+    // Helper para verificar um papel específico do staff
+    function hasStaffRole(condominioId, role) {
+        let staffPath = /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
+        return isCondoStaff(condominioId) && get(staffPath).data.role == role;
+    }
+
+    // Verifica se o usuário é um MORADOR e ATIVO no condomínio, usando o índice de vínculos.
+    function isCondoResident(condominioId) {
+        let vinculoPath = /databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId);
+        return exists(vinculoPath) && get(vinculoPath).data.status == 'ATIVO' && get(vinculoPath).data.role == 'MORADOR';
+    }
+
+    // Verifica se o usuário tem qualquer tipo de acesso ativo ao condomínio (Staff ou Morador).
+    function canAccessCondo(condominioId) {
+        return isCondoStaff(condominioId) || isCondoResident(condominioId);
     }
     
-    // Verifica se o usuário é um MORADOR de uma unidade específica.
+    // Verifica se o morador é da unidade específica (para regras mais granulares, se necessário no futuro)
     function isMoradorOfUnidade(condominioId, blocoId, unidadeId) {
         return exists(/databases/$(database)/documents/condominios/$(condominioId)/blocos/$(blocoId)/unidades/$(unidadeId)/moradores/$(request.auth.uid));
     }
-    
-    // Verifica se o usuário tem algum vínculo ATIVO com o condomínio (seja como membro geral ou morador).
-    // Usado para regras de leitura em coleções de nível superior do condomínio (anuncios, etc).
-    function hasActiveLink(condominioId) {
-       return isActiveMember(condominioId) || 
-              exists(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId));
-    }
+
 
     // =================================
-    // Collections
+    // Collections Rules
     // =================================
 
-    // Coleção de índice para consulta rápida dos vínculos do usuário.
+    // Coleção de índice de acesso rápido.
     match /userCondominios/{uid}/{allChildren=**} {
-      // Um usuário só pode acessar seus próprios documentos de vínculo. Super admin pode tudo.
+      // Apenas o próprio usuário (ou um super_admin) pode ler/escrever em seus vínculos.
       allow read, write: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
-    
+
     match /condominios/{condominioId} {
-      // Leitura permitida para super admins ou qualquer usuário com um vínculo ativo com o condomínio.
-      allow read: if isSuperAdmin() || hasActiveLink(condominioId);
+      // Leitura permitida para super admins ou qualquer usuário com vínculo ativo (staff ou morador).
+      allow read: if isSuperAdmin() || canAccessCondo(condominioId);
       // Escrita (criação/edição/deleção) de condomínios apenas para super admins.
       allow write: if isSuperAdmin();
 
-      // Sub-coleções de acesso geral para membros (síndicos, porteiros)
+      // Sub-coleção para SINDICO e PORTEIRO.
       match /membros/{uid} {
-        // Leitura por super admins ou síndicos do condomínio.
-        allow read: if isSuperAdmin() || hasRole(condominioId, 'sindico');
-        // Escrita por super admins ou síndicos.
-        allow write: if isSuperAdmin() || hasRole(condominioId, 'sindico');
+        // Leitura e escrita permitida para super admins ou síndicos do condomínio.
+        allow read, write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO');
       }
 
-      // Sub-coleções de configuração e dados gerais do condomínio
-      match /anuncios/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico'); }
-      match /documentos/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico'); }
-      match /reunioes/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico'); }
-      match /enquetes/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico'); }
-      match /config/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico'); }
-      
-      // Coleções com permissões variadas
-      match /reservas/{docId} { allow read, write: if isSuperAdmin() || hasActiveLink(condominioId); }
-      match /incidentes/{docId} { allow read, write: if isSuperAdmin() || hasActiveLink(condominioId); }
-      match /acessos/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico') || hasRole(condominioId, 'porteiro'); }
-      match /encomendas/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico') || hasRole(condominioId, 'porteiro'); }
-      match /cadastros/{docId} { allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico'); }
-
-      // Estrutura de Blocos e Unidades
+      // Estrutura de Blocos, Unidades e Moradores.
       match /blocos/{blocoId} {
-        // Leitura e escrita em blocos permitida para síndicos e super admins.
-        allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico');
+        // Leitura permitida para qualquer usuário com acesso ao condomínio.
+        allow read: if isSuperAdmin() || canAccessCondo(condominioId);
+        // Escrita em blocos permitida apenas para super admins.
+        allow write: if isSuperAdmin();
         
         match /unidades/{unidadeId} {
-          // Leitura e escrita em unidades permitida para síndicos e super admins.
-          allow read, write: if isSuperAdmin() || hasRole(condominioId, 'sindico');
+          // Leitura permitida para qualquer usuário com acesso ao condomínio.
+          allow read: if isSuperAdmin() || canAccessCondo(condominioId);
+          // Escrita em unidades permitida apenas para super admins.
+          allow write: if isSuperAdmin();
           
           match /moradores/{uid} {
             // Leitura permitida para super admins, síndicos, ou o próprio morador.
-            allow read: if isSuperAdmin() || hasRole(condominioId, 'sindico') || (request.auth.uid == uid && isMoradorOfUnidade(condominioId, blocoId, unidadeId));
-            // Escrita permitida apenas para super admins e síndicos (para adicionar/remover moradores).
-            allow write: if isSuperAdmin() || hasRole(condominioId, 'sindico');
+            allow read: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO') || (request.auth.uid == uid);
+            // Escrita (adicionar/remover moradores) permitida apenas para super admins e síndicos.
+            allow write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO');
           }
         }
       }
+
+      // Sub-coleções de dados do condomínio
+      
+      // Módulos onde MORADORES podem criar/escrever.
+      match /incidentes/{docId} { 
+        allow read, write: if isSuperAdmin() || canAccessCondo(condominioId); 
+      }
+      match /reservas/{docId} { 
+        allow read, write: if isSuperAdmin() || canAccessCondo(condominioId); 
+      }
+
+      // Módulos onde MORADORES podem apenas LER. Escrita para Síndico/SuperAdmin.
+      match /anuncios/{docId} { 
+          allow read: if isSuperAdmin() || canAccessCondo(condominioId);
+          allow write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO');
+      }
+      match /documentos/{docId} {
+          allow read: if isSuperAdmin() || canAccessCondo(condominioId);
+          allow write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO');
+      }
+       match /reunioes/{docId} {
+          allow read: if isSuperAdmin() || canAccessCondo(condominioId);
+          allow write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO');
+      }
+      match /enquetes/{docId} {
+          allow read: if isSuperAdmin() || canAccessCondo(condominioId);
+          allow write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO');
+      }
+
+      // Módulos de acesso para Staff (Porteiro/Síndico) e SuperAdmin
+      match /acessos/{docId} {
+        allow read, write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO') || hasStaffRole(condominioId, 'PORTEIRO');
+      }
+      match /encomendas/{docId} {
+        allow read, write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO') || hasStaffRole(condominioId, 'PORTEIRO');
+      }
+
+      // Módulos de acesso apenas para Síndico e SuperAdmin
+      match /cadastros/{docId} { allow read, write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO'); }
+      match /config/{docId} { allow read, write: if isSuperAdmin() || hasStaffRole(condominioId, 'SINDICO'); }
     }
   }
 }
