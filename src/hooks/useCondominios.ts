@@ -12,7 +12,7 @@ export type Condominio = {
   cnpj?: string | null;
   cep?: string | null;
   ativo: boolean;
-  createdAt: Timestamp; // Usar o tipo Timestamp do Firebase
+  createdAt: any; // serverTimestamp() é convertido para Timestamp
   createdBy: string;
 };
 
