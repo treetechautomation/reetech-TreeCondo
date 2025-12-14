@@ -120,6 +120,24 @@
         "createdAt": "2024-07-30T11:00:00Z"
       }
     },
+    "Fornecedor": {
+      "title": "Fornecedor",
+      "description": "Representa um fornecedor de serviços ou produtos para o condomínio.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome do fornecedor ou empresa." },
+        "servico": { "type": "string", "description": "Tipo de serviço prestado (Ex: 'Jardinagem', 'Manutenção de Elevador')." },
+        "contato": { "type": "string", "description": "Telefone ou e-mail de contato." },
+        "ativo": { "type": "boolean", "description": "Indica se o fornecedor está ativo/aprovado." }
+      },
+      "required": ["nome", "servico", "ativo"],
+      "example": {
+        "nome": "Jardim & Cia",
+        "servico": "Jardinagem",
+        "contato": "contato@jardimcia.com",
+        "ativo": true
+      }
+    },
     "Veiculo": {
       "title": "Veículo",
       "description": "Representa um veículo (carro, moto) associado a uma unidade.",
@@ -250,6 +268,14 @@
             "entityName": "Funcionario",
             "schema": { "$ref": "#/entities/Funcionario" },
             "description": "Sub-coleção para armazenar os funcionários contratados do condomínio."
+        }
+      },
+      { 
+        "path": "/condominios/{condominioId}/fornecedores/{fornecedorId}",
+        "definition": {
+            "entityName": "Fornecedor",
+            "schema": { "$ref": "#/entities/Fornecedor" },
+            "description": "Sub-coleção para armazenar os fornecedores de produtos/serviços."
         }
       },
       { "path": "/condominios/{condominioId}/anuncios/{anuncioId}", "definition": { "schema": { "$ref": "#/entities/Anuncio" }, "description": "Anúncios do condomínio." } },
