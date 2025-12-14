@@ -46,6 +46,7 @@ export type SetOcupacaoUnidadePayload = {
   ocupacao: 'VAGO' | 'PROPRIETARIO' | 'ALUGADO';
   proprietarioUid?: string | null;
   inquilinoUid?: string | null;
+  responsavelUid?: string | null;
 }
 
 /**
