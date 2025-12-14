@@ -14,17 +14,16 @@ service cloud.firestore {
     }
 
     // Rule for the user-specific data collection.
-    // Only the user themselves or a Super Admin can access these documents.
+    // Only the user themselves or a Super Admin can read/write their own vinculations.
     match /userCondominios/{uid}/{allChildren=**} {
       allow read, write: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
 
     // Rules for the main data collection for all condos.
     // For now, only Super Admins have access to read or write here.
+    // This provides a secure default, denying access to regular users.
     match /condominios/{condominioId}/{allChildren=**} {
       allow read, write: if isSuperAdmin();
     }
   }
 }
-
-    
