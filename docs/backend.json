@@ -163,9 +163,11 @@
         "cargo": { "type": "string", "enum": ["PORTEIRO", "ZELADOR", "FAXINEIRO"] },
         "horario": { "type": "string", "description": "Descrição do turno de trabalho." },
         "contato": { "type": "string" },
-        "status": { "type": "string", "enum": ["ATIVO", "FERIAS", "INATIVO"] }
+        "status": { "type": "string", "enum": ["ATIVO", "FERIAS", "INATIVO"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "UID de quem cadastrou o funcionário." }
       },
-      "required": ["nome", "cargo", "status"]
+      "required": ["nome", "cargo", "status", "createdAt"]
     },
     "Fornecedor": {
       "title": "Fornecedor",
@@ -175,9 +177,11 @@
         "nome": { "type": "string" },
         "servico": { "type": "string", "description": "Descrição do serviço prestado (ex: jardinagem, manutenção de elevador)." },
         "contato": { "type": "string" },
-        "ativo": { "type": "boolean" }
+        "ativo": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "UID de quem cadastrou o fornecedor." }
       },
-      "required": ["nome", "servico", "ativo"]
+      "required": ["nome", "servico", "ativo", "createdAt"]
     },
     "Veiculo": {
       "title": "Veiculo",
