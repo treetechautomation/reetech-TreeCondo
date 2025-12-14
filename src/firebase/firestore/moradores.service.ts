@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   type Firestore,
@@ -14,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
-import { getMoradorDocRef, getMoradoresRef } from './paths';
+import { getMoradorDocRef, getMoradoresRef, getUserVinculoDocRef } from './paths';
 
 // Tipos baseados no backend.json
 
@@ -37,6 +38,14 @@ export type Morador = {
 };
 
 export type MoradorPayload = Omit<Morador, 'id' | 'createdAt'>;
+
+export type UpsertVinculoMoradorPayload = {
+  condominioId: string;
+  condominioNome: string;
+  blocoId: string;
+  unidadeId: string;
+  status: 'ATIVO' | 'INATIVO' | 'PENDENTE';
+};
 
 /**
  * Inscreve-se para receber atualizações em tempo real dos moradores de uma unidade específica.
@@ -168,6 +177,48 @@ export async function removerMorador(
     const contextualError = new FirestorePermissionError({
       path: moradorRef.path,
       operation: 'delete',
+    });
+    errorEmitter.emit('permission-error', contextualError);
+    throw error;
+  }
+}
+
+/**
+ * Cria ou atualiza o documento de vínculo de acesso rápido para um morador.
+ * @param firestore Instância do Firestore.
+ * @param uid O UID do usuário/morador.
+ * @param payload Dados do vínculo.
+ */
+export async function upsertVinculoMorador(
+  firestore: Firestore,
+  uid: string,
+  payload: UpsertVinculoMoradorPayload
+): Promise<void> {
+  const vinculoRef = getUserVinculoDocRef(firestore, uid, payload.condominioId);
+  const data = {
+    ...payload,
+    role: 'MORADOR',
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await runTransaction(firestore, async (transaction) => {
+      const vinculoDoc = await transaction.get(vinculoRef);
+
+      if (vinculoDoc.exists()) {
+        // Documento existe, atualiza com updatedAt
+        transaction.update(vinculoRef, data);
+      } else {
+        // Documento não existe, cria com createdAt e updatedAt
+        transaction.set(vinculoRef, { ...data, createdAt: serverTimestamp() });
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao fazer upsert do vínculo do morador:', error);
+     const contextualError = new FirestorePermissionError({
+      path: vinculoRef.path,
+      operation: 'write',
+      requestResourceData: data,
     });
     errorEmitter.emit('permission-error', contextualError);
     throw error;
