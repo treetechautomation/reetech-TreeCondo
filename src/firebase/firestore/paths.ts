@@ -27,3 +27,4 @@ export const getMoradorDocRef = (db: Firestore, condominioId: string, blocoId: s
 export const getMembroDocRef = (db: Firestore, condominioId: string, uid: string) => doc(db, `condominios/${condominioId}/membros`, uid);
 export const getUserVinculoDocRef = (db: Firestore, uid: string, condominioId: string) => doc(db, `userCondominios/${uid}/vinculos`, condominioId);
 export const getConfigMenuDocRef = (db: Firestore, condominioId: string) => doc(db, `condominios/${condominioId}/config/menu`);
+
