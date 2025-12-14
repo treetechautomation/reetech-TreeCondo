@@ -98,6 +98,28 @@
         "createdBy": "p0XWt3ed7VgiEjHoItfmNq31cT62"
       }
     },
+    "Funcionario": {
+      "title": "Funcionário",
+      "description": "Representa um funcionário contratado pelo condomínio (ex: zelador, porteiro, faxineiro).",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome completo do funcionário." },
+        "cargo": { "type": "string", "description": "Cargo do funcionário (Ex: 'Zelador', 'Porteiro Diurno')." },
+        "horario": { "type": "string", "description": "Horário de trabalho do funcionário." },
+        "contato": { "type": "string", "description": "Telefone de contato do funcionário." },
+        "status": { "type": "string", "enum": ["ATIVO", "INATIVO"], "description": "Status do funcionário." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome", "cargo", "status", "createdAt"],
+      "example": {
+        "nome": "Carlos Pereira",
+        "cargo": "Zelador",
+        "horario": "Seg-Sex, 08h-17h",
+        "contato": "11999998888",
+        "status": "ATIVO",
+        "createdAt": "2024-07-30T11:00:00Z"
+      }
+    },
     "ConfigMenu": { "title": "ConfigMenu", "type": "object", "properties": {} },
     "PermissoesMenu": { "title": "PermissoesMenu", "type": "object", "properties": {} },
     "VinculoUsuario": {
@@ -168,6 +190,14 @@
             "entityName": "Morador",
             "schema": { "$ref": "#/entities/Morador" },
             "description": "Sub-coleção que armazena os moradores de uma unidade específica."
+        }
+      },
+      { 
+        "path": "/condominios/{condominioId}/funcionarios/{funcionarioId}",
+        "definition": {
+            "entityName": "Funcionario",
+            "schema": { "$ref": "#/entities/Funcionario" },
+            "description": "Sub-coleção para armazenar os funcionários contratados do condomínio."
         }
       },
       { "path": "/condominios/{condominioId}/anuncios/{anuncioId}", "definition": { "schema": { "$ref": "#/entities/Anuncio" }, "description": "Anúncios do condomínio." } },
