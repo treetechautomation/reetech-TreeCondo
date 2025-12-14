@@ -51,7 +51,7 @@
         "ativo": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "proprietarioUid": { "type": "string", "description": "UID do morador proprietário da unidade." },
-        "inquilinoUid": { "type": "string", "description": "UID do morador inquilino atual, se houver. Nulo se vago ou ocupado pelo proprietário." },
+        "inquilinoUid": { "type": ["string", "null"], "description": "UID do morador inquilino atual, se houver. Nulo se vago ou ocupado pelo proprietário." },
         "responsavelUid": { "type": "string", "description": "UID do morador responsável (financeiro/legal) pela unidade." },
         "ocupacao": { "type": "string", "enum": ["VAGO", "PROPRIETARIO", "ALUGADO"], "description": "Status de ocupação da unidade." }
       },
