@@ -54,7 +54,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -67,7 +67,10 @@ import {
 
 import { useMemo, useState } from "react";
 import { useCondominios } from "@/hooks/useCondominios";
-import { criarCondominio, deletarCondominio } from "@/firebase/firestore/condominios.service";
+import {
+  criarCondominio,
+  deletarCondominio,
+} from "@/firebase/firestore/condominios.service";
 import { useFirestore, useUser, useClaims } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -85,8 +88,6 @@ export default function CondominiosPage() {
   const [nome, setNome] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [cep, setCep] = useState("");
-  const [sindico, setSindico] = useState("");
-  const [contato, setContato] = useState("");
   const [saving, setSaving] = useState(false);
 
   const canRender = useMemo(() => {
@@ -107,43 +108,47 @@ export default function CondominiosPage() {
     setSaving(true);
 
     const payload = {
-        nome: nome.trim(),
-        cnpj: cnpj.trim() || undefined,
-        cep: cep.trim() || undefined,
-        sindico: sindico.trim() || undefined,
-        contato: contato.trim() || undefined,
-      };
+      nome: nome.trim(),
+      cnpj: cnpj.trim() || undefined,
+      cep: cep.trim() || undefined,
+    };
 
     criarCondominio(firestore, user.uid, payload)
       .then(() => {
-          toast({ title: "Condomínio criado com sucesso!" });
-          setNome("");
-          setCnpj("");
-          setCep("");
-          setSindico("");
-          setContato("");
-          setOpen(false);
+        toast({ title: "Condomínio criado com sucesso!" });
+        setNome("");
+        setCnpj("");
+        setCep("");
+        setOpen(false);
       })
       .catch((e: any) => {
-          // O erro de permissão já é tratado pelo emitter,
-          // mas podemos exibir um erro genérico para outras falhas.
-          console.error(e);
-          toast({ variant: "destructive", title: "Erro ao criar condomínio", description: e?.message || "Tente novamente." });
+        // O erro de permissão já é tratado pelo emitter,
+        // mas podemos exibir um erro genérico para outras falhas.
+        console.error(e);
+        toast({
+          variant: "destructive",
+          title: "Erro ao criar condomínio",
+          description: e?.message || "Tente novamente.",
+        });
       })
       .finally(() => {
-          setSaving(false);
+        setSaving(false);
       });
   };
 
   const handleDelete = (condominioId: string) => {
     deletarCondominio(firestore, condominioId)
-        .then(() => {
-             toast({ title: "Condomínio excluído." });
-        })
-        .catch((e: any) => {
-            console.error(e);
-            toast({ variant: "destructive", title: "Erro ao excluir", description: e?.message || "Tente novamente." });
+      .then(() => {
+        toast({ title: "Condomínio excluído." });
+      })
+      .catch((e: any) => {
+        console.error(e);
+        toast({
+          variant: "destructive",
+          title: "Erro ao excluir",
+          description: e?.message || "Tente novamente.",
         });
+      });
   };
 
   if (!canRender) return null;
@@ -286,7 +291,7 @@ export default function CondominiosPage() {
                 <DialogHeader>
                   <DialogTitle>Cadastrar Novo Condomínio</DialogTitle>
                   <DialogDescription>
-                    Insira as informações do novo condomínio.
+                    Insira as informações do novo condomínio. A estrutura inicial (bloco, unidade, síndico) será criada automaticamente.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -329,32 +334,6 @@ export default function CondominiosPage() {
                       onChange={(e) => setCep(e.target.value)}
                     />
                   </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="sindico-condo" className="text-right">
-                      Síndico
-                    </Label>
-                    <Input
-                      id="sindico-condo"
-                      placeholder="Nome do síndico responsável"
-                      className="col-span-3"
-                      value={sindico}
-                      onChange={(e) => setSindico(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="contato-condo" className="text-right">
-                      Contato
-                    </Label>
-                    <Input
-                      id="contato-condo"
-                      placeholder="Telefone ou e-mail"
-                      className="col-span-3"
-                      value={contato}
-                      onChange={(e) => setContato(e.target.value)}
-                    />
-                  </div>
                 </div>
 
                 <DialogFooter>
@@ -375,8 +354,7 @@ export default function CondominiosPage() {
               <TableRow>
                 <TableHead>Nome do Condomínio</TableHead>
                 <TableHead>CNPJ</TableHead>
-                <TableHead>Síndico</TableHead>
-                <TableHead>Contato</TableHead>
+                <TableHead>Ativo</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -384,45 +362,53 @@ export default function CondominiosPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4">Carregando...</TableCell>
+                  <TableCell colSpan={4} className="text-center py-4">
+                    Carregando...
+                  </TableCell>
                 </TableRow>
               ) : condominios.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4">Nenhum condomínio cadastrado.</TableCell>
+                  <TableCell colSpan={4} className="text-center py-4">
+                    Nenhum condomínio cadastrado.
+                  </TableCell>
                 </TableRow>
               ) : (
                 condominios.map((condo) => (
                   <TableRow key={condo.id}>
                     <TableCell className="font-medium">{condo.nome}</TableCell>
                     <TableCell>{condo.cnpj ?? "-"}</TableCell>
-                    <TableCell>{condo.sindico ?? "-"}</TableCell>
-                    <TableCell>{condo.contato ?? "-"}</TableCell>
+                    <TableCell>{condo.ativo ? "Sim" : "Não"}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button variant="outline" size="icon" disabled>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                           <Button variant="destructive" size="icon">
-                             <Trash2 className="h-4 w-4" />
-                           </Button>
+                          <Button variant="destructive" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente o condomínio
-                                e removerá seus dados de nossos servidores.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(condo.id)}>
-                                Continuar
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Você tem certeza?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Essa ação não pode ser desfeita. Isso excluirá
+                              permanentemente o condomínio e removerá seus dados
+                              de nossos servidores.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(condo.id)}
+                            >
+                              Continuar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
                         </AlertDialogContent>
-                    </AlertDialog>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))
