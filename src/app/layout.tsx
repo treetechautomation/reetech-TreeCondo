@@ -1,13 +1,37 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthGate } from "@/components/authgate";
 import { CondominioProvider } from '@/contexts/CondominioContext';
 
+const APP_NAME = "TreeCondo";
+const APP_DESCRIPTION = "Gerencie seu condomínio com facilidade.";
+
 export const metadata: Metadata = {
-  title: 'TreeCondo',
-  description: 'Gerencie seu condomínio com facilidade.',
+  applicationName: APP_NAME,
+  title: {
+    default: APP_NAME,
+    template: `%s - ${APP_NAME}`,
+  },
+  description: APP_DESCRIPTION,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: APP_NAME,
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#C9A79E",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  width: 'device-width',
 };
 
 export default function RootLayout({
@@ -21,9 +45,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=PT+Sans:wght@400;700&display=swap"
           rel="stylesheet"
         />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>

@@ -1,0 +1,21 @@
+{
+  "name": "TreeCondo",
+  "short_name": "TreeCondo",
+  "description": "Gerencie seu condomínio com facilidade.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAEBDB",
+  "theme_color": "#C9A79E",
+  "icons": [
+    {
+      "src": "/icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
