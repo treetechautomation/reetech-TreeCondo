@@ -2,9 +2,7 @@
 'use client';
 
 import {
-  collection,
   deleteDoc,
-  doc,
   getDoc,
   onSnapshot,
   orderBy,
@@ -16,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
+import { getMoradorDocRef, getMoradoresRef } from './paths';
 
 // Tipos baseados no backend.json
 
@@ -57,10 +56,7 @@ export function subscribeMoradores(
   onData: (data: Morador[]) => void,
   onError: (error: FirestoreError) => void
 ) {
-  const moradoresRef = collection(
-    firestore,
-    `/condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`
-  );
+  const moradoresRef = getMoradoresRef(firestore, condominioId, blocoId, unidadeId);
   const q = query(moradoresRef, orderBy('nome', 'asc'));
 
   const unsubscribe = onSnapshot(
@@ -105,43 +101,46 @@ export async function salvarMorador(
   uid: string,
   payload: MoradorPayload
 ): Promise<void> {
-  const moradorRef = doc(
-    firestore,
-    `/condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`,
-    uid
-  );
+  const moradorRef = getMoradorDocRef(firestore, condominioId, blocoId, unidadeId, uid);
 
   try {
     const docSnap = await getDoc(moradorRef);
-    const data = {
-      ...payload,
-      // Adiciona createdAt apenas se o documento não existir
-      ...(!docSnap.exists() && { createdAt: serverTimestamp() }),
-    };
+    
+    const data = docSnap.exists()
+      ? payload // Se existe, só atualiza o payload, preservando createdAt
+      : { ...payload, createdAt: serverTimestamp() }; // Se não existe, adiciona createdAt
 
-    // Usamos `setDoc` com `merge` para criar ou atualizar o documento.
-    setDoc(moradorRef, data, { merge: true }).catch((error) => {
-      const contextualError = new FirestorePermissionError({
-        path: moradorRef.path,
-        operation: docSnap.exists() ? 'update' : 'create',
-        requestResourceData: data,
-      });
-      errorEmitter.emit('permission-error', contextualError);
-      throw error; // Re-throw para a UI
+    await setDoc(moradorRef, data, { merge: true });
+
+  } catch (error: any) {
+    // Se getDoc falhar (ex: por regras de segurança), tentamos escrever assumindo que é uma criação.
+    // Isso garante que `createdAt` seja definido na primeira tentativa de escrita.
+    if (error.code === 'permission-denied') {
+        try {
+            const dataWithTimestamp = { ...payload, createdAt: serverTimestamp() };
+            await setDoc(moradorRef, dataWithTimestamp, { merge: true });
+            return; // Sucesso no fallback, sai da função.
+        } catch (writeError) {
+             // Se a escrita do fallback também falhar, emitimos o erro e propagamos.
+            const contextualError = new FirestorePermissionError({
+                path: moradorRef.path,
+                operation: 'write', 
+                requestResourceData: payload,
+            });
+            errorEmitter.emit('permission-error', contextualError);
+            throw writeError;
+        }
+    }
+    
+    // Se o erro não for de permissão na leitura, propaga o erro original.
+    console.error('Erro ao salvar morador:', error);
+    const contextualError = new FirestorePermissionError({
+      path: moradorRef.path,
+      operation: 'write',
+      requestResourceData: payload,
     });
-  } catch (error) {
-    console.error('Erro ao verificar documento do morador antes de salvar:', error);
-    // Mesmo se a leitura falhar (ex: por regras), tentamos a escrita
-    // e deixamos o .catch() lidar com o erro de permissão.
-    setDoc(moradorRef, payload, { merge: true }).catch((writeError) => {
-        const contextualError = new FirestorePermissionError({
-          path: moradorRef.path,
-          operation: 'write', // Operação genérica pois não sabemos se existia
-          requestResourceData: payload,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        throw writeError; // Re-throw para a UI
-    });
+    errorEmitter.emit('permission-error', contextualError);
+    throw error;
   }
 }
 
@@ -153,25 +152,24 @@ export async function salvarMorador(
  * @param unidadeId ID da unidade.
  * @param uid UID do morador a ser removido.
  */
-export function removerMorador(
+export async function removerMorador(
   firestore: Firestore,
   condominioId: string,
   blocoId: string,
   unidadeId: string,
   uid: string
-): void {
-  const moradorRef = doc(
-    firestore,
-    `/condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`,
-    uid
-  );
+): Promise<void> {
+  const moradorRef = getMoradorDocRef(firestore, condominioId, blocoId, unidadeId, uid);
 
-  deleteDoc(moradorRef).catch((error) => {
+  try {
+    await deleteDoc(moradorRef);
+  } catch (error) {
+    console.error("Erro ao remover morador:", error);
     const contextualError = new FirestorePermissionError({
       path: moradorRef.path,
       operation: 'delete',
     });
     errorEmitter.emit('permission-error', contextualError);
-    throw error; // Re-throw para a UI
-  });
+    throw error;
+  }
 }
