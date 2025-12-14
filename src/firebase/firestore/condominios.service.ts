@@ -1,134 +1,167 @@
-"use client";
+
+'use client';
 
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
-  serverTimestamp,
-  writeBatch,
+  onSnapshot,
+  orderBy,
+  query,
   runTransaction,
-} from "firebase/firestore";
-import { Firestore } from "firebase/firestore";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
-import { criarConfiguracaoDeMenuPadrao } from "./menu.service";
+  serverTimestamp,
+  updateDoc,
+  type Firestore,
+  type FirestoreError,
+} from 'firebase/firestore';
+import {
+  getCondominioDocRef,
+  getCondominiosRef,
+  getMembroDocRef,
+  getUserVinculoDocRef,
+} from './paths';
+
+// Tipos baseados no backend.json
+export type Condominio = {
+  id: string;
+  nome: string;
+  cnpj?: string;
+  cep?: string;
+  ativo: boolean;
+  createdAt: any; // serverTimestamp()
+  createdBy: string;
+};
+
+export type NewCondominioPayload = Pick<Condominio, 'nome' | 'cnpj' | 'cep'>;
+export type UpdateCondominioPayload = Partial<NewCondominioPayload & { ativo: boolean }>;
 
 /**
- * Cria um novo condomínio com uma estrutura inicial completa (bloco, unidade, síndico).
- * Esta função utiliza uma transação para garantir a atomicidade da operação.
+ * Inscreve-se para receber atualizações em tempo real da coleção de condomínios.
+ * Apenas Super Admins devem ter permissão para esta função.
+ * @param firestore Instância do Firestore.
+ * @param onData Callback chamado com a lista de condomínios.
+ * @param onError Callback chamado em caso de erro de permissão ou outros.
+ * @returns Uma função para cancelar a inscrição (unsubscribe).
+ */
+export function subscribeCondominios(
+  firestore: Firestore,
+  onData: (data: Condominio[]) => void,
+  onError: (error: FirestoreError) => void
+) {
+  const condominiosRef = getCondominiosRef(firestore);
+  const q = query(condominiosRef, orderBy('createdAt', 'desc'));
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const data = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Condominio)
+      );
+      onData(data);
+    },
+    onError
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * Cria um novo condomínio e toda a sua estrutura inicial necessária de forma atômica.
+ * @param firestore Instância do Firestore.
+ * @param superAdminUid UID do Super Admin que está criando o condomínio.
+ * @param payload Dados do novo condomínio.
  */
 export async function criarCondominio(
   firestore: Firestore,
-  adminUid: string,
-  payload: {
-    nome: string;
-    cnpj?: string;
-    cep?: string;
-  }
-) {
+  superAdminUid: string,
+  payload: NewCondominioPayload
+): Promise<void> {
   try {
     await runTransaction(firestore, async (transaction) => {
-      // 1. Criar o documento do condomínio
-      const condominioRef = doc(collection(firestore, "condominios"));
-      const condominioData = {
-        nome: payload.nome,
-        cnpj: payload.cnpj || null,
-        cep: payload.cep || null,
+      const condominioRef = doc(collection(firestore, 'condominios'));
+
+      // 1. Cria o documento principal do condomínio
+      transaction.set(condominioRef, {
+        ...payload,
         ativo: true,
         createdAt: serverTimestamp(),
-        createdBy: adminUid,
-      };
-      transaction.set(condominioRef, condominioData);
+        createdBy: superAdminUid,
+      });
 
-      // 2. Criar um bloco padrão
-      const blocoRef = doc(
-        collection(firestore, `condominios/${condominioRef.id}/blocos`)
-      );
-      const blocoData = {
-        nome: "Bloco Padrão",
+      // 2. Cria um bloco padrão
+      const blocoRef = doc(collection(firestore, `${condominioRef.path}/blocos`));
+      transaction.set(blocoRef, {
+        nome: 'Bloco Padrão',
         ordem: 1,
         ativo: true,
         createdAt: serverTimestamp(),
-      };
-      transaction.set(blocoRef, blocoData);
+      });
 
-      // 3. Criar uma unidade padrão
-      const unidadeRef = doc(
-        collection(
-          firestore,
-          `condominios/${condominioRef.id}/blocos/${blocoRef.id}/unidades`
-        )
-      );
-      const unidadeData = {
-        numero: "101",
+      // 3. Cria uma unidade padrão
+      const unidadeRef = doc(collection(firestore, `${blocoRef.path}/unidades`));
+      transaction.set(unidadeRef, {
+        numero: '101',
         andar: 1,
-        tipo: "APARTAMENTO",
+        tipo: 'APARTAMENTO',
+        ocupacao: 'VAGO',
         ativo: true,
         createdAt: serverTimestamp(),
-      };
-      transaction.set(unidadeRef, unidadeData);
-      
-      // 4. Criar a configuração de menu (esta função não precisa estar na transação,
-      //    pois é uma operação de 'set' idempotente)
-      criarConfiguracaoDeMenuPadrao(firestore, condominioRef.id);
+        proprietarioUid: null,
+        inquilinoUid: null,
+        responsavelUid: null,
+      });
 
-      // 5. Associar o admin criador como Síndico
-      const membroRef = doc(
-        firestore,
-        `condominios/${condominioRef.id}/membros`,
-        adminUid
-      );
-      const membroData = {
-        role: "SINDICO",
-        status: "ATIVO",
+      // 4. Associa o criador como o primeiro síndico
+      const membroRef = getMembroDocRef(firestore, condominioRef.id, superAdminUid);
+      transaction.set(membroRef, {
+        role: 'SINDICO',
+        status: 'ATIVO',
         createdAt: serverTimestamp(),
-        createdBy: adminUid,
-      };
-      transaction.set(membroRef, membroData);
+        createdBy: superAdminUid,
+      });
 
-      // 6. Criar o vínculo do usuário
-      const vinculoRef = doc(
-        firestore,
-        `userCondominios/${adminUid}/vinculos`,
-        condominioRef.id
-      );
-      const vinculoData = {
+      // 5. Cria o vínculo de acesso para o síndico
+      const vinculoRef = getUserVinculoDocRef(firestore, superAdminUid, condominioRef.id);
+      transaction.set(vinculoRef, {
         condominioId: condominioRef.id,
         condominioNome: payload.nome,
-        role: "SINDICO",
-        status: "ATIVO",
-      };
-      transaction.set(vinculoRef, vinculoData);
+        role: 'SINDICO',
+        status: 'ATIVO',
+      });
     });
   } catch (error) {
-    console.error("Falha na transação de criar condomínio: ", error);
-    // Mesmo com a transação, emitimos um erro genérico de criação para o listener,
-    // pois a causa raiz provavelmente será permissão.
-     const contextualError = new FirestorePermissionError({
-        path: `condominios/${payload.nome}`,
-        operation: 'create',
-        requestResourceData: payload,
-      });
-      errorEmitter.emit('permission-error', contextualError);
-    // Propaga o erro para que a UI possa reagir
+    console.error('Falha na transação de criar condomínio:', error);
+    // Propaga o erro para que a UI possa lidar com ele.
     throw error;
   }
 }
 
+/**
+ * Atualiza os dados de um condomínio.
+ * @param firestore Instância do Firestore.
+ * @param condominioId ID do condomínio a ser atualizado.
+ * @param patch Objeto com os campos a serem atualizados.
+ */
+export async function atualizarCondominio(
+  firestore: Firestore,
+  condominioId: string,
+  patch: UpdateCondominioPayload
+): Promise<void> {
+  const docRef = getCondominioDocRef(firestore, condominioId);
+  const data = { ...patch, updatedAt: serverTimestamp() };
+  return await updateDoc(docRef, data);
+}
+
+/**
+ * Deleta um condomínio.
+ * ATENÇÃO: Esta é uma operação destrutiva e não remove subcoleções automaticamente.
+ * @param firestore Instância do Firestore.
+ * @param condominioId ID do condomínio a ser deletado.
+ */
 export async function deletarCondominio(
   firestore: Firestore,
   condominioId: string
-) {
-  const docRef = doc(firestore, "condominios", condominioId);
-
-  // Usa .catch() para tratamento de erro não-bloqueante
-  return deleteDoc(docRef).catch((error) => {
-    const contextualError = new FirestorePermissionError({
-      path: docRef.path,
-      operation: "delete",
-    });
-    errorEmitter.emit("permission-error", contextualError);
-    throw error;
-  });
+): Promise<void> {
+  const docRef = getCondominioDocRef(firestore, condominioId);
+  return await deleteDoc(docRef);
 }
