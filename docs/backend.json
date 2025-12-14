@@ -169,28 +169,30 @@
     },
     "Veiculo": {
       "title": "Veiculo",
-      "description": "Representa um veículo pertencente a um morador.",
+      "description": "Representa um veículo pertencente a uma unidade.",
       "type": "object",
       "properties": {
         "placa": { "type": "string" },
         "modelo": { "type": "string" },
         "cor": { "type": "string" },
         "tipo": { "type": "string", "enum": ["CARRO", "MOTO"] },
+        "ownerUid": { "type": "string", "description": "UID do morador proprietário do veículo." },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["placa", "modelo", "tipo", "createdAt"]
+      "required": ["placa", "modelo", "tipo", "ownerUid", "createdAt"]
     },
     "Pet": {
       "title": "Pet",
-      "description": "Representa um animal de estimação de um morador.",
+      "description": "Representa um animal de estimação de uma unidade.",
       "type": "object",
       "properties": {
         "nome": { "type": "string" },
         "raca": { "type": "string" },
         "porte": { "type": "string", "enum": ["PEQUENO", "MEDIO", "GRANDE"] },
+        "ownerUid": { "type": "string", "description": "UID do morador proprietário do pet." },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["nome", "raca", "porte", "createdAt"]
+      "required": ["nome", "raca", "porte", "ownerUid", "createdAt"]
     },
     "VinculoUsuario": {
       "title": "VinculoUsuario",
@@ -293,19 +295,19 @@
         }
       },
       {
-        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/moradores/{uid}/veiculos/{veiculoId}",
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/veiculos/{veiculoId}",
         "definition": {
           "entityName": "Veiculo",
           "schema": { "$ref": "#/entities/Veiculo" },
-          "description": "Veículos associados a um morador específico."
+          "description": "Veículos associados a uma unidade."
         }
       },
       {
-        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/moradores/{uid}/pets/{petId}",
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/pets/{petId}",
         "definition": {
           "entityName": "Pet",
           "schema": { "$ref": "#/entities/Pet" },
-          "description": "Pets associados a um morador específico."
+          "description": "Pets associados a uma unidade."
         }
       },
       {
