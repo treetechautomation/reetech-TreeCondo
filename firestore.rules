@@ -125,7 +125,7 @@ service cloud.firestore {
       }
       
       match /blocos/{blocoId}/unidades/{unidadeId}/veiculos/{veiculoId} {
-          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+          allow read: if isSuperAdmin() || isCondoStaff(condominioId) || isOwnerOfUnidade(condominioId, unidadeId);
           allow create: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
           // A resident can only update their own vehicle, and cannot change the owner.
           allow update: if (isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid)) && request.resource.data.ownerUid == resource.data.ownerUid;
@@ -133,7 +133,7 @@ service cloud.firestore {
       }
       
        match /blocos/{blocoId}/unidades/{unidadeId}/pets/{petId} {
-          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+          allow read: if isSuperAdmin() || isCondoStaff(condominioId) || isOwnerOfUnidade(condominioId, unidadeId);
           allow create: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
           // A resident can only update their own pet, and cannot change the owner.
           allow update: if (isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid)) && request.resource.data.ownerUid == resource.data.ownerUid;
