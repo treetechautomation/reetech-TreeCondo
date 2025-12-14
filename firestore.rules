@@ -13,17 +13,25 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.super_admin == true;
     }
 
+    // Helper function to ensure createdAt field is not changed on update.
+    function isCreatedAtUnchanged() {
+      return request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     // Rule for the user-specific data collection.
-    // Only the user themselves or a Super Admin can read/write their own vinculations.
+    // Only the user themselves or a Super Admin can manage their own vinculations.
     match /userCondominios/{uid}/{allChildren=**} {
-      allow read, write: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
+       allow read, delete: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
+       allow create: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
+       allow update: if (isSuperAdmin() || (isSignedIn() && request.auth.uid == uid)) && isCreatedAtUnchanged();
     }
 
     // Rules for the main data collection for all condos.
-    // For now, only Super Admins have access to read or write here.
-    // This provides a secure default, denying access to regular users.
+    // For now, only Super Admins have access.
     match /condominios/{condominioId}/{allChildren=**} {
-      allow read, write: if isSuperAdmin();
+      allow read, delete: if isSuperAdmin();
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin() && isCreatedAtUnchanged();
     }
   }
 }
