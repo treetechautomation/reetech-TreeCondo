@@ -42,7 +42,7 @@
     },
     "Unidade": {
       "title": "Unidade",
-      "description": "Representa uma unidade individual (apartamento, casa) dentro de um bloco. Regras de consistência: se 'ocupacao' = 'ALUGADO', 'inquilinoUid' é obrigatório. Se 'ocupacao' = 'PROPRIETARIO', 'inquilinoUid' deve ser nulo. Se 'ocupacao' = 'VAGO', 'inquilinoUid' e 'responsavelUid' podem ser nulos.",
+      "description": "Representa uma unidade individual (apartamento, casa) dentro de um bloco. Regras de consistência: se 'ocupacao' = 'ALUGADO', 'inquilinoUid' é obrigatório e 'responsavelUid' deve ser igual a 'inquilinoUid'. Se 'ocupacao' = 'PROPRIETARIO', 'proprietarioUid' é obrigatório, 'inquilinoUid' deve ser nulo e 'responsavelUid' deve ser igual a 'proprietarioUid'. Se 'ocupacao' = 'VAGO', 'inquilinoUid', 'proprietarioUid' e 'responsavelUid' devem ser nulos.",
       "type": "object",
       "properties": {
         "numero": { "type": "string", "description": "Número ou identificador da unidade (Ex: '101', 'Casa 23')." },
@@ -50,12 +50,12 @@
         "tipo": { "type": "string", "enum": ["APARTAMENTO", "CASA"], "description": "Tipo de unidade." },
         "ativo": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "proprietarioUid": { "type": "string", "description": "UID do morador proprietário da unidade." },
+        "proprietarioUid": { "type": ["string", "null"], "description": "UID do morador proprietário da unidade." },
         "inquilinoUid": { "type": ["string", "null"], "description": "UID do morador inquilino atual, se houver. Nulo se vago ou ocupado pelo proprietário." },
-        "responsavelUid": { "type": "string", "description": "UID do morador responsável (financeiro/legal) pela unidade." },
+        "responsavelUid": { "type": ["string", "null"], "description": "UID do morador responsável (financeiro/legal) pela unidade." },
         "ocupacao": { "type": "string", "enum": ["VAGO", "PROPRIETARIO", "ALUGADO"], "description": "Status de ocupação da unidade." }
       },
-      "required": ["numero", "ativo", "createdAt", "responsavelUid", "ocupacao"],
+      "required": ["numero", "tipo", "andar", "ativo", "createdAt", "ocupacao"],
       "example": {
         "numero": "302",
         "andar": 3,

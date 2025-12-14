@@ -2,8 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
+import { subscribeCondominios } from "@/firebase/firestore/condominios.service";
+import type { FirestoreError, Timestamp } from "firebase/firestore";
 
 export type Condominio = {
   id: string;
@@ -11,7 +12,7 @@ export type Condominio = {
   cnpj?: string | null;
   cep?: string | null;
   ativo: boolean;
-  createdAt: ReturnType<typeof serverTimestamp>;
+  createdAt: Timestamp; // Usar o tipo Timestamp do Firebase
   createdBy: string;
 };
 
@@ -19,23 +20,22 @@ export function useCondominios() {
   const firestore = useFirestore();
   const [data, setData] = useState<Condominio[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
     if (!firestore) return;
 
-    const q = query(collection(firestore, "condominios"), orderBy("createdAt", "desc"));
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Condominio[];
-        setData(items);
+    setLoading(true);
+    
+    const unsub = subscribeCondominios(
+      firestore,
+      (condominios) => {
+        setData(condominios as Condominio[]);
         setLoading(false);
         setError(null);
       },
       (err) => {
-        console.error("Erro ao ouvir condominios:", err);
+        console.error("Erro ao ouvir condominios (hook):", err);
         setError(err);
         setLoading(false);
       }

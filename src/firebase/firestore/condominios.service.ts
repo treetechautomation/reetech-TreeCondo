@@ -88,30 +88,7 @@ export async function criarCondominio(
         createdBy: superAdminUid,
       });
 
-      // 2. Cria um bloco padrão
-      const blocoRef = doc(collection(firestore, `${condominioRef.path}/blocos`));
-      transaction.set(blocoRef, {
-        nome: 'Bloco Padrão',
-        ordem: 1,
-        ativo: true,
-        createdAt: serverTimestamp(),
-      });
-
-      // 3. Cria uma unidade padrão
-      const unidadeRef = doc(collection(firestore, `${blocoRef.path}/unidades`));
-      transaction.set(unidadeRef, {
-        numero: '101',
-        andar: 1,
-        tipo: 'APARTAMENTO',
-        ocupacao: 'VAGO',
-        ativo: true,
-        createdAt: serverTimestamp(),
-        proprietarioUid: null,
-        inquilinoUid: null,
-        responsavelUid: null,
-      });
-
-      // 4. Associa o criador como o primeiro síndico
+      // 2. Associa o criador como o primeiro síndico
       const membroRef = getMembroDocRef(firestore, condominioRef.id, superAdminUid);
       transaction.set(membroRef, {
         role: 'SINDICO',
@@ -120,7 +97,7 @@ export async function criarCondominio(
         createdBy: superAdminUid,
       });
 
-      // 5. Cria o vínculo de acesso para o síndico
+      // 3. Cria o vínculo de acesso para o síndico
       const vinculoRef = getUserVinculoDocRef(firestore, superAdminUid, condominioRef.id);
       transaction.set(vinculoRef, {
         condominioId: condominioRef.id,
