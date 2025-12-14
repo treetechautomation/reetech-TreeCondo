@@ -71,8 +71,8 @@ service cloud.firestore {
     }
 
     function isMoradorSelfUpdateValid() {
-      // Allow user to update only their name, email, and an updatedAt timestamp.
-      let allowedKeys = ['nome', 'email', 'updatedAt'];
+      // Allow user to update only their name and email.
+      let allowedKeys = ['nome', 'email'];
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
     
@@ -133,11 +133,29 @@ service cloud.firestore {
       }
       
        match /blocos/{blocoId}/unidades/{unidadeId}/pets/{petId} {
-          allow read: if isSuperAdmin() || isCondoStaff(condominioId) || isOwnerOfUnidade(condominioId, unidadeId);
-          allow create: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
-          // A resident can only update their own pet, and cannot change the owner.
-          allow update: if (isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid)) && request.resource.data.ownerUid == resource.data.ownerUid;
-          allow delete: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid);
+          // Leitura com privacidade por unidade
+          allow read: if isSuperAdmin()
+                      || isCondoStaff(condominioId)
+                      || isOwnerOfUnidade(condominioId, unidadeId);
+
+          // Criação
+          allow create: if isSuperAdmin()
+                        || isSindico(condominioId)
+                        || (isMoradorAtivo(condominioId)
+                            && request.resource.data.ownerUid == request.auth.uid);
+
+          // Atualização (sem trocar o dono)
+          allow update: if (isSuperAdmin()
+                            || isSindico(condominioId)
+                            || (isMoradorAtivo(condominioId)
+                                && resource.data.ownerUid == request.auth.uid))
+                        && request.resource.data.ownerUid == resource.data.ownerUid;
+
+          // Exclusão
+          allow delete: if isSuperAdmin()
+                        || isSindico(condominioId)
+                        || (isMoradorAtivo(condominioId)
+                            && resource.data.ownerUid == request.auth.uid);
       }
       
       match /membros/{membroUid} {
