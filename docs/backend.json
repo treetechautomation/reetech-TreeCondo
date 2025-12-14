@@ -148,7 +148,7 @@
       "type": "object",
       "properties": {
         "role": { "type": "string", "enum": ["SINDICO", "PORTEIRO"] },
-        "status": { "type": "string", "enum": ["ATIVO", "INATIVO"] },
+        "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "createdBy": { "type": "string", "description": "UID de quem criou o membro." }
       },
