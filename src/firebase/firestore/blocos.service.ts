@@ -80,7 +80,7 @@ export function useBlocos(condominioId: string | null) {
  * @param condominioId O ID do condomínio.
  * @param payload Dados do novo bloco.
  */
-export async function criarBloco(
+export function criarBloco(
   firestore: Firestore,
   condominioId: string,
   payload: NewBlocoPayload
@@ -92,18 +92,17 @@ export async function criarBloco(
     createdAt: serverTimestamp(),
   };
 
-  try {
-    return await addDoc(blocosRef, data);
-  } catch (error) {
-    console.error("Erro ao criar bloco: ", error);
-    const contextualError = new FirestorePermissionError({
-      path: `condominios/${condominioId}/blocos`,
-      operation: 'create',
-      requestResourceData: data,
+  addDoc(blocosRef, data)
+    .catch((error) => {
+      console.error("Erro ao criar bloco: ", error);
+      const contextualError = new FirestorePermissionError({
+        path: `condominios/${condominioId}/blocos`,
+        operation: 'create',
+        requestResourceData: data,
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      throw error; // Propaga o erro para a UI
     });
-    errorEmitter.emit('permission-error', contextualError);
-    throw error; // Propaga o erro para a UI
-  }
 }
 
 /**
@@ -112,24 +111,21 @@ export async function criarBloco(
  * @param condominioId O ID do condomínio.
  * @param blocoId O ID do bloco a ser deletado.
  */
-export async function deletarBloco(
+export function deletarBloco(
   firestore: Firestore,
   condominioId: string,
   blocoId: string
 ) {
   const docRef = doc(firestore, `condominios/${condominioId}/blocos`, blocoId);
 
-  try {
-    await deleteDoc(docRef);
-  } catch (error) {
-    console.error("Erro ao deletar bloco: ", error);
-    const contextualError = new FirestorePermissionError({
-      path: docRef.path,
-      operation: 'delete',
+  deleteDoc(docRef)
+    .catch((error) => {
+      console.error("Erro ao deletar bloco: ", error);
+      const contextualError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      throw error; // Propaga o erro para a UI
     });
-    errorEmitter.emit('permission-error', contextualError);
-    throw error; // Propaga o erro para a UI
-  }
 }
-
-    

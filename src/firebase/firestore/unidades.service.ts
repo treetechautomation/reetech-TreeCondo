@@ -21,7 +21,11 @@ export type Unidade = {
   id: string;
   numero: string;
   andar?: number;
-  tipo: "APARTAMENTO";
+  tipo: "APARTAMENTO" | "CASA";
+  ocupacao: "VAGO" | "PROPRIETARIO" | "ALUGADO";
+  proprietarioUid: string | null;
+  inquilinoUid: string | null;
+  responsavelUid: string | null;
   ativo: boolean;
   createdAt: ReturnType<typeof serverTimestamp>;
 };
@@ -83,7 +87,7 @@ export function useUnidades(condominioId: string | null, blocoId: string | null)
  * @param blocoId O ID do bloco.
  * @param payload Dados da nova unidade.
  */
-export async function criarUnidade(
+export function criarUnidade(
   firestore: Firestore,
   condominioId: string,
   blocoId: string,
@@ -93,22 +97,25 @@ export async function criarUnidade(
   const data = {
     ...payload,
     tipo: "APARTAMENTO",
+    ocupacao: "VAGO",
+    proprietarioUid: null,
+    inquilinoUid: null,
+    responsavelUid: null,
     ativo: true,
     createdAt: serverTimestamp(),
   };
 
-  try {
-    return await addDoc(unidadesRef, data);
-  } catch (error) {
-    console.error("Erro ao criar unidade: ", error);
-    const contextualError = new FirestorePermissionError({
-      path: `condominios/${condominioId}/blocos/${blocoId}/unidades`,
-      operation: 'create',
-      requestResourceData: data,
+  addDoc(unidadesRef, data)
+    .catch((error) => {
+      console.error("Erro ao criar unidade: ", error);
+      const contextualError = new FirestorePermissionError({
+        path: `condominios/${condominioId}/blocos/${blocoId}/unidades`,
+        operation: 'create',
+        requestResourceData: data,
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      throw error;
     });
-    errorEmitter.emit('permission-error', contextualError);
-    throw error;
-  }
 }
 
 /**
@@ -118,7 +125,7 @@ export async function criarUnidade(
  * @param blocoId O ID do bloco.
  * @param unidadeId O ID da unidade a ser deletada.
  */
-export async function deletarUnidade(
+export function deletarUnidade(
   firestore: Firestore,
   condominioId: string,
   blocoId: string,
@@ -126,17 +133,14 @@ export async function deletarUnidade(
 ) {
   const docRef = doc(firestore, `condominios/${condominioId}/blocos/${blocoId}/unidades`, unidadeId);
 
-  try {
-    await deleteDoc(docRef);
-  } catch (error) {
-    console.error("Erro ao deletar unidade: ", error);
-    const contextualError = new FirestorePermissionError({
-      path: docRef.path,
-      operation: 'delete',
+  deleteDoc(docRef)
+    .catch((error) => {
+      console.error("Erro ao deletar unidade: ", error);
+      const contextualError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', contextualError);
+      throw error;
     });
-    errorEmitter.emit('permission-error', contextualError);
-    throw error;
-  }
 }
-
-    
