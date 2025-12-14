@@ -49,15 +49,23 @@
         "andar": { "type": "number", "description": "Andar da unidade." },
         "tipo": { "type": "string", "enum": ["APARTAMENTO", "CASA"], "description": "Tipo de unidade." },
         "ativo": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "proprietarioUid": { "type": "string", "description": "UID do morador proprietário da unidade." },
+        "inquilinoUid": { "type": "string", "description": "UID do morador inquilino atual, se houver. Nulo se vago ou ocupado pelo proprietário." },
+        "responsavelUid": { "type": "string", "description": "UID do morador responsável (financeiro/legal) pela unidade." },
+        "ocupacao": { "type": "string", "enum": ["VAGO", "PROPRIETARIO", "ALUGADO"], "description": "Status de ocupação da unidade." }
       },
-      "required": ["numero", "ativo", "createdAt"],
+      "required": ["numero", "ativo", "createdAt", "proprietarioUid", "responsavelUid", "ocupacao"],
       "example": {
         "numero": "302",
         "andar": 3,
         "tipo": "APARTAMENTO",
         "ativo": true,
-        "createdAt": "2024-07-30T10:10:00Z"
+        "createdAt": "2024-07-30T10:10:00Z",
+        "proprietarioUid": "abc123_user_uid_proprietario",
+        "inquilinoUid": null,
+        "responsavelUid": "abc123_user_uid_proprietario",
+        "ocupacao": "PROPRIETARIO"
       }
     },
     "Morador": {
