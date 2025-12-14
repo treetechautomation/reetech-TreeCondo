@@ -4,9 +4,7 @@
 import { useEffect, useState } from "react";
 import {
   addDoc,
-  collection,
   deleteDoc,
-  doc,
   onSnapshot,
   orderBy,
   query,
@@ -63,7 +61,7 @@ export function useBlocos(condominioId: string | null) {
         console.error(`Erro ao ouvir blocos do condomínio ${condominioId}:`, err);
         const contextualError = new FirestorePermissionError({
             operation: 'list',
-            path: `condominios/${condominioId}/blocos`,
+            path: blocosCollectionRef.path,
         });
         errorEmitter.emit('permission-error', contextualError);
         setLoading(false);
