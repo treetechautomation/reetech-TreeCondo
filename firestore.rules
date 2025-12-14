@@ -3,35 +3,185 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is signed in.
+    // HELPER FUNCTIONS =======================================================
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper function to check if the signed-in user is a Super Admin.
     function isSuperAdmin() {
       return isSignedIn() && request.auth.token.super_admin == true;
     }
 
-    // Helper function to ensure createdAt field is not changed on update.
     function isCreatedAtUnchanged() {
       return request.resource.data.createdAt == resource.data.createdAt;
     }
-
-    // Rule for the user-specific data collection.
-    // Only the user themselves or a Super Admin can manage their own vinculations.
-    match /userCondominios/{uid}/{allChildren=**} {
-       allow read, delete: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
-       allow create: if isSuperAdmin() || (isSignedIn() && request.auth.uid == uid);
-       allow update: if (isSuperAdmin() || (isSignedIn() && request.auth.uid == uid)) && isCreatedAtUnchanged();
+    
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Rules for the main data collection for all condos.
-    // For now, only Super Admins have access.
-    match /condominios/{condominioId}/{allChildren=**} {
-      allow read, delete: if isSuperAdmin();
+    // --- CONDOMINIO LEVEL HELPERS ---
+
+    function getMembroRole(condominioId, uid) {
+      return get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(uid)).data.role;
+    }
+
+    function isSindico(condominioId) {
+        return isSignedIn() && getMembroRole(condominioId, request.auth.uid) == 'SINDICO';
+    }
+
+    function isPorteiro(condominioId) {
+        return isSignedIn() && getMembroRole(condominioId, request.auth.uid) == 'PORTEIRO';
+    }
+    
+    function isCondoStaff(condominioId) {
+      return isSindico(condominioId) || isPorteiro(condominioId);
+    }
+    
+    function getVinculo(uid, condominioId) {
+       return get(/databases/$(database)/documents/userCondominios/$(uid)/vinculos/$(condominioId)).data;
+    }
+
+    function isMoradorAtivo(condominioId) {
+        let vinculo = getVinculo(request.auth.uid, condominioId);
+        return isSignedIn() && vinculo.role == 'MORADOR' && vinculo.status == 'ATIVO';
+    }
+    
+    function isUserInCondo(condominioId) {
+      return isCondoStaff(condominioId) || isMoradorAtivo(condominioId);
+    }
+    
+    // --- DATA VALIDATION HELPERS ---
+    
+    function isValidUnidadeWrite(data) {
+       let isVago = data.ocupacao == 'VAGO' && data.proprietarioUid == null && data.inquilinoUid == null && data.responsavelUid == null;
+       let isProprietario = data.ocupacao == 'PROPRIETARIO' && data.proprietarioUid != null && data.inquilinoUid == null && data.responsavelUid == data.proprietarioUid;
+       let isAlugado = data.ocupacao == 'ALUGADO' && data.inquilinoUid != null && data.responsavelUid == data.inquilinoUid;
+       
+       return isVago || isProprietario || isAlugado;
+    }
+    
+    function isOcupacaoUnchanged(request, resource) {
+      return request.resource.data.ocupacao == resource.data.ocupacao &&
+             request.resource.data.proprietarioUid == resource.data.proprietarioUid &&
+             request.resource.data.inquilinoUid == resource.data.inquilinoUid &&
+             request.resource.data.responsavelUid == resource.data.responsavelUid;
+    }
+    
+
+    // USER VINCULOS COLLECTION ================================================
+    match /userCondominios/{uid} {
+      // O usuário só pode acessar seu próprio documento de vínculos
+      allow read, write: if isSuperAdmin() || isOwner(uid);
+
+      match /vinculos/{condominioId} {
+        allow read: if isSuperAdmin() || isOwner(uid);
+        allow create: if isSuperAdmin() || isOwner(uid);
+        
+        // Um usuário não pode se promover. Apenas Super Admin ou um Sindico do condominio alvo pode alterar o vínculo.
+        allow update: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
+        
+        allow delete: if isSuperAdmin() || isSindico(condominioId);
+      }
+    }
+
+    // CONDOMINIOS COLLECTION =================================================
+    match /condominios/{condominioId} {
+      // Leitura: Super Admin, ou qualquer membro/morador ativo do condomínio
+      allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+      
+      // Escrita no documento principal do condomínio
       allow create: if isSuperAdmin();
       allow update: if isSuperAdmin() && isCreatedAtUnchanged();
+      allow delete: if isSuperAdmin(); // Deletar um condomínio é uma ação apenas de Super Admin
+
+      // --- SUBCOLECTIONS ---
+
+      match /blocos/{blocoId} {
+         allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+         allow create, update: if isSuperAdmin() || isSindico(condominioId);
+         // Não permitir delete de bloco por síndico para evitar perda de dados.
+         allow delete: if isSuperAdmin();
+      }
+
+      match /blocos/{blocoId}/unidades/{unidadeId} {
+         allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+         
+         // Apenas Super Admin e Sindico podem criar unidades
+         allow create: if isSuperAdmin() || isSindico(condominioId);
+         
+         // Síndico pode atualizar a unidade, mas não pode alterar a ocupação diretamente.
+         // A alteração de ocupação deve ser feita por uma Cloud Function para garantir a lógica.
+         // Morador não pode atualizar nada aqui.
+         allow update: if (isSuperAdmin() || isSindico(condominioId)) 
+                        && isOcupacaoUnchanged(request, resource)
+                        && isCreatedAtUnchanged();
+                        
+         allow delete: if isSuperAdmin();
+      }
+
+      match /blocos/{blocoId}/unidades/{unidadeId}/moradores/{moradorUid} {
+          // Staff do condomínio ou um morador da mesma unidade pode ler.
+          allow read: if isSuperAdmin() || isCondoStaff(condominioId) || (isMoradorAtivo(condominioId) && getVinculo(request.auth.uid, condominioId).unidadeId == unidadeId);
+          
+          // Apenas Síndico e Super Admin podem adicionar/remover moradores.
+          allow create, delete: if isSuperAdmin() || isSindico(condominioId);
+
+          // O próprio morador pode atualizar seus dados (nome/email). Sindico também pode.
+          allow update: if (isSuperAdmin() || isSindico(condominioId) || isOwner(moradorUid)) && isCreatedAtUnchanged();
+      }
+      
+      match /blocos/{blocoId}/unidades/{unidadeId}/veiculos/{veiculoId} {
+          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+          // O dono do veículo (morador) ou um síndico podem criar/atualizar/deletar.
+          allow write: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
+      }
+      
+       match /blocos/{blocoId}/unidades/{unidadeId}/pets/{petId} {
+          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+          // O dono do pet (morador) ou um síndico podem criar/atualizar/deletar.
+          allow write: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
+      }
+      
+      match /membros/{membroUid} {
+         allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+         // Apenas Super Admin e Síndico podem gerenciar a equipe administrativa.
+         allow write: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
+      }
+
+      match /funcionarios/{funcionarioId} {
+        allow read: if isSuperAdmin() || isCondoStaff(condominioId);
+        // Apenas Síndico pode gerenciar funcionários.
+        allow write: if isSuperAdmin() || isSindico(condominioId);
+      }
+
+      match /fornecedores/{fornecedorId} {
+        allow read: if isSuperAdmin() || isCondoStaff(condominioId);
+        // Apenas Síndico pode gerenciar fornecedores.
+        allow write: if isSuperAdmin() || isSindico(condominioId);
+      }
+      
+      match /config/{docId} {
+        allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+        // Apenas Super Admin e Sindico podem alterar configurações
+        allow write: if isSuperAdmin() || isSindico(condominioId);
+      }
+
+      // --- MODULES (Anuncios, Reservas, etc.) ---
+      // Regra genérica para módulos. A lógica de permissão de UI fica no app.
+      match /{module}/{moduleId} {
+        allow read: if isSuperAdmin() || isUserInCondo(condominioId);
+        
+        // Escrever em módulos:
+        // - Anuncios, Reunioes, Documentos, Enquetes: Apenas Sindico
+        // - Incidentes, Encomendas: Sindico, Porteiro e Morador pode criar
+        // - Reservas: Sindico e Morador
+        allow write: if isSuperAdmin() || 
+                      (isSindico(condominioId)) ||
+                      (isPorteiro(condominioId) && (module == 'encomendas' || module == 'incidentes')) ||
+                      (isMoradorAtivo(condominioId) && (module == 'reservas' || module == 'incidentes'));
+      }
     }
   }
 }
