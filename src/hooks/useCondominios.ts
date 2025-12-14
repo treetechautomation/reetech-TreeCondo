@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useFirestore } from "@/firebase";
 import { subscribeCondominios } from "@/firebase/firestore/condominios.service";
-import type { FirestoreError, Timestamp } from "firebase/firestore";
+import type { FirestoreError } from "firebase/firestore";
 
 export type Condominio = {
   id: string;
