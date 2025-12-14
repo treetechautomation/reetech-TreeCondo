@@ -138,6 +138,24 @@
         "createdAt": "2024-07-30T10:20:00Z"
       }
     },
+    "Pet": {
+      "title": "Pet",
+      "description": "Representa um animal de estimação associado a uma unidade.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome do animal." },
+        "raca": { "type": "string", "description": "Raça do animal." },
+        "porte": { "type": "string", "enum": ["PEQUENO", "MEDIO", "GRANDE"], "description": "Porte do animal." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome", "raca", "porte", "createdAt"],
+      "example": {
+        "nome": "Thor",
+        "raca": "Golden Retriever",
+        "porte": "GRANDE",
+        "createdAt": "2024-07-30T10:25:00Z"
+      }
+    },
     "ConfigMenu": { "title": "ConfigMenu", "type": "object", "properties": {} },
     "PermissoesMenu": { "title": "PermissoesMenu", "type": "object", "properties": {} },
     "VinculoUsuario": {
@@ -216,6 +234,14 @@
             "entityName": "Veiculo",
             "schema": { "$ref": "#/entities/Veiculo" },
             "description": "Sub-coleção que armazena os veículos de uma unidade específica."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/pets/{petId}",
+        "definition": {
+          "entityName": "Pet",
+          "schema": { "$ref": "#/entities/Pet" },
+          "description": "Sub-coleção para os animais de estimação de uma unidade."
         }
       },
       { 
