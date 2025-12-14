@@ -1,14 +1,26 @@
 /** @type {import('next').NextConfig} */
 import withPWA from 'next-pwa';
 
-const nextConfig = {
-  reactStrictMode: true,
-  // any other next.js config options
-};
-
-export default withPWA({
+const pwaConfig = withPWA({
   dest: 'public',
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
-})(nextConfig);
+});
+
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+      },
+    ],
+  },
+};
+
+export default pwaConfig(nextConfig);
