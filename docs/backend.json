@@ -138,18 +138,41 @@
             "condominioNome": { "type": "string" },
             "role": { "type": "string", "enum": ["SINDICO", "MORADOR", "PORTEIRO"] },
             "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
-            "blocoId": { "type": "string", "description": "ID do bloco, se o papel for 'MORADOR'." },
-            "unidadeId": { "type": "string", "description": "ID da unidade, se o papel for 'MORADOR'." }
+            "blocoId": { "type": "string", "description": "ID do bloco, OBRIGATÓRIO se o papel for 'MORADOR'." },
+            "unidadeId": { "type": "string", "description": "ID da unidade, OBRIGATÓRIO se o papel for 'MORADOR'." }
         },
         "required": ["condominioId", "condominioNome", "role", "status"],
-        "example": {
-            "condominioId": "condo123",
-            "condominioNome": "Condomínio Vila das Flores",
-            "role": "MORADOR",
-            "status": "ATIVO",
-            "blocoId": "blocoA",
-            "unidadeId": "unidade101"
-        }
+        "examples": [
+          {
+            "description": "Exemplo de vínculo para um MORADOR.",
+            "value": {
+              "condominioId": "condo123",
+              "condominioNome": "Condomínio Vila das Flores",
+              "role": "MORADOR",
+              "status": "ATIVO",
+              "blocoId": "blocoA",
+              "unidadeId": "unidade101"
+            }
+          },
+          {
+            "description": "Exemplo de vínculo para um SÍNDICO.",
+            "value": {
+              "condominioId": "condo123",
+              "condominioNome": "Condomínio Vila das Flores",
+              "role": "SINDICO",
+              "status": "ATIVO"
+            }
+          },
+          {
+            "description": "Exemplo de vínculo para um PORTEIRO.",
+            "value": {
+              "condominioId": "condo456",
+              "condominioNome": "Residencial Bosque Verde",
+              "role": "PORTEIRO",
+              "status": "ATIVO"
+            }
+          }
+        ]
     },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" }}},
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" }}},
@@ -265,5 +288,3 @@
     ]
   }
 }
-
-    
