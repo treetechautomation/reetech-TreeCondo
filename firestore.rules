@@ -59,7 +59,7 @@ service cloud.firestore {
     function isValidUnidadeWrite(data) {
        let isVago = data.ocupacao == 'VAGO' && data.proprietarioUid == null && data.inquilinoUid == null && data.responsavelUid == null;
        let isProprietario = data.ocupacao == 'PROPRIETARIO' && data.proprietarioUid != null && data.inquilinoUid == null && data.responsavelUid == data.proprietarioUid;
-       let isAlugado = data.ocupacao == 'ALUGADO' && data.inquilinoUid != null && data.responsavelUid == data.inquilinoUid;
+       let isAlugado = data.ocupacao == 'ALUGADO' && data.proprietarioUid != null && data.inquilinoUid != null && data.responsavelUid == data.inquilinoUid;
        
        return isVago || isProprietario || isAlugado;
     }
@@ -96,13 +96,14 @@ service cloud.firestore {
 
       match /blocos/{blocoId} {
          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
-         allow create, update: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
+         allow create: if isSuperAdmin() || isSindico(condominioId);
+         allow update: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
          allow delete: if isSuperAdmin();
       }
 
       match /blocos/{blocoId}/unidades/{unidadeId} {
          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
-         allow create: if (isSuperAdmin() || isSindico(condominioId));
+         allow create: if (isSuperAdmin() || isSindico(condominioId)) && isValidUnidadeWrite(request.resource.data);
          allow update: if (isSuperAdmin() || isSindico(condominioId)) && isValidUnidadeWrite(request.resource.data) && isCreatedAtUnchanged();
          allow delete: if isSuperAdmin();
       }
