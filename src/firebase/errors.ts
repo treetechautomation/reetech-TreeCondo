@@ -60,7 +60,7 @@ function buildAuthObjectSync(currentUser: User | null): FirebaseAuthObject | nul
     phone_number: currentUser.phoneNumber,
     sub: currentUser.uid,
     firebase: {
-      identities: providerData ? {[providerData.providerId]: providerData.uid} : {},
+      identities: providerData ? {[providerData.providerId]: [providerData.uid]} : {},
       sign_in_provider: providerData?.providerId || 'custom',
       tenant: currentUser.tenantId,
     },
@@ -91,6 +91,8 @@ async function buildAuthObjectAsync(currentUser: User | null): Promise<FirebaseA
         const tokenResult = await currentUser.getIdTokenResult(true);
         
         const token: FirebaseAuthToken = {
+            // Mescla todas as claims no nível raiz do token, como nas regras de segurança
+            ...tokenResult.claims,
             name: currentUser.displayName,
             picture: currentUser.photoURL,
             email: currentUser.email,
@@ -102,8 +104,6 @@ async function buildAuthObjectAsync(currentUser: User | null): Promise<FirebaseA
                 sign_in_provider: tokenResult.claims.firebase?.sign_in_provider || 'custom',
                 tenant: tokenResult.tenantId || null,
             },
-            // Mescla todas as claims no nível raiz do token, como nas regras de segurança
-            ...tokenResult.claims
         };
         
         return {
