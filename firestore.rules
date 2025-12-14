@@ -50,6 +50,12 @@ service cloud.firestore {
         return isSignedIn() && vinculo.role == 'MORADOR' && vinculo.status == 'ATIVO';
     }
     
+    // Helper function to check if the user is a resident of a specific unit.
+    function isOwnerOfUnidade(condominioId, unidadeId) {
+      let vinculo = getVinculo(request.auth.uid, condominioId);
+      return isMoradorAtivo(condominioId) && vinculo.unidadeId == unidadeId;
+    }
+
     function isUserInCondo(condominioId) {
       return isCondoStaff(condominioId) || isMoradorAtivo(condominioId);
     }
@@ -65,6 +71,7 @@ service cloud.firestore {
     }
 
     function isMoradorSelfUpdateValid() {
+      // Allow user to update only their name, email, and an updatedAt timestamp.
       let allowedKeys = ['nome', 'email', 'updatedAt'];
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
@@ -78,6 +85,7 @@ service cloud.firestore {
       match /vinculos/{condominioId} {
         allow read: if isSuperAdmin() || isOwner(uid);
         allow create: if isSuperAdmin() || isOwner(uid);
+        // Only Super Admins or a Sindico of that condo can update a user's role/status.
         allow update: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
         allow delete: if isSuperAdmin() || isSindico(condominioId);
       }
@@ -98,25 +106,28 @@ service cloud.firestore {
          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
          allow create: if isSuperAdmin() || isSindico(condominioId);
          allow update: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
-         allow delete: if isSuperAdmin();
+         allow delete: if isSuperAdmin(); // Only super admins can delete structural elements.
       }
 
       match /blocos/{blocoId}/unidades/{unidadeId} {
          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
          allow create: if (isSuperAdmin() || isSindico(condominioId)) && isValidUnidadeWrite(request.resource.data);
          allow update: if (isSuperAdmin() || isSindico(condominioId)) && isValidUnidadeWrite(request.resource.data) && isCreatedAtUnchanged();
-         allow delete: if isSuperAdmin();
+         allow delete: if isSuperAdmin(); // Only super admins can delete structural elements.
       }
 
       match /blocos/{blocoId}/unidades/{unidadeId}/moradores/{moradorUid} {
-          allow read: if isSuperAdmin() || isCondoStaff(condominioId) || (isMoradorAtivo(condominioId) && getVinculo(request.auth.uid, condominioId).unidadeId == unidadeId);
+          // Staff can read all residents. A resident can only read other residents of their own unit.
+          allow read: if isSuperAdmin() || isCondoStaff(condominioId) || isOwnerOfUnidade(condominioId, unidadeId);
           allow create, delete: if isSuperAdmin() || isSindico(condominioId);
+          // A user can update their own profile (name/email), or a Sindico/SuperAdmin can update anything.
           allow update: if (isSuperAdmin() || isSindico(condominioId) || (isOwner(moradorUid) && isMoradorSelfUpdateValid())) && isCreatedAtUnchanged();
       }
       
       match /blocos/{blocoId}/unidades/{unidadeId}/veiculos/{veiculoId} {
           allow read: if isSuperAdmin() || isUserInCondo(condominioId);
           allow create: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
+          // A resident can only update their own vehicle, and cannot change the owner.
           allow update: if (isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid)) && request.resource.data.ownerUid == resource.data.ownerUid;
           allow delete: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid);
       }
@@ -124,6 +135,7 @@ service cloud.firestore {
        match /blocos/{blocoId}/unidades/{unidadeId}/pets/{petId} {
           allow read: if isSuperAdmin() || isUserInCondo(condominioId);
           allow create: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && request.resource.data.ownerUid == request.auth.uid);
+          // A resident can only update their own pet, and cannot change the owner.
           allow update: if (isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid)) && request.resource.data.ownerUid == resource.data.ownerUid;
           allow delete: if isSuperAdmin() || isSindico(condominioId) || (isMoradorAtivo(condominioId) && resource.data.ownerUid == request.auth.uid);
       }
@@ -132,7 +144,8 @@ service cloud.firestore {
          allow read: if isSuperAdmin() || isUserInCondo(condominioId);
          allow create: if isSuperAdmin() || isSindico(condominioId);
          allow update: if (isSuperAdmin() || isSindico(condominioId)) && isCreatedAtUnchanged();
-         allow delete: if isSuperAdmin() || isSindico(condominioId);
+         // Sindico can only delete Porteiros. SuperAdmin can delete anyone. Avoids a sindico locking themselves out.
+         allow delete: if isSuperAdmin() || (isSindico(condominioId) && resource.data.role != 'SINDICO');
       }
 
       match /funcionarios/{funcionarioId} {
@@ -153,8 +166,10 @@ service cloud.firestore {
       // --- MODULES (Anuncios, Reservas, etc.) ---
       match /{module}/{moduleId} {
         allow read: if isSuperAdmin() || isUserInCondo(condominioId);
-        allow write: if isSuperAdmin() || 
-                      (isSindico(condominioId)) ||
+        
+        // Granular write permissions for modules
+        allow write: if isSuperAdmin() ||
+                      isSindico(condominioId) ||
                       (isPorteiro(condominioId) && (module == 'encomendas' || module == 'incidentes')) ||
                       (isMoradorAtivo(condominioId) && (module == 'reservas' || module == 'incidentes'));
       }
