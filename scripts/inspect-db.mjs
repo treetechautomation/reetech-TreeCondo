@@ -1,67 +1,76 @@
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
+import fs from 'fs';
 
-// Inicializa o app do Firebase Admin apenas uma vez.
+// Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(readFileSync('./serviceAccountKey.json', 'utf8'));
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
-
-const db = admin.firestore();
-
-/**
- * Função principal para inspecionar o banco de dados.
- */
-async function inspectDatabase() {
   try {
-    const condosSnap = await db.collection('condominios').get();
-    console.log('CONDOMINIOS:');
-    if (condosSnap.empty) {
-        console.log('Nenhum condomínio encontrado.');
-        return;
-    }
-    condosSnap.forEach(d => console.log(`- ${d.id}: ${d.data().nome}`));
-
-    // Força a inspeção do primeiro condomínio da lista.
-    // Altere aqui se quiser inspecionar um ID específico.
-    const condominioId = condosSnap.docs[0]?.id;
-    if (!condominioId) {
-        console.log('\nNenhum condomínio para detalhar.');
-        return;
-    }
-
-    const blocosSnap = await db.collection(`condominios/${condominioId}/blocos`).get();
-    console.log(`\nBLOCOS do condomínio "${condosSnap.docs[0].data().nome}" (${condominioId}):`);
-    if (blocosSnap.empty) {
-        console.log('Nenhum bloco encontrado.');
-        return;
-    }
-    blocosSnap.forEach(d => console.log(`- ${d.id}: ${d.data().nome}`));
-
-    const blocoId = blocosSnap.docs[0]?.id;
-    if (!blocoId) {
-        console.log('\nNenhum bloco para detalhar.');
-        return;
-    }
-
-    const unidadesSnap = await db.collection(`condominios/${condominioId}/blocos/${blocoId}/unidades`).get();
-    console.log(`\nUNIDADES do bloco "${blocosSnap.docs[0].data().nome}" (${blocoId}):`);
-    if (unidadesSnap.empty) {
-        console.log('Nenhuma unidade encontrada.');
-        return;
-    }
-    unidadesSnap.forEach(d => {
-        const data = d.data();
-        console.log(`- ${d.id} | Número: ${data.numero}, Ocupação: ${data.ocupacao}`);
+    const serviceAccount = JSON.parse(fs.readFileSync('./serviceAccountKey.json', 'utf8'));
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
     });
-
   } catch (error) {
-    console.error("Erro ao inspecionar o banco de dados:", error);
+    console.error("Erro ao ler ou inicializar com o serviceAccountKey.json:", error);
     process.exit(1);
   }
 }
 
-// Executa a função.
+const db = admin.firestore();
+
+async function inspectDatabase() {
+  try {
+    // 1. Listar Condomínios
+    const condosSnap = await db.collection('condominios').get();
+    if (condosSnap.empty) {
+      console.log('Nenhum condomínio encontrado.');
+      return;
+    }
+
+    console.log('CONDOMÍNIOS:');
+    condosSnap.forEach(doc => {
+      console.log(`- ID: ${doc.id}, Nome: ${doc.data().nome}`);
+    });
+
+    // --- Inspeção detalhada do primeiro condomínio encontrado ---
+    // Se quiser forçar um condomínio específico, troque o ID aqui:
+    const primeiroCondominioDoc = condosSnap.docs[0];
+    const condominioId = primeiroCondominioDoc.id;
+    console.log(`\n--- Inspecionando detalhes do condomínio: ${primeiroCondominioDoc.data().nome} (ID: ${condominioId}) ---`);
+
+    // 2. Listar Blocos
+    const blocosSnap = await db.collection(`condominios/${condominioId}/blocos`).get();
+    if (blocosSnap.empty) {
+      console.log('\nNenhum bloco encontrado para este condomínio.');
+      return;
+    }
+
+    console.log('\nBLOCOS:');
+    blocosSnap.forEach(doc => {
+      console.log(`- ID: ${doc.id}, Nome: ${doc.data().nome}`);
+    });
+
+    // 3. Listar Unidades do primeiro bloco
+    const primeiroBlocoDoc = blocosSnap.docs[0];
+    const blocoId = primeiroBlocoDoc.id;
+
+    if (!blocoId) {
+        return;
+    }
+
+    const unidadesSnap = await db.collection(`condominios/${condominioId}/blocos/${blocoId}/unidades`).get();
+    if (unidadesSnap.empty) {
+        console.log(`\nNenhuma unidade encontrada para o bloco ${primeiroBlocoDoc.data().nome}.`);
+        return;
+    }
+
+    console.log(`\nUNIDADES do bloco "${primeiroBlocoDoc.data().nome}":`);
+    unidadesSnap.forEach(doc => {
+      const { numero, ocupacao } = doc.data();
+      console.log(`- ID: ${doc.id}, Número: ${numero}, Ocupação: ${ocupacao}`);
+    });
+
+  } catch (error) {
+    console.error("\nOcorreu um erro durante a inspeção:", error);
+  }
+}
+
 inspectDatabase();
