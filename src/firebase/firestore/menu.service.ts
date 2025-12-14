@@ -1,8 +1,9 @@
+
 'use client';
 
 import { doc, setDoc, Firestore } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { createFirestorePermissionError } from '@/firebase/errors';
 
 /**
  * Estrutura de permissões de menu para um único papel.
@@ -58,8 +59,8 @@ export function criarConfiguracaoDeMenuPadrao(
   );
 
   // Não use await, o erro será capturado pelo listener global
-  setDoc(menuConfigRef, permissoesPadrao).catch((error) => {
-    const contextualError = new FirestorePermissionError({
+  setDoc(menuConfigRef, permissoesPadrao).catch(async (error) => {
+    const contextualError = await createFirestorePermissionError({
       path: menuConfigRef.path,
       operation: 'create',
       requestResourceData: permissoesPadrao,

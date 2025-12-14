@@ -127,7 +127,6 @@ export async function salvarMorador(
     if (error.code === 'permission-denied') {
         try {
             // Se a leitura falhou por permissão, tentamos escrever como se fosse um documento novo.
-            // O `merge: true` impede que `createdAt` seja sobrescrito se já existir por uma corrida de condição.
             await setDoc(moradorRef, { ...payload, createdAt: serverTimestamp() }, { merge: true });
             return; // Sucesso no fallback.
         } catch (writeError) {
