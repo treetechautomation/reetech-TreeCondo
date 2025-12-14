@@ -77,6 +77,7 @@ import React from "react";
 import { toast } from "@/hooks/use-toast";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { CondominioSelector } from "@/components/condominio-selector";
+import { BlocoUnidadeSelector } from "@/components/bloco-unidade-selector";
 
 
 const funcionarioSchema = z.object({
@@ -139,11 +140,10 @@ const blocos = [
 
 const moradorSchema = z.object({
   nome: z.string().min(1, { message: "O nome é obrigatório" }),
-  unidade: z.string().min(1, { message: "A unidade é obrigatória" }),
-  perfil: z.string().min(1, { message: "O perfil é obrigatório" }),
-  contato: z.string().min(1, { message: "O contato é obrigatório" }),
-  lgpd: z.boolean().refine(val => val === true, { message: "Você deve aceitar os termos da LGPD" }),
+  email: z.string().email({ message: "E-mail inválido" }),
+  isResponsavel: z.boolean().default(false),
 });
+
 
 type MoradorFormData = z.infer<typeof moradorSchema>;
 type FuncionarioFormData = z.infer<typeof funcionarioSchema>;
@@ -155,14 +155,14 @@ type BlocoFormData = z.infer<typeof blocoSchema>;
 
 export default function CadastrosPage() {
     const firestore = useFirestore();
-    const { condominioAtivoId } = useCondominio();
+    const { condominioAtivoId, blocoAtivoId, unidadeAtivaId } = useCondominio();
 
-    const cadastrosRef = useMemoFirebase(() => {
-        if (!firestore || !condominioAtivoId) return null;
-        return collection(firestore, `condominios/${condominioAtivoId}/cadastros`);
-    }, [firestore, condominioAtivoId]);
+    const moradoresRef = useMemoFirebase(() => {
+        if (!firestore || !condominioAtivoId || !blocoAtivoId || !unidadeAtivaId) return null;
+        return collection(firestore, `condominios/${condominioAtivoId}/blocos/${blocoAtivoId}/unidades/${unidadeAtivaId}/moradores`);
+    }, [firestore, condominioAtivoId, blocoAtivoId, unidadeAtivaId]);
 
-    const { data: moradores, isLoading } = useCollection(cadastrosRef);
+    const { data: moradores, isLoading } = useCollection(moradoresRef);
     
     const [openMorador, setOpenMorador] = React.useState(false);
     const [openFuncionario, setOpenFuncionario] = React.useState(false);
@@ -172,9 +172,8 @@ export default function CadastrosPage() {
     const [openBloco, setOpenBloco] = React.useState(false);
 
 
-    const { register: registerMorador, handleSubmit: handleSubmitMorador, formState: { errors: errorsMorador }, reset: resetMorador, setValue: setMoradorValue } = useForm<MoradorFormData>({
+    const { register: registerMorador, handleSubmit: handleSubmitMorador, formState: { errors: errorsMorador }, reset: resetMorador } = useForm<MoradorFormData>({
         resolver: zodResolver(moradorSchema),
-        defaultValues: { lgpd: false, perfil: '' },
     });
     
 
@@ -186,12 +185,17 @@ export default function CadastrosPage() {
 
 
     const onMoradorSubmit = async (data: MoradorFormData) => {
-        if (!cadastrosRef) {
-            toast({ title: "Erro", description: "Selecione um condomínio para continuar.", variant: "destructive" });
+        if (!moradoresRef) {
+            toast({ title: "Erro", description: "Selecione um condomínio, bloco e unidade para continuar.", variant: "destructive" });
             return;
         }
         try {
-            await addDoc(cadastrosRef, { ...data, type: 'morador' });
+            await addDoc(moradoresRef, { 
+                ...data, 
+                role: 'MORADOR',
+                status: 'ATIVO',
+                createdAt: new Date(),
+             });
             toast({ title: "Sucesso!", description: "Novo morador adicionado." });
             setOpenMorador(false);
             resetMorador();
@@ -213,6 +217,7 @@ export default function CadastrosPage() {
         <SidebarHeader className="p-4 space-y-4">
           <Logo />
           <CondominioSelector />
+          <BlocoUnidadeSelector />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -329,7 +334,7 @@ export default function CadastrosPage() {
               <TabsTrigger value="veiculos"><Car className="mr-2"/>Veículos</TabsTrigger>
               <TabsTrigger value="fornecedores"><Truck className="mr-2"/>Fornecedores</TabsTrigger>
               <TabsTrigger value="pets"><Dog className="mr-2"/>Pets</TabsTrigger>
-              <TabsTrigger value="blocos"><Blocks className="mr-2"/>Blocos</TabsTrigger>
+              <TabsTrigger value="blocos"><Blocks className="mr-2"/>Blocos e Unidades</TabsTrigger>
             </TabsList>
             
             {/* Tab de Moradores */}
@@ -337,7 +342,7 @@ export default function CadastrosPage() {
               <div className="flex justify-end mb-4">
                 <Dialog open={openMorador} onOpenChange={setOpenMorador}>
                     <DialogTrigger asChild>
-                        <Button><PlusCircle className="mr-2" />Adicionar Morador</Button>
+                        <Button disabled={!unidadeAtivaId}><PlusCircle className="mr-2" />Adicionar Morador</Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
@@ -345,41 +350,24 @@ export default function CadastrosPage() {
                             <DialogDescription>Insira os dados do novo morador.</DialogDescription>
                         </DialogHeader>
                          <form onSubmit={handleSubmitMorador(onMoradorSubmit)}>
-                            <div className="grid gap-4 py-4">
+                            <div className="space-y-4 py-4">
                                 <div className="space-y-1">
                                     <Label htmlFor="nome-morador">Nome</Label>
                                     <Input id="nome-morador" placeholder="Nome completo" {...registerMorador("nome")} />
                                     {errorsMorador.nome && <p className="text-xs text-destructive">{errorsMorador.nome.message}</p>}
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="unidade-morador">Unidade</Label>
-                                    <Input id="unidade-morador" placeholder="Ex: Apto 101" {...registerMorador("unidade")} />
-                                    {errorsMorador.unidade && <p className="text-xs text-destructive">{errorsMorador.unidade.message}</p>}
+                                    <Label htmlFor="email-morador">E-mail</Label>
+                                    <Input id="email-morador" placeholder="email@provedor.com" {...registerMorador("email")} />
+                                    {errorsMorador.email && <p className="text-xs text-destructive">{errorsMorador.email.message}</p>}
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="perfil-morador">Perfil</Label>
-                                    <Select onValueChange={(value) => setMoradorValue("perfil", value)}>
-                                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="proprietario">Proprietário</SelectItem>
-                                            <SelectItem value="inquilino">Inquilino</SelectItem>
-                                            <SelectItem value="sindico">Síndico</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {errorsMorador.perfil && <p className="text-xs text-destructive">{errorsMorador.perfil.message}</p>}
-                                </div>
-                                 <div className="space-y-1">
-                                    <Label htmlFor="contato-morador">Contato</Label>
-                                    <Input id="contato-morador" placeholder="(99) 99999-9999" {...registerMorador("contato")} />
-                                    {errorsMorador.contato && <p className="text-xs text-destructive">{errorsMorador.contato.message}</p>}
-                                </div>
+                               
                                 <div className="flex items-center space-x-2 pt-2">
-                                    <Checkbox id="lgpd-terms" onCheckedChange={(checked) => setMoradorValue("lgpd", !!checked)} />
-                                    <label htmlFor="lgpd-terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                        Li e concordo com os termos da LGPD.
+                                    <Checkbox id="responsavel-check" {...registerMorador("isResponsavel")} />
+                                    <label htmlFor="responsavel-check" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                        É o responsável pela unidade?
                                     </label>
                                 </div>
-                                {errorsMorador.lgpd && <p className="text-xs text-destructive">{errorsMorador.lgpd.message}</p>}
                             </div>
                             <DialogFooter>
                                 <Button type="submit">Salvar</Button>
@@ -392,26 +380,24 @@ export default function CadastrosPage() {
                 <TableHeader>
                     <TableRow>
                         <TableHead>Nome</TableHead>
-                        <TableHead>Unidade</TableHead>
-                        <TableHead>Perfil</TableHead>
-                        <TableHead>Contato</TableHead>
+                        <TableHead>E-mail</TableHead>
+                        <TableHead>Responsável</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {isLoading ? (
-                        <TableRow><TableCell colSpan={5} className="text-center">Carregando...</TableCell></TableRow>
-                    ) : !condominioAtivoId ? (
-                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Selecione um condomínio para ver os cadastros.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={4} className="text-center">Carregando...</TableCell></TableRow>
+                    ) : !unidadeAtivaId ? (
+                         <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Selecione um condomínio, bloco e unidade para ver os moradores.</TableCell></TableRow>
                     ) : moradores?.length === 0 ? (
-                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nenhum morador cadastrado neste condomínio.</TableCell></TableRow>
+                         <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Nenhum morador cadastrado nesta unidade.</TableCell></TableRow>
                     ) : (
-                        moradores?.filter(m => m.type === 'morador').map(m => (
+                        moradores?.map(m => (
                             <TableRow key={m.id}>
                                 <TableCell>{m.nome}</TableCell>
-                                <TableCell>{m.unidade}</TableCell>
-                                <TableCell>{m.perfil}</TableCell>
-                                <TableCell>{m.contato}</TableCell>
+                                <TableCell>{m.email}</TableCell>
+                                <TableCell>{m.isResponsavel ? "Sim" : "Não"}</TableCell>
                                 <TableCell className="text-right space-x-2">
                                     <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
                                     <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4"/></Button>
@@ -692,7 +678,7 @@ export default function CadastrosPage() {
               </Table>
             </TabsContent>
 
-            {/* Tab de Blocos */}
+            {/* Tab de Blocos e Unidades */}
             <TabsContent value="blocos">
               <div className="flex justify-end mb-4">
                 <Dialog open={openBloco} onOpenChange={setOpenBloco}>

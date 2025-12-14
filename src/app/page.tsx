@@ -41,6 +41,7 @@ import { Overview } from "@/components/dashboard/overview";
 import { RecentAnnouncements } from "@/components/dashboard/recent-announcements";
 import { ActiveLink } from "@/components/active-link";
 import { CondominioSelector } from "@/components/condominio-selector";
+import { BlocoUnidadeSelector } from "@/components/bloco-unidade-selector";
 
 export default function Dashboard() {
   return (
@@ -49,6 +50,7 @@ export default function Dashboard() {
         <SidebarHeader className="p-4 space-y-4">
           <Logo />
           <CondominioSelector />
+          <BlocoUnidadeSelector />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
