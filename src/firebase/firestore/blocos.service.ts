@@ -131,3 +131,5 @@ export async function deletarBloco(
     throw error; // Propaga o erro para a UI
   }
 }
+
+    
