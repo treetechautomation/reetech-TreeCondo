@@ -103,8 +103,8 @@ async function buildAuthObjectAsync(currentUser: User | null): Promise<FirebaseA
         }
         return acc;
       }, {} as Record<string, string[]>),
-      sign_in_provider: currentUser.providerData[0]?.providerId || 'custom',
-      tenant: currentUser.tenantId,
+      sign_in_provider: tokenResult.signInProvider || 'custom',
+      tenant: tokenResult.tenantId || null,
     },
     // Include the fetched custom claims
     claims: tokenResult.claims,
@@ -190,7 +190,8 @@ export async function createFirestorePermissionError(context: SecurityRuleContex
     const errorForStackTrace = new Error();
 
     // Create an instance of the error class but bypass its constructor logic
-    const permissionError = new FirestorePermissionError(context);
+    // by passing a minimal context.
+    const permissionError = new FirestorePermissionError({operation: context.operation, path: context.path});
 
     // Manually set the properties with the async-built request and correct message
     (permissionError as any).request = requestObject;
