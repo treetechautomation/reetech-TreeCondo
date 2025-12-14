@@ -47,7 +47,7 @@
       "properties": {
         "numero": { "type": "string", "description": "Número ou identificador da unidade (Ex: '101', 'Casa 23')." },
         "andar": { "type": "number", "description": "Andar da unidade." },
-        "tipo": { "type": "string", "enum": ["APARTAMENTO"], "description": "Tipo de unidade." },
+        "tipo": { "type": "string", "enum": ["APARTAMENTO", "CASA"], "description": "Tipo de unidade." },
         "ativo": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -60,23 +60,191 @@
         "createdAt": "2024-07-30T10:10:00Z"
       }
     },
-    "Morador": { "title": "Morador", "type": "object", "properties": {} },
-    "Funcionario": { "title": "Funcionario", "type": "object", "properties": {} },
-    "Fornecedor": { "title": "Fornecedor", "type": "object", "properties": {} },
-    "Veiculo": { "title": "Veiculo", "type": "object", "properties": {} },
-    "Pet": { "title": "Pet", "type": "object", "properties": {} },
-    "ConfigMenu": { "title": "ConfigMenu", "type": "object", "properties": {} },
-    "PermissoesMenu": { "title": "PermissoesMenu", "type": "object", "properties": {} },
-    "VinculoUsuario": { "title": "VinculoUsuario", "type": "object", "properties": {} },
+    "Morador": {
+      "title": "Morador",
+      "description": "Representa uma pessoa vinculada a uma unidade, seja proprietário, inquilino ou dependente. O ID do documento é o UID do usuário no Firebase Auth.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "tipo": { "type": "string", "enum": ["PROPRIETARIO", "INQUILINO", "DEPENDENTE"] },
+        "isResponsavel": { "type": "boolean", "description": "Indica se é o responsável financeiro/legal pela unidade." },
+        "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
+        "contrato": {
+          "type": "object",
+          "description": "Detalhes do contrato, aplicável apenas para inquilinos.",
+          "properties": {
+            "inicio": { "type": "string", "format": "date-time" },
+            "fim": { "type": "string", "format": "date-time" },
+            "imobiliaria": { "type": "string" }
+          }
+        },
+        "responsavelId": { "type": "string", "description": "UID do morador responsável, aplicável para dependentes." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome", "email", "tipo", "isResponsavel", "status", "createdAt"],
+      "examples": [
+        {
+          "title": "Proprietário",
+          "value": {
+            "id": "abc123_user_uid_proprietario",
+            "data": {
+              "nome": "Carlos Pereira",
+              "email": "carlos.p@email.com",
+              "tipo": "PROPRIETARIO",
+              "isResponsavel": true,
+              "status": "ATIVO",
+              "createdAt": "2024-07-30T11:00:00Z"
+            }
+          }
+        },
+        {
+          "title": "Inquilino",
+          "value": {
+            "id": "def456_user_uid_inquilino",
+            "data": {
+              "nome": "Mariana Lima",
+              "email": "mari.lima@email.com",
+              "tipo": "INQUILINO",
+              "isResponsavel": true,
+              "status": "ATIVO",
+              "contrato": {
+                "inicio": "2023-01-15T00:00:00Z",
+                "fim": "2025-07-15T00:00:00Z",
+                "imobiliaria": "Imóveis Felizes Ltda."
+              },
+              "createdAt": "2024-07-30T11:05:00Z"
+            }
+          }
+        },
+        {
+          "title": "Dependente",
+          "value": {
+            "id": "ghi789_user_uid_dependente",
+            "data": {
+              "nome": "Lucas Pereira",
+              "email": "lucas.p@email.com",
+              "tipo": "DEPENDENTE",
+              "isResponsavel": false,
+              "status": "ATIVO",
+              "responsavelId": "abc123_user_uid_proprietario",
+              "createdAt": "2024-07-30T11:10:00Z"
+            }
+          }
+        }
+      ]
+    },
+    "Funcionario": {
+      "title": "Funcionario",
+      "description": "Representa um funcionário contratado pelo condomínio.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "cargo": { "type": "string", "enum": ["PORTEIRO", "ZELADOR", "FAXINEIRO"] },
+        "horario": { "type": "string", "description": "Descrição do turno de trabalho." },
+        "contato": { "type": "string" },
+        "status": { "type": "string", "enum": ["ATIVO", "FERIAS", "INATIVO"] }
+      },
+      "required": ["nome", "cargo", "status"]
+    },
+    "Fornecedor": {
+      "title": "Fornecedor",
+      "description": "Representa uma empresa ou pessoa que presta serviços para o condomínio.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "servico": { "type": "string", "description": "Descrição do serviço prestado (ex: jardinagem, manutenção de elevador)." },
+        "contato": { "type": "string" },
+        "ativo": { "type": "boolean" }
+      },
+      "required": ["nome", "servico", "ativo"]
+    },
+    "Veiculo": {
+      "title": "Veiculo",
+      "description": "Representa um veículo pertencente a um morador.",
+      "type": "object",
+      "properties": {
+        "placa": { "type": "string" },
+        "modelo": { "type": "string" },
+        "cor": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["CARRO", "MOTO"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["placa", "modelo", "tipo", "createdAt"]
+    },
+    "Pet": {
+      "title": "Pet",
+      "description": "Representa um animal de estimação de um morador.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "raca": { "type": "string" },
+        "porte": { "type": "string", "enum": ["PEQUENO", "MEDIO", "GRANDE"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome", "raca", "porte", "createdAt"]
+    },
+    "VinculoUsuario": {
+      "title": "VinculoUsuario",
+      "description": "Índice de acesso rápido que associa um usuário a um ou mais condomínios e suas respectivas permissões/vínculos.",
+      "type": "object",
+      "properties": {
+        "condominioId": { "type": "string" },
+        "condominioNome": { "type": "string" },
+        "role": { "type": "string", "enum": ["SINDICO", "PORTEIRO", "MORADOR"] },
+        "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
+        "blocoId": { "type": "string", "description": "ID do bloco, obrigatório se role='MORADOR'." },
+        "unidadeId": { "type": "string", "description": "ID da unidade, obrigatório se role='MORADOR'." }
+      },
+      "required": ["condominioId", "condominioNome", "role", "status"],
+      "examples": [
+        {
+          "title": "Vínculo de Morador",
+          "value": {
+            "id": "condominio_xyz",
+            "data": {
+              "condominioId": "condominio_xyz",
+              "condominioNome": "Condomínio Vila das Flores",
+              "role": "MORADOR",
+              "status": "ATIVO",
+              "blocoId": "bloco_a",
+              "unidadeId": "unidade_101"
+            }
+          }
+        },
+        {
+          "title": "Vínculo de Síndico",
+          "value": {
+            "id": "condominio_xyz",
+            "data": {
+              "condominioId": "condominio_xyz",
+              "condominioNome": "Condomínio Vila das Flores",
+              "role": "SINDICO",
+              "status": "ATIVO"
+            }
+          }
+        },
+        {
+          "title": "Vínculo de Porteiro",
+          "value": {
+            "id": "condominio_abc",
+            "data": {
+              "condominioId": "condominio_abc",
+              "condominioNome": "Residencial Bosque Verde",
+              "role": "PORTEIRO",
+              "status": "ATIVO"
+            }
+          }
+        }
+      ]
+    },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" } } },
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" } } },
     "Reuniao": { "title": "Reuniao", "type": "object", "properties": { "title": { "type": "string" } } },
     "Incidente": { "title": "Incidente", "type": "object", "properties": { "description": { "type": "string" } } },
     "Encomenda": { "title": "Encomenda", "type": "object", "properties": { "trackingCode": { "type": "string" } } },
     "Documento": { "title": "Documento", "type": "object", "properties": { "fileName": { "type": "string" } } },
-    "Enquete": { "title": "Enquete", "type": "object", "properties": { "question": { "type": "string" } } },
-    "Acesso": { "title": "Acesso", "type": "object", "properties": { "visitorName": { "type": "string" } } },
-    "Cadastro": { "title": "Cadastro", "type": "object", "properties": { "type": { "type": "string" } } }
+    "Enquete": { "title": "Enquete", "type": "object", "properties": { "question": { "type": "string" } } }
   },
   "auth": {
     "providers": ["password", "anonymous"],
@@ -89,7 +257,7 @@
         "definition": {
           "entityName": "Condominio",
           "schema": { "$ref": "#/entities/Condominio" },
-          "description": "Coleção principal que armazena cada condomínio. Acesso de escrita restrito a super_admins."
+          "description": "Coleção principal que armazena cada condomínio."
         }
       },
       {
@@ -108,15 +276,61 @@
           "description": "Sub-coleção para as unidades de um bloco."
         }
       },
+      {
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/moradores/{uid}",
+        "definition": {
+          "entityName": "Morador",
+          "schema": { "$ref": "#/entities/Morador" },
+          "description": "Sub-coleção de moradores da unidade. O ID do documento é o UID do Firebase Auth."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/moradores/{uid}/veiculos/{veiculoId}",
+        "definition": {
+          "entityName": "Veiculo",
+          "schema": { "$ref": "#/entities/Veiculo" },
+          "description": "Veículos associados a um morador específico."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/unidades/{unidadeId}/moradores/{uid}/pets/{petId}",
+        "definition": {
+          "entityName": "Pet",
+          "schema": { "$ref": "#/entities/Pet" },
+          "description": "Pets associados a um morador específico."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/funcionarios/{funcionarioId}",
+        "definition": {
+          "entityName": "Funcionario",
+          "schema": { "$ref": "#/entities/Funcionario" },
+          "description": "Funcionários contratados do condomínio."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/fornecedores/{fornecedorId}",
+        "definition": {
+          "entityName": "Fornecedor",
+          "schema": { "$ref": "#/entities/Fornecedor" },
+          "description": "Fornecedores de serviços para o condomínio."
+        }
+      },
+       {
+        "path": "/userCondominios/{uid}/vinculos/{condominioId}",
+        "definition": {
+          "entityName": "VinculoUsuario",
+          "schema": { "$ref": "#/entities/VinculoUsuario" },
+          "description": "Índice para acesso rápido aos condomínios e permissões de um usuário."
+        }
+      },
       { "path": "/condominios/{condominioId}/anuncios/{anuncioId}", "definition": { "schema": { "$ref": "#/entities/Anuncio" }, "description": "Anúncios do condomínio." } },
       { "path": "/condominios/{condominioId}/reservas/{reservaId}", "definition": { "schema": { "$ref": "#/entities/Reserva" }, "description": "Reservas de áreas comuns." } },
       { "path": "/condominios/{condominioId}/reunioes/{reuniaoId}", "definition": { "schema": { "$ref": "#/entities/Reuniao" }, "description": "Reuniões e assembleias." } },
       { "path": "/condominios/{condominioId}/incidentes/{incidenteId}", "definition": { "schema": { "$ref": "#/entities/Incidente" }, "description": "Incidentes e chamados." } },
       { "path": "/condominios/{condominioId}/encomendas/{encomendaId}", "definition": { "schema": { "$ref": "#/entities/Encomenda" }, "description": "Encomendas recebidas." } },
       { "path": "/condominios/{condominioId}/documentos/{documentoId}", "definition": { "schema": { "$ref": "#/entities/Documento" }, "description": "Documentos gerais." } },
-      { "path": "/condominios/{condominioId}/enquetes/{enqueteId}", "definition": { "schema": { "$ref": "#/entities/Enquete" }, "description": "Enquetes e votações." } },
-      { "path": "/condominios/{condominioId}/acessos/{acessoId}", "definition": { "schema": { "$ref": "#/entities/Acesso" }, "description": "Controle de acesso." } },
-      { "path": "/condominios/{condominioId}/cadastros/{cadastroId}", "definition": { "schema": { "$ref": "#/entities/Cadastro" }, "description": "Cadastros diversos (veículos, pets, etc.)." } }
+      { "path": "/condominios/{condominioId}/enquetes/{enqueteId}", "definition": { "schema": { "$ref": "#/entities/Enquete" }, "description": "Enquetes e votações." } }
     ],
     "queries": [
       {
