@@ -142,6 +142,18 @@
         }
       ]
     },
+    "Membro": {
+      "title": "Membro",
+      "description": "Representa um membro administrativo do condomínio, como Síndico ou Porteiro. O ID do documento é o UID do Firebase Auth.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["SINDICO", "PORTEIRO"] },
+        "status": { "type": "string", "enum": ["ATIVO", "INATIVO"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "UID de quem criou o membro." }
+      },
+      "required": ["role", "status", "createdAt", "createdBy"]
+    },
     "Funcionario": {
       "title": "Funcionario",
       "description": "Representa um funcionário contratado pelo condomínio.",
@@ -308,6 +320,14 @@
           "entityName": "Pet",
           "schema": { "$ref": "#/entities/Pet" },
           "description": "Pets associados a uma unidade."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/membros/{uid}",
+        "definition": {
+          "entityName": "Membro",
+          "schema": { "$ref": "#/entities/Membro" },
+          "description": "Membros administrativos do condomínio (ex: síndico, porteiro). O ID do documento é o UID do usuário no Firebase Auth."
         }
       },
       {
