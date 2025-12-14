@@ -2,7 +2,7 @@
   "entities": {
     "Condominio": {
       "title": "Condominio",
-      "description": "Representa um único condomínio. Contém todas as suas sub-coleções de dados.",
+      "description": "Representa um único condomínio. Contém todas as suas sub-coleções de dados. Nota: Campos como 'createdAt' são representados como string 'date-time' para documentação, mas gravados como serverTimestamp() no Firestore.",
       "type": "object",
       "properties": {
         "nome": { "type": "string", "description": "Nome do condomínio." },
