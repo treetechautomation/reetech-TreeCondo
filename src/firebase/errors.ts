@@ -157,7 +157,7 @@ export class FirestorePermissionError extends Error {
     };
     
     super(buildErrorMessage(requestObject));
-    this.name = 'FirebaseError';
+    this.name = 'FirestorePermissionError';
     this.request = requestObject;
   }
 }
