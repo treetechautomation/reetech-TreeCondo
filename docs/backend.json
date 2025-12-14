@@ -55,18 +55,51 @@
         "responsavelUid": { "type": ["string", "null"], "description": "UID do morador responsável (financeiro/legal) pela unidade." },
         "ocupacao": { "type": "string", "enum": ["VAGO", "PROPRIETARIO", "ALUGADO"], "description": "Status de ocupação da unidade." }
       },
-      "required": ["numero", "tipo", "andar", "ativo", "createdAt", "ocupacao"],
-      "example": {
-        "numero": "302",
-        "andar": 3,
-        "tipo": "APARTAMENTO",
-        "ativo": true,
-        "createdAt": "2024-07-30T10:10:00Z",
-        "proprietarioUid": "abc123_user_uid_proprietario",
-        "inquilinoUid": null,
-        "responsavelUid": "abc123_user_uid_proprietario",
-        "ocupacao": "PROPRIETARIO"
-      }
+      "required": ["numero", "tipo", "ativo", "createdAt", "ocupacao"],
+      "examples": [
+        {
+          "title": "Unidade com Proprietário",
+          "value": {
+            "numero": "302",
+            "andar": 3,
+            "tipo": "APARTAMENTO",
+            "ativo": true,
+            "createdAt": "2024-07-30T10:10:00Z",
+            "proprietarioUid": "abc123_user_uid_proprietario",
+            "inquilinoUid": null,
+            "responsavelUid": "abc123_user_uid_proprietario",
+            "ocupacao": "PROPRIETARIO"
+          }
+        },
+        {
+          "title": "Unidade Alugada",
+          "value": {
+            "numero": "505",
+            "andar": 5,
+            "tipo": "APARTAMENTO",
+            "ativo": true,
+            "createdAt": "2024-07-30T10:15:00Z",
+            "proprietarioUid": "jkl012_user_uid_outro_prop",
+            "inquilinoUid": "def456_user_uid_inquilino",
+            "responsavelUid": "def456_user_uid_inquilino",
+            "ocupacao": "ALUGADO"
+          }
+        },
+        {
+          "title": "Unidade Vaga",
+          "value": {
+            "numero": "201",
+            "andar": 2,
+            "tipo": "APARTAMENTO",
+            "ativo": true,
+            "createdAt": "2024-07-30T10:20:00Z",
+            "proprietarioUid": null,
+            "inquilinoUid": null,
+            "responsavelUid": null,
+            "ocupacao": "VAGO"
+          }
+        }
+      ]
     },
     "Morador": {
       "title": "Morador",
