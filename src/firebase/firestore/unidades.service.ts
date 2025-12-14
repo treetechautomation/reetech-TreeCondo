@@ -205,59 +205,58 @@ export async function setOcupacaoUnidade(
   unidadeId: string,
   data: SetOcupacaoUnidadePayload
 ) {
-  const unidadeRef = getUnidadeDocRef(firestore, condominioId, blocoId, unidadeId);
-  
-  await runTransaction(firestore, async (transaction) => {
-    // A leitura dentro da transação é opcional aqui, pois estamos sobrescrevendo os campos.
-    // Mas seria necessária se a lógica dependesse do estado atual do documento.
-    
-    let updatePayload: UpdateUnidadePayload = { ocupacao: data.ocupacao };
+    const unidadeRef = getUnidadeDocRef(firestore, condominioId, blocoId, unidadeId);
+
+    let updatePayload: UpdateUnidadePayload;
 
     if (data.ocupacao === 'VAGO') {
-      updatePayload = {
-        ...updatePayload,
-        proprietarioUid: null,
-        inquilinoUid: null,
-        responsavelUid: null,
-      };
+        updatePayload = {
+            ocupacao: 'VAGO',
+            proprietarioUid: null,
+            inquilinoUid: null,
+            responsavelUid: null,
+        };
     } else if (data.ocupacao === 'PROPRIETARIO') {
-      if (!data.proprietarioUid) {
-        throw new Error("Para ocupação 'PROPRIETARIO', o proprietarioUid é obrigatório.");
-      }
-      updatePayload = {
-        ...updatePayload,
-        proprietarioUid: data.proprietarioUid,
-        inquilinoUid: null, // Garante que não há inquilino
-        responsavelUid: data.proprietarioUid, // Responsável é o proprietário
-      };
+        if (!data.proprietarioUid) {
+            throw new Error("Para ocupação 'PROPRIETARIO', o proprietarioUid é obrigatório.");
+        }
+        updatePayload = {
+            ocupacao: 'PROPRIETARIO',
+            proprietarioUid: data.proprietarioUid,
+            inquilinoUid: null,
+            responsavelUid: data.proprietarioUid,
+        };
     } else if (data.ocupacao === 'ALUGADO') {
-      if (!data.inquilinoUid) {
-        throw new Error("Para ocupação 'ALUGADO', o inquilinoUid é obrigatório.");
-      }
-       updatePayload = {
-        ...updatePayload,
-        // O proprietário existente é mantido se não for passado um novo.
-        // Se data.proprietarioUid for undefined, o campo não é alterado.
-        ...(data.proprietarioUid !== undefined && { proprietarioUid: data.proprietarioUid }),
-        inquilinoUid: data.inquilinoUid,
-        responsavelUid: data.inquilinoUid, // Responsável é o inquilino
-      };
+        if (!data.inquilinoUid) {
+            throw new Error("Para ocupação 'ALUGADO', o inquilinoUid é obrigatório.");
+        }
+        if (!data.proprietarioUid) {
+            throw new Error("Para ocupação 'ALUGADO', o proprietarioUid é obrigatório.");
+        }
+        updatePayload = {
+            ocupacao: 'ALUGADO',
+            proprietarioUid: data.proprietarioUid,
+            inquilinoUid: data.inquilinoUid,
+            responsavelUid: data.inquilinoUid,
+        };
     } else {
         throw new Error(`Ocupação inválida: ${data.ocupacao}`);
     }
-    
-    transaction.update(unidadeRef, { ...updatePayload, updatedAt: serverTimestamp() });
-  }).catch(error => {
-    // Trata tanto os erros de validação (throw new Error) quanto os erros do Firestore (regras de segurança)
-    console.error("Erro na transação de setOcupacaoUnidade: ", error);
-    if (!(error instanceof FirestorePermissionError)) {
-        const contextualError = new FirestorePermissionError({
-            path: unidadeRef.path,
-            operation: 'update',
-            requestResourceData: data
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            transaction.update(unidadeRef, { ...updatePayload, updatedAt: serverTimestamp() });
         });
-        errorEmitter.emit('permission-error', contextualError);
+    } catch (error) {
+        console.error("Erro na transação de setOcupacaoUnidade: ", error);
+        if (!(error instanceof FirestorePermissionError)) {
+            const contextualError = new FirestorePermissionError({
+                path: unidadeRef.path,
+                operation: 'update',
+                requestResourceData: updatePayload
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        }
+        throw error;
     }
-    throw error;
-  });
 }
