@@ -148,14 +148,14 @@ export default function AnunciosPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
+      <SidebarInset>
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
             Anúncios
           </h1>
           <div className="ml-auto flex items-center gap-4">
-            <form>
+            <form className="hidden md:block">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -167,9 +167,9 @@ export default function AnunciosPage() {
             </form>
             <Dialog>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <PlusCircle />
-                  Novo Anúncio
+                  <span className="hidden sm:inline-block">Novo Anúncio</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">

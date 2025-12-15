@@ -50,7 +50,7 @@ export default function RootLayout({
         />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased bg-background">
         <FirebaseClientProvider>
           <AuthGate>
             <CondominioProvider>

@@ -29,12 +29,12 @@ export function Overview() {
   }, []);
 
   if (data.length === 0) {
-    return <div style={{height: 350}} />; // or a loading indicator
+    return <div className="h-full w-full" />; // or a loading indicator
   }
 
   return (
-    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-        <ResponsiveContainer width="100%" height={350}>
+    <ChartContainer config={chartConfig} className="min-h-[200px] h-full w-full">
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <XAxis
               dataKey="name"

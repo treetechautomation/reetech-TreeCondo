@@ -157,14 +157,14 @@ export default function ReunioesPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
+      <SidebarInset>
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
             Reuniões
           </h1>
           <div className="ml-auto flex items-center gap-4">
-            <form>
+            <form className="hidden md:block">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -176,9 +176,9 @@ export default function ReunioesPage() {
             </form>
              <Dialog>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <PlusCircle />
-                  Nova Reunião
+                  <span className="hidden sm:inline-block">Nova Reunião</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
@@ -267,14 +267,14 @@ export default function ReunioesPage() {
            <div className="space-y-4">
                 <Card>
                     <CardHeader>
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                             <div>
                                 <CardTitle>Assembleia Geral Ordinária</CardTitle>
                                 <CardDescription>Agendada para 30 de Julho de 2024, às 19:00 - Salão de Festas</CardDescription>
                             </div>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline">
+                                    <Button variant="outline" size="sm">
                                         <FileDown className="mr-2" />
                                         Gerar Documentos
                                     </Button>
@@ -299,14 +299,14 @@ export default function ReunioesPage() {
                 </Card>
                  <Card>
                     <CardHeader>
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                             <div>
                                 <CardTitle>Reunião do Conselho Fiscal</CardTitle>
                                 <CardDescription>Agendada para 15 de Agosto de 2024, às 20:00 - Sala de Reuniões</CardDescription>
                             </div>
                              <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" disabled>
+                                    <Button variant="outline" size="sm" disabled>
                                         <FileDown className="mr-2" />
                                         Gerar Documentos
                                     </Button>

@@ -203,14 +203,14 @@ export default function DocumentosPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
+      <SidebarInset>
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
             Documentos do Condomínio
           </h1>
           <div className="ml-auto flex items-center gap-4">
-            <form>
+            <form className="hidden md:block">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -222,9 +222,9 @@ export default function DocumentosPage() {
             </form>
             <Dialog>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <Upload />
-                  Carregar Documento
+                  <span className="hidden sm:inline-block">Carregar Documento</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
@@ -283,15 +283,15 @@ export default function DocumentosPage() {
               <TabsList>
                 <TabsTrigger value="balancetes">Balancetes</TabsTrigger>
                 <TabsTrigger value="atas">Atas</TabsTrigger>
-                <TabsTrigger value="regimento">Regimento e Convenções</TabsTrigger>
+                <TabsTrigger value="regimento">Regimento</TabsTrigger>
               </TabsList>
               <TabsContent value="balancetes">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nome do Arquivo</TableHead>
-                            <TableHead className="w-[150px]">Data de Publicação</TableHead>
-                            <TableHead className="w-[120px]">Tamanho</TableHead>
+                            <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
+                            <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
                             <TableHead className="w-[180px] text-right">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -299,11 +299,11 @@ export default function DocumentosPage() {
                         {balancetes.map((doc) => (
                              <TableRow key={doc.name}>
                                 <TableCell className="font-medium">{doc.name}</TableCell>
-                                <TableCell>{doc.date}</TableCell>
-                                <TableCell>{doc.size}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
+                                <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
                                 <TableCell className="text-right space-x-2">
-                                    <Button variant="outline" size="sm"><Eye /> Visualizar</Button>
-                                    <Button variant="secondary" size="sm"><Download /> Baixar</Button>
+                                    <Button variant="outline" size="icon"><Eye /></Button>
+                                    <Button variant="secondary" size="icon"><Download /></Button>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -315,8 +315,8 @@ export default function DocumentosPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nome do Arquivo</TableHead>
-                            <TableHead className="w-[150px]">Data de Publicação</TableHead>
-                            <TableHead className="w-[120px]">Tamanho</TableHead>
+                            <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
+                            <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
                             <TableHead className="w-[180px] text-right">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -324,11 +324,11 @@ export default function DocumentosPage() {
                         {atas.map((doc) => (
                              <TableRow key={doc.name}>
                                 <TableCell className="font-medium">{doc.name}</TableCell>
-                                <TableCell>{doc.date}</TableCell>
-                                <TableCell>{doc.size}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
+                                <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
                                 <TableCell className="text-right space-x-2">
-                                    <Button variant="outline" size="sm"><Eye /> Visualizar</Button>
-                                    <Button variant="secondary" size="sm"><Download /> Baixar</Button>
+                                    <Button variant="outline" size="icon"><Eye /></Button>
+                                    <Button variant="secondary" size="icon"><Download /></Button>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -340,8 +340,8 @@ export default function DocumentosPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nome do Arquivo</TableHead>
-                            <TableHead className="w-[150px]">Data de Publicação</TableHead>
-                            <TableHead className="w-[120px]">Tamanho</TableHead>
+                            <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
+                            <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
                             <TableHead className="w-[180px] text-right">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -349,11 +349,11 @@ export default function DocumentosPage() {
                         {regimento.map((doc) => (
                              <TableRow key={doc.name}>
                                 <TableCell className="font-medium">{doc.name}</TableCell>
-                                <TableCell>{doc.date}</TableCell>
-                                <TableCell>{doc.size}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
+                                <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
                                 <TableCell className="text-right space-x-2">
-                                    <Button variant="outline" size="sm"><Eye /> Visualizar</Button>
-                                    <Button variant="secondary" size="sm"><Download /> Baixar</Button>
+                                    <Button variant="outline" size="icon"><Eye /></Button>
+                                    <Button variant="secondary" size="icon"><Download /></Button>
                                 </TableCell>
                             </TableRow>
                         ))}

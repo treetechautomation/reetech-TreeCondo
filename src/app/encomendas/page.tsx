@@ -167,14 +167,14 @@ export default function EncomendasPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
+      <SidebarInset>
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
             Gestão de Encomendas
           </h1>
           <div className="ml-auto flex items-center gap-4">
-            <form>
+            <form className="hidden md:block">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -186,9 +186,9 @@ export default function EncomendasPage() {
             </form>
              <Dialog>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <PlusCircle />
-                  Registrar Nova Encomenda
+                  <span className="hidden sm:inline-block">Registrar Encomenda</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
@@ -235,16 +235,15 @@ export default function EncomendasPage() {
         <main className="flex-1 overflow-auto p-4 md:p-8">
             <Tabs defaultValue="waiting">
               <TabsList className="mb-4">
-                  <TabsTrigger value="waiting"><Clock className="mr-2" />Aguardando Retirada</TabsTrigger>
-                  <TabsTrigger value="history"><History className="mr-2" />Histórico de Retiradas</TabsTrigger>
+                  <TabsTrigger value="waiting"><Clock className="mr-2" />Aguardando</TabsTrigger>
+                  <TabsTrigger value="history"><History className="mr-2" />Histórico</TabsTrigger>
               </TabsList>
               <TabsContent value="waiting">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Cód. Encomenda</TableHead>
+                            <TableHead className="hidden sm:table-cell">Cód.</TableHead>
                             <TableHead>Unidade</TableHead>
-                            <TableHead>Transportadora</TableHead>
                             <TableHead>Chegada</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
@@ -252,14 +251,13 @@ export default function EncomendasPage() {
                     <TableBody>
                        {waitingPackages.map((pkg) => (
                          <TableRow key={pkg.id}>
-                            <TableCell className="font-mono">{pkg.id}</TableCell>
+                            <TableCell className="font-mono hidden sm:table-cell">{pkg.id}</TableCell>
                             <TableCell>{pkg.unit}</TableCell>
-                            <TableCell>{pkg.carrier}</TableCell>
                             <TableCell>{pkg.arrival}</TableCell>
                             <TableCell className="text-right">
                                 <Button variant="outline" size="sm">
                                     <QrCode className="mr-2" />
-                                    Registrar Retirada
+                                    <span className="hidden sm:inline-block">Registrar Retirada</span>
                                 </Button>
                             </TableCell>
                         </TableRow>
@@ -271,23 +269,19 @@ export default function EncomendasPage() {
                  <Table>
                     <TableHeader>
                         <TableRow>
-                             <TableHead>Cód. Encomenda</TableHead>
+                             <TableHead className="hidden sm:table-cell">Cód.</TableHead>
                              <TableHead>Unidade</TableHead>
-                             <TableHead>Transportadora</TableHead>
-                             <TableHead>Chegada</TableHead>
                              <TableHead>Retirada</TableHead>
-                             <TableHead>Retirado por</TableHead>
+                             <TableHead className="hidden md:table-cell">Retirado por</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                        {deliveredPackages.map((pkg) => (
                          <TableRow key={pkg.id}>
-                            <TableCell className="font-mono">{pkg.id}</TableCell>
+                            <TableCell className="font-mono hidden sm:table-cell">{pkg.id}</TableCell>
                             <TableCell>{pkg.unit}</TableCell>
-                            <TableCell>{pkg.carrier}</TableCell>
-                            <TableCell>{pkg.arrival}</TableCell>
                             <TableCell>{pkg.pickup}</TableCell>
-                            <TableCell>{pkg.by}</TableCell>
+                            <TableCell className="hidden md:table-cell">{pkg.by}</TableCell>
                         </TableRow>
                        ))}
                     </TableBody>

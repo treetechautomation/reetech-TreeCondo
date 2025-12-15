@@ -182,14 +182,14 @@ export default function AcessoPage() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
+      <SidebarInset>
         <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
           <SidebarTrigger className="md:hidden" />
           <h1 className="font-headline text-lg font-semibold md:text-xl">
             Controle de Acesso
           </h1>
           <div className="ml-auto flex items-center gap-4">
-            <form>
+            <form className="hidden md:block">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -201,9 +201,9 @@ export default function AcessoPage() {
             </form>
              <Dialog>
               <DialogTrigger asChild>
-                <Button>
+                <Button size="sm">
                   <UserPlus />
-                  Pré-liberar Visita
+                  <span className="hidden sm:inline-block">Pré-liberar Visita</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[480px]">
@@ -277,20 +277,20 @@ export default function AcessoPage() {
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
             <Tabs defaultValue="upcoming">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
                 <TabsList>
-                    <TabsTrigger value="upcoming"><Clock className="mr-2"/>Próximas Liberações</TabsTrigger>
-                    <TabsTrigger value="log"><ArrowRightLeft className="mr-2"/>Registro de Entradas e Saídas</TabsTrigger>
+                    <TabsTrigger value="upcoming"><Clock className="mr-2"/>Próximas</TabsTrigger>
+                    <TabsTrigger value="log"><ArrowRightLeft className="mr-2"/>Registro</TabsTrigger>
                 </TabsList>
-                <Button variant="outline"><FileDown className="mr-2" /> Gerar Relatório</Button>
+                <Button variant="outline" size="sm"><FileDown className="mr-2" /> Gerar Relatório</Button>
               </div>
               <TabsContent value="upcoming">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nome</TableHead>
-                            <TableHead>Unidade</TableHead>
-                            <TableHead>Tipo</TableHead>
+                            <TableHead className="hidden sm:table-cell">Unidade</TableHead>
+                            <TableHead className="hidden md:table-cell">Tipo</TableHead>
                             <TableHead>Detalhes</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -298,8 +298,8 @@ export default function AcessoPage() {
                         {upcomingVisitors.map((visitor) => (
                              <TableRow key={visitor.name}>
                                 <TableCell className="font-medium">{visitor.name}</TableCell>
-                                <TableCell>{visitor.unit}</TableCell>
-                                <TableCell>{visitor.type}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{visitor.unit}</TableCell>
+                                <TableCell className="hidden md:table-cell">{visitor.type}</TableCell>
                                 <TableCell>{visitor.details}</TableCell>
                             </TableRow>
                         ))}
@@ -311,9 +311,9 @@ export default function AcessoPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nome</TableHead>
-                            <TableHead>Unidade</TableHead>
+                            <TableHead className="hidden sm:table-cell">Unidade</TableHead>
                             <TableHead>Entrada</TableHead>
-                            <TableHead>Saída</TableHead>
+                            <TableHead className="hidden md:table-cell">Saída</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -321,9 +321,9 @@ export default function AcessoPage() {
                         {accessLog.map((log) => (
                              <TableRow key={log.name + log.timeIn}>
                                 <TableCell className="font-medium">{log.name}</TableCell>
-                                <TableCell>{log.unit}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{log.unit}</TableCell>
                                 <TableCell>{log.timeIn}</TableCell>
-                                <TableCell>{log.timeOut}</TableCell>
+                                <TableCell className="hidden md:table-cell">{log.timeOut}</TableCell>
                                 <TableCell>
                                     <Badge variant={log.status === 'Dentro' ? 'default' : 'secondary'}>{log.status}</Badge>
                                 </TableCell>
