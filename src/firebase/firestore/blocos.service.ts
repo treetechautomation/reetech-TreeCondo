@@ -4,15 +4,12 @@
 import {
   addDoc,
   deleteDoc,
-  onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   type DocumentReference,
   type Firestore,
 } from "firebase/firestore";
 import { errorEmitter } from "../error-emitter";
-import { createFirestorePermissionError, FirestorePermissionError } from "../errors";
+import { createFirestorePermissionError } from "../errors";
 import { getBlocoDocRef, getBlocosRef } from "./paths";
 
 export type Bloco = {
@@ -29,56 +26,7 @@ export type NewBlocoPayload = {
 };
 
 /**
- * Hook para listar os blocos de um condomínio em tempo real.
- * @param condominioId O ID do condomínio.
- */
-export function useBlocos(condominioId: string | null) {
-  // O hook useFirestore() não é usado aqui, pois esta função pode ser usada fora de um provider.
-  // A instância do firestore é passada como argumento.
-
-  const [data, setData] = useState<Bloco[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!condominioId) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-    
-    // Este import dinâmico dentro do useEffect garante que o Firestore só é acessado no client-side.
-    import('@/firebase').then(({ firestore }) => {
-      setLoading(true);
-      const blocosCollectionRef = getBlocosRef(firestore, condominioId);
-      const q = query(blocosCollectionRef, orderBy("ordem", "asc"), orderBy("nome", "asc"));
-
-      const unsub = onSnapshot(
-        q,
-        (snap) => {
-          const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Bloco[];
-          setData(items);
-          setLoading(false);
-        },
-        (err) => {
-          console.error(`Erro ao ouvir blocos do condomínio ${condominioId}:`, err);
-          const contextualError = new FirestorePermissionError({
-              operation: 'list',
-              path: blocosCollectionRef.path,
-          });
-          errorEmitter.emit('permission-error', contextualError);
-          setLoading(false);
-        }
-      );
-
-      return () => unsub();
-    });
-  }, [condominioId]);
-
-  return { data, loading };
-}
-
-/**
- * Cria um novo bloco em um condomínio. Apenas Super Admins.
+ * Cria um novo bloco em um condomínio. Apenas Super Admins ou Síndicos.
  * @param firestore Instância do Firestore.
  * @param condominioId O ID do condomínio.
  * @param payload Dados do novo bloco.

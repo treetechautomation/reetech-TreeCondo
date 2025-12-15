@@ -16,6 +16,7 @@ import { errorEmitter } from "../error-emitter";
 import { createFirestorePermissionError, FirestorePermissionError } from "../errors";
 import { getUnidadeDocRef, getUnidadesRef } from "./paths";
 import { useState, useEffect } from "react";
+import { useFirestore } from "@/firebase";
 
 export type Unidade = {
   id: string;
@@ -52,6 +53,7 @@ export type SetOcupacaoUnidadePayload = {
  * @param blocoId O ID do bloco.
  */
 export function useUnidades(condominioId: string | null, blocoId: string | null) {
+  const firestore = useFirestore();
   const [data, setData] = useState<Unidade[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,32 +64,30 @@ export function useUnidades(condominioId: string | null, blocoId: string | null)
       return;
     }
     
-    import('@/firebase').then(({ firestore }) => {
-        setLoading(true);
-        const unidadesRef = getUnidadesRef(firestore, condominioId, blocoId);
-        const q = query(unidadesRef, orderBy("numero", "asc"));
+    setLoading(true);
+    const unidadesRef = getUnidadesRef(firestore, condominioId, blocoId);
+    const q = query(unidadesRef, orderBy("numero", "asc"));
 
-        const unsub = onSnapshot(
-          q,
-          (snap) => {
-            const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Unidade[];
-            setData(items);
-            setLoading(false);
-          },
-          (err) => {
-            console.error(`Erro ao ouvir unidades do bloco ${blocoId}:`, err);
-            const contextualError = new FirestorePermissionError({
-                operation: 'list',
-                path: `condominios/${condominioId}/blocos/${blocoId}/unidades`,
-            });
-            errorEmitter.emit('permission-error', contextualError);
-            setLoading(false);
-          }
-        );
-        return () => unsub();
-    });
+    const unsub = onSnapshot(
+        q,
+        (snap) => {
+        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Unidade[];
+        setData(items);
+        setLoading(false);
+        },
+        (err) => {
+        console.error(`Erro ao ouvir unidades do bloco ${blocoId}:`, err);
+        const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path: `condominios/${condominioId}/blocos/${blocoId}/unidades`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        setLoading(false);
+        }
+    );
+    return () => unsub();
 
-  }, [condominioId, blocoId]);
+  }, [condominioId, blocoId, firestore]);
 
   return { data, loading };
 }

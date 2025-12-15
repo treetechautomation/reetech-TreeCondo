@@ -1,3 +1,4 @@
+
 'use client';
 import { getAuth, type User } from 'firebase/auth';
 
@@ -102,7 +103,7 @@ async function buildAuthObjectAsync(currentUser: User | null): Promise<FirebaseA
             firebase: {
                 identities: tokenResult.claims.firebase?.identities || {},
                 sign_in_provider: tokenResult.claims.firebase?.sign_in_provider || 'custom',
-                tenant: tokenResult.tenantId || null,
+                tenant: currentUser.tenantId,
             },
         };
         
