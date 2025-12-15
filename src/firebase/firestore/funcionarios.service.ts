@@ -1,21 +1,16 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   addDoc,
   deleteDoc,
-  onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
   type Firestore,
-  type FirestoreError,
 } from "firebase/firestore";
 
-import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
-import { createFirestorePermissionError, FirestorePermissionError } from "@/firebase/errors";
+import { createFirestorePermissionError } from "@/firebase/errors";
 import { getFuncionarioDocRef, getFuncionariosRef } from "./paths";
 
 /**
@@ -47,55 +42,6 @@ export type NewFuncionarioPayload = {
 
 export type UpdateFuncionarioPayload = Partial<Omit<Funcionario, "id" | "createdAt" | "updatedAt">>;
 
-/**
- * Hook para listar funcionarios do condomínio em tempo real.
- */
-export function useFuncionarios(condominioId: string | null) {
-  const firestore = useFirestore();
-  const [data, setData] = useState<Funcionario[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<FirestoreError | Error | null>(null);
-
-  useEffect(() => {
-    if (!condominioId) {
-      setData([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const funcionariosRef = getFuncionariosRef(condominioId, firestore);
-    const q = query(funcionariosRef, orderBy("createdAt", "desc"));
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Funcionario[];
-        setData(items);
-        setLoading(false);
-      },
-      (err) => {
-        console.error(`Erro ao ouvir funcionarios do condominio ${condominioId}:`, err);
-
-        const contextualError = new FirestorePermissionError({
-          operation: "list",
-          path: funcionariosRef.path,
-        });
-
-        errorEmitter.emit("permission-error", contextualError);
-        setError(contextualError);
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
-  }, [condominioId, firestore]);
-
-  return { data, loading, error };
-}
 
 /**
  * Criar funcionario (Sindico/SuperAdmin).
@@ -105,7 +51,7 @@ export async function criarFuncionario(
   condominioId: string,
   payload: NewFuncionarioPayload
 ) {
-  const funcionariosRef = getFuncionariosRef(condominioId, firestore);
+  const funcionariosRef = getFuncionariosRef(firestore, condominioId);
   const data = {
     ...payload,
     createdAt: serverTimestamp(),

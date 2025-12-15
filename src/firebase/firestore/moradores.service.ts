@@ -65,7 +65,7 @@ export function subscribeMoradores(
   onData: (data: Morador[]) => void,
   onError: (error: FirestoreError) => void
 ) {
-  const moradoresRef = getMoradoresRef(condominioId, blocoId, unidadeId, firestore);
+  const moradoresRef = getMoradoresRef(firestore, condominioId, blocoId, unidadeId);
   const q = query(moradoresRef, orderBy('nome', 'asc'));
 
   const unsubscribe = onSnapshot(

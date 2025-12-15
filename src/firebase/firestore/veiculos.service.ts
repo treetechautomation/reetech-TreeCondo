@@ -1,21 +1,16 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   addDoc,
   deleteDoc,
-  onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
   type Firestore,
-  type FirestoreError,
 } from "firebase/firestore";
 
-import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
-import { createFirestorePermissionError, FirestorePermissionError } from "@/firebase/errors";
+import { createFirestorePermissionError } from "@/firebase/errors";
 import { getVeiculoDocRef, getVeiculosRef } from "./paths";
 
 /**
@@ -44,59 +39,6 @@ export type NewVeiculoPayload = {
 
 export type UpdateVeiculoPayload = Partial<Omit<Veiculo, "id" | "createdAt" | "updatedAt">>;
 
-/**
- * Hook para listar veículos de uma unidade em tempo real.
- */
-export function useVeiculos(
-  condominioId: string | null,
-  blocoId: string | null,
-  unidadeId: string | null
-) {
-  const firestore = useFirestore();
-  const [data, setData] = useState<Veiculo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<FirestoreError | Error | null>(null);
-
-  useEffect(() => {
-    if (!condominioId || !blocoId || !unidadeId) {
-      setData([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const veiculosRef = getVeiculosRef(condominioId, blocoId, unidadeId, firestore);
-    const q = query(veiculosRef, orderBy("createdAt", "desc"));
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Veiculo[];
-        setData(items);
-        setLoading(false);
-      },
-      (err) => {
-        console.error(`Erro ao ouvir veículos da unidade ${unidadeId}:`, err);
-
-        const contextualError = new FirestorePermissionError({
-          operation: "list",
-          path: veiculosRef.path,
-        });
-
-        errorEmitter.emit("permission-error", contextualError);
-        setError(contextualError);
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
-  }, [condominioId, blocoId, unidadeId, firestore]);
-
-  return { data, loading, error };
-}
 
 /**
  * Criar veículo (Sindico/SuperAdmin ou Morador dono).
@@ -108,7 +50,7 @@ export async function criarVeiculo(
   unidadeId: string,
   payload: NewVeiculoPayload
 ) {
-  const veiculosRef = getVeiculosRef(condominioId, blocoId, unidadeId, firestore);
+  const veiculosRef = getVeiculosRef(firestore, condominioId, blocoId, unidadeId);
   const data = {
     ...payload,
     createdAt: serverTimestamp(),

@@ -1,21 +1,16 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   addDoc,
   deleteDoc,
-  onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
   type Firestore,
-  type FirestoreError,
 } from "firebase/firestore";
 
-import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
-import { createFirestorePermissionError, FirestorePermissionError } from "@/firebase/errors";
+import { createFirestorePermissionError } from "@/firebase/errors";
 import { getFornecedorDocRef, getFornecedoresRef } from "./paths";
 
 /**
@@ -44,55 +39,6 @@ export type NewFornecedorPayload = {
 
 export type UpdateFornecedorPayload = Partial<Omit<Fornecedor, "id" | "createdAt" | "updatedAt">>;
 
-/**
- * Hook para listar fornecedores do condomínio em tempo real.
- */
-export function useFornecedores(condominioId: string | null) {
-  const firestore = useFirestore();
-  const [data, setData] = useState<Fornecedor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<FirestoreError | Error | null>(null);
-
-  useEffect(() => {
-    if (!condominioId) {
-      setData([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const fornecedoresRef = getFornecedoresRef(condominioId, firestore);
-    const q = query(fornecedoresRef, orderBy("createdAt", "desc"));
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Fornecedor[];
-        setData(items);
-        setLoading(false);
-      },
-      (err) => {
-        console.error(`Erro ao ouvir fornecedores do condominio ${condominioId}:`, err);
-
-        const contextualError = new FirestorePermissionError({
-          operation: "list",
-          path: fornecedoresRef.path,
-        });
-
-        errorEmitter.emit("permission-error", contextualError);
-        setError(contextualError);
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
-  }, [condominioId, firestore]);
-
-  return { data, loading, error };
-}
 
 /**
  * Criar fornecedor (Sindico/SuperAdmin).
@@ -102,7 +48,7 @@ export async function criarFornecedor(
   condominioId: string,
   payload: NewFornecedorPayload
 ) {
-  const fornecedoresRef = getFornecedoresRef(condominioId, firestore);
+  const fornecedoresRef = getFornecedoresRef(firestore, condominioId);
   const data = {
     ...payload,
     createdAt: serverTimestamp(),
