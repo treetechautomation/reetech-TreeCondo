@@ -16,7 +16,7 @@ import {
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { createFirestorePermissionError, FirestorePermissionError } from "@/firebase/errors";
-import { getFornecedoresRef } from "./paths";
+import { getFornecedorDocRef, getFornecedoresRef } from "./paths";
 
 /**
  * Schema (backend.json): Fornecedor
@@ -64,7 +64,7 @@ export function useFornecedores(condominioId: string | null) {
     setLoading(true);
     setError(null);
 
-    const fornecedoresRef = getFornecedoresRef(firestore, condominioId);
+    const fornecedoresRef = getFornecedoresRef(condominioId, firestore);
     const q = query(fornecedoresRef, orderBy("createdAt", "desc"));
 
     const unsub = onSnapshot(
@@ -102,7 +102,7 @@ export async function criarFornecedor(
   condominioId: string,
   payload: NewFornecedorPayload
 ) {
-  const fornecedoresRef = getFornecedoresRef(firestore, condominioId);
+  const fornecedoresRef = getFornecedoresRef(condominioId, firestore);
   const data = {
     ...payload,
     createdAt: serverTimestamp(),
@@ -131,19 +131,15 @@ export async function atualizarFornecedor(
   fornecedorId: string,
   patch: UpdateFornecedorPayload
 ): Promise<void> {
-  const docRefPath = `condominios/${condominioId}/fornecedores/${fornecedorId}`;
+  const docRef = getFornecedorDocRef(firestore, condominioId, fornecedorId);
+  const data = { ...patch, updatedAt: serverTimestamp() };
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { doc } = require("firebase/firestore");
-    const docRef = doc(firestore, docRefPath);
-
-    const data = { ...patch, updatedAt: serverTimestamp() };
     await updateDoc(docRef, data);
   } catch (error) {
     console.error("Erro ao atualizar fornecedor:", error);
     const contextualError = await createFirestorePermissionError({
-      path: docRefPath,
+      path: docRef.path,
       operation: "update",
       requestResourceData: patch,
     });
@@ -160,18 +156,14 @@ export async function deletarFornecedor(
   condominioId: string,
   fornecedorId: string
 ): Promise<void> {
-  const docRefPath = `condominios/${condominioId}/fornecedores/${fornecedorId}`;
+  const docRef = getFornecedorDocRef(firestore, condominioId, fornecedorId);
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { doc } = require("firebase/firestore");
-    const docRef = doc(firestore, docRefPath);
-
     await deleteDoc(docRef);
   } catch (error) {
     console.error("Erro ao deletar fornecedor:", error);
     const contextualError = await createFirestorePermissionError({
-      path: docRefPath,
+      path: docRef.path,
       operation: "delete",
     });
     errorEmitter.emit("permission-error", contextualError);

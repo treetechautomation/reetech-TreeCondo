@@ -36,7 +36,7 @@ export async function criarBloco(
   condominioId: string,
   payload: NewBlocoPayload
 ): Promise<DocumentReference> {
-  const blocosCollectionRef = getBlocosRef(firestore, condominioId);
+  const blocosCollectionRef = getBlocosRef(condominioId, firestore);
   const data = {
     ...payload,
     ativo: true,

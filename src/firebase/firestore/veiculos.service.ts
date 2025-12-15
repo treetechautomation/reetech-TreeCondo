@@ -16,7 +16,7 @@ import {
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { createFirestorePermissionError, FirestorePermissionError } from "@/firebase/errors";
-import { getVeiculosRef } from "./paths";
+import { getVeiculoDocRef, getVeiculosRef } from "./paths";
 
 /**
  * Schema (backend.json): Veiculo
@@ -68,7 +68,7 @@ export function useVeiculos(
     setLoading(true);
     setError(null);
 
-    const veiculosRef = getVeiculosRef(firestore, condominioId, blocoId, unidadeId);
+    const veiculosRef = getVeiculosRef(condominioId, blocoId, unidadeId, firestore);
     const q = query(veiculosRef, orderBy("createdAt", "desc"));
 
     const unsub = onSnapshot(
@@ -108,7 +108,7 @@ export async function criarVeiculo(
   unidadeId: string,
   payload: NewVeiculoPayload
 ) {
-  const veiculosRef = getVeiculosRef(firestore, condominioId, blocoId, unidadeId);
+  const veiculosRef = getVeiculosRef(condominioId, blocoId, unidadeId, firestore);
   const data = {
     ...payload,
     createdAt: serverTimestamp(),
@@ -139,20 +139,15 @@ export async function atualizarVeiculo(
   veiculoId: string,
   patch: UpdateVeiculoPayload
 ): Promise<void> {
-  const docRefPath = `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos/${veiculoId}`;
+  const docRef = getVeiculoDocRef(firestore, condominioId, blocoId, unidadeId, veiculoId);
+  const data = { ...patch, updatedAt: serverTimestamp() };
 
   try {
-    // docRef pelo caminho (evita criar helper extra agora)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { doc } = require("firebase/firestore");
-    const docRef = doc(firestore, docRefPath);
-
-    const data = { ...patch, updatedAt: serverTimestamp() };
     await updateDoc(docRef, data);
   } catch (error) {
     console.error("Erro ao atualizar veículo:", error);
     const contextualError = await createFirestorePermissionError({
-      path: docRefPath,
+      path: docRef.path,
       operation: "update",
       requestResourceData: patch,
     });
@@ -171,18 +166,14 @@ export async function deletarVeiculo(
   unidadeId: string,
   veiculoId: string
 ): Promise<void> {
-  const docRefPath = `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos/${veiculoId}`;
+  const docRef = getVeiculoDocRef(firestore, condominioId, blocoId, unidadeId, veiculoId);
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { doc } = require("firebase/firestore");
-    const docRef = doc(firestore, docRefPath);
-
     await deleteDoc(docRef);
   } catch (error) {
     console.error("Erro ao deletar veículo:", error);
     const contextualError = await createFirestorePermissionError({
-      path: docRefPath,
+      path: docRef.path,
       operation: "delete",
     });
     errorEmitter.emit("permission-error", contextualError);

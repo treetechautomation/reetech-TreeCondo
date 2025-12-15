@@ -4,8 +4,6 @@
 import {
   addDoc,
   deleteDoc,
-  onSnapshot,
-  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -13,10 +11,8 @@ import {
   type Firestore,
 } from "firebase/firestore";
 import { errorEmitter } from "../error-emitter";
-import { createFirestorePermissionError, FirestorePermissionError } from "../errors";
+import { createFirestorePermissionError } from "../errors";
 import { getUnidadeDocRef, getUnidadesRef } from "./paths";
-import { useState, useEffect } from "react";
-import { useFirestore } from "@/firebase";
 
 export type Unidade = {
   id: string;
@@ -39,57 +35,11 @@ export type NewUnidadePayload = {
 
 export type UpdateUnidadePayload = Partial<Omit<Unidade, "id" | "createdAt" | "updatedAt">>;
 
-
 export type SetOcupacaoUnidadePayload = {
   ocupacao: 'VAGO' | 'PROPRIETARIO' | 'ALUGADO';
   proprietarioUid?: string | null;
   inquilinoUid?: string | null;
   responsavelUid?: string | null;
-}
-
-/**
- * Hook para listar as unidades de um bloco em tempo real.
- * @param condominioId O ID do condomínio.
- * @param blocoId O ID do bloco.
- */
-export function useUnidades(condominioId: string | null, blocoId: string | null) {
-  const firestore = useFirestore();
-  const [data, setData] = useState<Unidade[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!condominioId || !blocoId) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    const unidadesRef = getUnidadesRef(firestore, condominioId, blocoId);
-    const q = query(unidadesRef, orderBy("numero", "asc"));
-
-    const unsub = onSnapshot(
-        q,
-        (snap) => {
-        const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Unidade[];
-        setData(items);
-        setLoading(false);
-        },
-        (err) => {
-        console.error(`Erro ao ouvir unidades do bloco ${blocoId}:`, err);
-        const contextualError = new FirestorePermissionError({
-            operation: 'list',
-            path: `condominios/${condominioId}/blocos/${blocoId}/unidades`,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        setLoading(false);
-        }
-    );
-    return () => unsub();
-
-  }, [condominioId, blocoId, firestore]);
-
-  return { data, loading };
 }
 
 /**
@@ -105,7 +55,7 @@ export async function criarUnidade(
   blocoId: string,
   payload: NewUnidadePayload
 ) {
-  const unidadesRef = getUnidadesRef(firestore, condominioId, blocoId);
+  const unidadesRef = getUnidadesRef(condominioId, blocoId, firestore);
   const data = {
     ...payload,
     tipo: "APARTAMENTO",

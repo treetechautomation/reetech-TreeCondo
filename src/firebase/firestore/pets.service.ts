@@ -16,7 +16,7 @@ import {
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { createFirestorePermissionError, FirestorePermissionError } from "@/firebase/errors";
-import { getPetsRef } from "./paths";
+import { getPetDocRef, getPetsRef } from "./paths";
 
 /**
  * Schema (backend.json): Pet
@@ -66,7 +66,7 @@ export function usePets(
     setLoading(true);
     setError(null);
 
-    const petsRef = getPetsRef(firestore, condominioId, blocoId, unidadeId);
+    const petsRef = getPetsRef(condominioId, blocoId, unidadeId, firestore);
     const q = query(petsRef, orderBy("createdAt", "desc"));
 
     const unsub = onSnapshot(
@@ -106,7 +106,7 @@ export async function criarPet(
   unidadeId: string,
   payload: NewPetPayload
 ) {
-  const petsRef = getPetsRef(firestore, condominioId, blocoId, unidadeId);
+  const petsRef = getPetsRef(condominioId, blocoId, unidadeId, firestore);
   const data = {
     ...payload,
     createdAt: serverTimestamp(),
@@ -137,19 +137,15 @@ export async function atualizarPet(
   petId: string,
   patch: UpdatePetPayload
 ): Promise<void> {
-  const docRefPath = `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets/${petId}`;
+  const docRef = getPetDocRef(firestore, condominioId, blocoId, unidadeId, petId);
+  const data = { ...patch, updatedAt: serverTimestamp() };
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { doc } = require("firebase/firestore");
-    const docRef = doc(firestore, docRefPath);
-
-    const data = { ...patch, updatedAt: serverTimestamp() };
     await updateDoc(docRef, data);
   } catch (error) {
     console.error("Erro ao atualizar pet:", error);
     const contextualError = await createFirestorePermissionError({
-      path: docRefPath,
+      path: docRef.path,
       operation: "update",
       requestResourceData: patch,
     });
@@ -168,18 +164,14 @@ export async function deletarPet(
   unidadeId: string,
   petId: string
 ): Promise<void> {
-  const docRefPath = `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets/${petId}`;
+  const docRef = getPetDocRef(firestore, condominioId, blocoId, unidadeId, petId);
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { doc } = require("firebase/firestore");
-    const docRef = doc(firestore, docRefPath);
-
     await deleteDoc(docRef);
   } catch (error) {
     console.error("Erro ao deletar pet:", error);
     const contextualError = await createFirestorePermissionError({
-      path: docRefPath,
+      path: docRef.path,
       operation: "delete",
     });
     errorEmitter.emit("permission-error", contextualError);

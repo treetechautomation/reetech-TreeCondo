@@ -8,16 +8,16 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
  */
 
 // Coleções
-export const getCondominiosRef = (db?: Firestore) => collection(db || getFirestore(), 'condominios');
-export const getBlocosRef = (condominioId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/blocos`);
-export const getUnidadesRef = (condominioId: string, blocoId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/blocos/${blocoId}/unidades`);
-export const getMoradoresRef = (condominioId: string, blocoId: string, unidadeId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`);
-export const getVeiculosRef = (condominioId: string, blocoId: string, unidadeId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos`);
-export const getPetsRef = (condominioId: string, blocoId: string, unidadeId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets`);
-export const getMembrosRef = (condominioId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/membros`);
-export const getFuncionariosRef = (condominioId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/funcionarios`);
-export const getFornecedoresRef = (condominioId: string, db?: Firestore) => collection(db || getFirestore(), `condominios/${condominioId}/fornecedores`);
-export const getUserVinculosRef = (uid: string, db?: Firestore) => collection(db || getFirestore(), `userCondominios/${uid}/vinculos`);
+export const getCondominiosRef = (db: Firestore) => collection(db, 'condominios');
+export const getBlocosRef = (condominioId: string, db: Firestore) => collection(db, `condominios/${condominioId}/blocos`);
+export const getUnidadesRef = (condominioId: string, blocoId: string, db: Firestore) => collection(db, `condominios/${condominioId}/blocos/${blocoId}/unidades`);
+export const getMoradoresRef = (condominioId: string, blocoId: string, unidadeId: string, db: Firestore) => collection(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`);
+export const getVeiculosRef = (condominioId: string, blocoId: string, unidadeId: string, db: Firestore) => collection(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos`);
+export const getPetsRef = (condominioId: string, blocoId: string, unidadeId: string, db: Firestore) => collection(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets`);
+export const getMembrosRef = (condominioId: string, db: Firestore) => collection(db, `condominios/${condominioId}/membros`);
+export const getFuncionariosRef = (condominioId: string, db: Firestore) => collection(db, `condominios/${condominioId}/funcionarios`);
+export const getFornecedoresRef = (condominioId: string, db: Firestore) => collection(db, `condominios/${condominioId}/fornecedores`);
+export const getUserVinculosRef = (uid: string, db: Firestore) => collection(db, `userCondominios/${uid}/vinculos`);
 
 // Documentos
 export const getCondominioDocRef = (db: Firestore, condominioId: string) => doc(db, 'condominios', condominioId);
