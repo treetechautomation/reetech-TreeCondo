@@ -321,7 +321,7 @@ export default function EnquetesPage() {
                         <CardTitle className="text-lg">{poll.title}</CardTitle>
                         <CardDescription className="flex items-center gap-2">
                             {poll.category}
-                            {poll.legal && <ShieldCheck className="text-primary" title="Votação com validade jurídica" />}
+                            {poll.legal && <span title="Votação com validade jurídica"><ShieldCheck className="text-primary" /></span>}
                         </CardDescription>
                     </div>
                     <Badge variant={poll.status === 'Aberta' ? 'default' : 'secondary'}>{poll.status}</Badge>
