@@ -5,11 +5,11 @@
 @layer base {
   :root {
     --background: 35 50% 95%; /* Light Gray #FAEBDB */
-    --foreground: 20 15% 25%;
+    --foreground: 149 18% 41%;
     --card: 32 81% 96%;
-    --card-foreground: 20 15% 25%;
+    --card-foreground: 149 18% 41%;
     --popover: 32 81% 96%;
-    --popover-foreground: 20 15% 25%;
+    --popover-foreground: 149 18% 41%;
     --primary: 14 27% 65%; /* Calm Blue #C9A79E */
     --primary-foreground: 20 15% 95%;
     --secondary: 17 21% 51%; 
@@ -41,11 +41,11 @@
  
   .dark {
     --background: 20 15% 10%;
-    --foreground: 32 81% 92%;
+    --foreground: 149 18% 51%;
     --card: 20 15% 12%;
-    --card-foreground: 32 81% 92%;
+    --card-foreground: 149 18% 51%;
     --popover: 20 15% 12%;
-    --popover-foreground: 32 81% 92%;
+    --popover-foreground: 149 18% 51%;
     --primary: 14 27% 75%;
     --primary-foreground: 20 15% 10%;
     --secondary: 17 21% 41%;
