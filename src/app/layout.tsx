@@ -48,7 +48,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=PT+Sans:wght@400;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
       <body className="font-body antialiased bg-background">
         <FirebaseClientProvider>

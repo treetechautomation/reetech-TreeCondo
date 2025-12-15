@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background (light gray) -->
+  <rect width="512" height="512" rx="96" fill="#FAEBDB"/>
+
+  <!-- Subtle inner card -->
+  <rect x="56" y="56" width="400" height="400" rx="72" fill="#FAEBDB" stroke="#C9A79E" stroke-width="10"/>
+
+  <!-- Accent "roof/leaf" mark -->
+  <path d="M256 140 L348 220 L164 220 Z" fill="#567967" opacity="0.92"/>
+
+  <!-- Primary letter -->
+  <text x="50%" y="64%" text-anchor="middle"
+        font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial"
+        font-size="210" font-weight="800"
+        fill="#567967">T</text>
+
+  <!-- Small dot accent -->
+  <circle cx="342" cy="356" r="10" fill="#C9A79E"/>
+</svg>
