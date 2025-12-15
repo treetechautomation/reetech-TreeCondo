@@ -16,7 +16,7 @@ export function useBlocos(condominioId: string | null) {
   
   const blocosQuery = useMemoFirebase(() => {
     if (!condominioId) return null;
-    const blocosCollectionRef = getBlocosRef(condominioId, firestore);
+    const blocosCollectionRef = getBlocosRef(firestore, condominioId);
     return query(blocosCollectionRef, orderBy("ordem", "asc"), orderBy("nome", "asc"));
   }, [condominioId, firestore]);
 

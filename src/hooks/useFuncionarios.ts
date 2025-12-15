@@ -8,6 +8,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { getFuncionariosRef } from "@/firebase/firestore/paths";
 import type { Funcionario } from "@/firebase/firestore/funcionarios.service";
+import type { InternalQuery } from "@/firebase/firestore/use-collection";
 
 
 /**
@@ -45,10 +46,11 @@ export function useFuncionarios(condominioId: string | null) {
       },
       (err) => {
         console.error(`Erro ao ouvir funcionarios do condominio ${condominioId}:`, err);
-
+        
+        const path = (funcionariosQuery as unknown as InternalQuery)._query.path.canonicalString();
         const contextualError = new FirestorePermissionError({
           operation: "list",
-          path: funcionariosQuery.path,
+          path: path,
         });
 
         errorEmitter.emit("permission-error", contextualError);

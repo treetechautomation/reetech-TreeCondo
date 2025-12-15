@@ -55,7 +55,7 @@ export async function criarUnidade(
   blocoId: string,
   payload: NewUnidadePayload
 ) {
-  const unidadesRef = getUnidadesRef(condominioId, blocoId, firestore);
+  const unidadesRef = getUnidadesRef(firestore, condominioId, blocoId);
   const data = {
     ...payload,
     tipo: "APARTAMENTO",

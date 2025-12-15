@@ -16,7 +16,7 @@ export function useUnidades(condominioId: string | null, blocoId: string | null)
 
   const unidadesQuery = useMemoFirebase(() => {
     if (!condominioId || !blocoId) return null;
-    const unidadesCollectionRef = getUnidadesRef(condominioId, blocoId, firestore);
+    const unidadesCollectionRef = getUnidadesRef(firestore, condominioId, blocoId);
     return query(unidadesCollectionRef, orderBy("numero", "asc"));
   }, [condominioId, blocoId, firestore]);
 

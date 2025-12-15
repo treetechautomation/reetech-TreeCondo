@@ -8,6 +8,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { getFornecedoresRef } from "@/firebase/firestore/paths";
 import type { Fornecedor } from "@/firebase/firestore/fornecedores.service";
+import type { InternalQuery } from "@/firebase/firestore/use-collection";
 
 /**
  * Hook para listar fornecedores do condomínio em tempo real.
@@ -45,9 +46,10 @@ export function useFornecedores(condominioId: string | null) {
       (err) => {
         console.error(`Erro ao ouvir fornecedores do condominio ${condominioId}:`, err);
 
+        const path = (fornecedoresQuery as unknown as InternalQuery)._query.path.canonicalString();
         const contextualError = new FirestorePermissionError({
           operation: "list",
-          path: fornecedoresQuery.path,
+          path: path,
         });
 
         errorEmitter.emit("permission-error", contextualError);
