@@ -32,3 +32,4 @@ export const getFornecedorDocRef = (db: Firestore, condominioId: string, fornece
 export const getVeiculoDocRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string, veiculoId: string) => doc(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos`, veiculoId);
 export const getPetDocRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string, petId: string) => doc(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets`, petId);
 
+
