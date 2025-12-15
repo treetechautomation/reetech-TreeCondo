@@ -27,4 +27,8 @@ export const getMoradorDocRef = (db: Firestore, condominioId: string, blocoId: s
 export const getMembroDocRef = (db: Firestore, condominioId: string, uid: string) => doc(db, `condominios/${condominioId}/membros`, uid);
 export const getUserVinculoDocRef = (db: Firestore, uid: string, condominioId: string) => doc(db, `userCondominios/${uid}/vinculos`, condominioId);
 export const getConfigMenuDocRef = (db: Firestore, condominioId: string) => doc(db, `condominios/${condominioId}/config/menu`);
+export const getFuncionarioDocRef = (db: Firestore, condominioId: string, funcionarioId: string) => doc(db, `condominios/${condominioId}/funcionarios`, funcionarioId);
+export const getFornecedorDocRef = (db: Firestore, condominioId: string, fornecedorId: string) => doc(db, `condominios/${condominioId}/fornecedores`, fornecedorId);
+export const getVeiculoDocRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string, veiculoId: string) => doc(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos`, veiculoId);
+export const getPetDocRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string, petId: string) => doc(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets`, petId);
 
