@@ -2,10 +2,6 @@
   "name": "TreeCondo",
   "short_name": "TreeCondo",
   "description": "Gerencie seu condomínio com facilidade.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#FAEBDB",
-  "theme_color": "#C9A79E",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -17,5 +13,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "theme_color": "#C9A79E",
+  "background_color": "#FAEBDB",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait"
 }
