@@ -51,7 +51,7 @@ export function AppLayout({
 }: AppLayoutProps) {
   const { session } = useSessionCtx();
   const canSeeAdminGlobal = hasRole(session, ['SUPER_ADMIN']);
-  const canSeeCondominios = hasRole(session, ['SUPER_ADMIN', 'ADMIN_CONDOMINIO']);
+  const canSeeCondominios = hasRole(session, ['SUPER_ADMIN']);
   const canSeeCadastros = hasRole(session, [
     'SUPER_ADMIN',
     'ADMIN_CONDOMINIO',
