@@ -91,7 +91,7 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
 
   const vinculos: Vinculo[] = snap.docs.map((d) => {
     const data = d.data() as any;
-    const built = {
+    return {
       condominioId: data.condominioId ?? d.id,
       condominioNome: data.condominioNome,
       role: data.role,
@@ -99,21 +99,12 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
       ativo: data.ativo ?? true,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
-};
-if (process.env.NODE_ENV !== "production") {
-  console.debug("DEBUG_SESSION_BUILT", {
-    uid: built.uid,
-    isSuperAdmin: built.isSuperAdmin,
-    activeCondominioId: built.activeCondominioId,
-    activeVinculo: built.activeVinculo,
-    vinculos: built.vinculos,
-  });
-}
-return built;
+    };
   });
 
   mem.vinculosByUid.set(uid, { at: now, vinculos });
   if (typeof window !== "undefined") {
+    // Apenas armazena os vínculos, não a sessão inteira, para mais robustez
     localStorage.setItem(LS_KEY(uid), JSON.stringify({ at: now, vinculos }));
   }
   return vinculos;
@@ -123,7 +114,7 @@ function buildSession(uid: string, user: any, vinculos: Vinculo[], activeCondomi
     const activeVinculo = vinculos.find(v => v.condominioId === activeCondominioId) ?? null;
     const isSuperAdmin = vinculos.some(v => v.role === "SUPER_ADMIN");
 
-    return {
+    const sessionData = {
         uid,
         email: user?.email ?? null,
         displayName: user?.displayName ?? null,
@@ -132,6 +123,17 @@ function buildSession(uid: string, user: any, vinculos: Vinculo[], activeCondomi
         isSuperAdmin,
         activeVinculo,
     };
+    
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("DEBUG_SESSION_BUILT", {
+        isSuperAdmin: sessionData.isSuperAdmin,
+        activeCondominioId: sessionData.activeCondominioId,
+        activeRole: sessionData.activeVinculo?.role,
+        vinculos: sessionData.vinculos.map(v => ({id: v.condominioId, role: v.role})),
+      });
+    }
+
+    return sessionData;
 }
 
 
@@ -146,9 +148,6 @@ export function useSession() {
   const inflightRef = useRef<Promise<void> | null>(null);
   const inflightRefreshRef = useRef<Promise<void> | null>(null);
 
-
-  const isPublicReady = useMemo(() => !isUserLoading, [isUserLoading]);
-
   const loadSession = useCallback(async (uid: string, force = false) => {
     try {
       const vinculos = await fetchVinculos(uid, force);
@@ -158,9 +157,8 @@ export function useSession() {
 
       mem.sessionByUid.set(uid, { at: Date.now(), session: s });
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem(LS_KEY(uid), JSON.stringify({ at: Date.now(), session: s }));
-        if (activeCondominioId) localStorage.setItem(LS_ACTIVE_COND(uid), activeCondominioId);
+      if (typeof window !== "undefined" && activeCondominioId) {
+        localStorage.setItem(LS_ACTIVE_COND(uid), activeCondominioId);
       }
 
       setSession(s);
@@ -172,7 +170,7 @@ export function useSession() {
 
 
   useEffect(() => {
-    if (!isPublicReady) return;
+    if (isUserLoading) return;
 
     if (!uid) {
       setSession(null);
@@ -180,42 +178,19 @@ export function useSession() {
       setError(null);
       return;
     }
-
-    const now = Date.now();
-
-    if (!inflightRef.current) {
-        const ms = mem.sessionByUid.get(uid);
-        if (ms && now - ms.at < TTL_MS) {
-            setSession(ms.session);
-            setLoading(false);
-            setError(null);
-            return;
-        }
-
-        const fromLs = safeJsonParse<{ at: number; session: Session }>(
-            typeof window !== "undefined" ? localStorage.getItem(LS_KEY(uid)) : null
-        );
-        if (fromLs && fromLs.session?.uid === uid && now - fromLs.at < TTL_MS) {
-            mem.sessionByUid.set(uid, { at: fromLs.at, session: fromLs.session });
-            setSession(fromLs.session);
-            setLoading(false);
-            setError(null);
-            return;
-        }
-    }
     
-
     if (inflightRef.current) return;
 
     setLoading(true);
     setError(null);
 
+    // Sempre força a busca de vínculos na primeira carga da página para garantir dados frescos.
     inflightRef.current = (async () => {
-        await loadSession(uid, false);
+        await loadSession(uid, true); // <--- MUDANÇA PRINCIPAL AQUI
         setLoading(false);
         inflightRef.current = null;
     })();
-  }, [uid, isPublicReady, loadSession]);
+  }, [uid, isUserLoading, loadSession]);
 
    const refreshSession = useCallback(async () => {
     if (!uid) return;
