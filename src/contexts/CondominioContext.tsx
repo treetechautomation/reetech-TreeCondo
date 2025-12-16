@@ -88,17 +88,21 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   
   // Efeito para carregar o condomínio ativo do localStorage ou usar o primeiro vínculo
   useEffect(() => {
-    if (isLoadingVinculos) return; // Aguarda os vínculos serem carregados
-    
-    const storedId = localStorage.getItem("condominioAtivoId");
-    if (storedId && vinculos?.some((v: Vinculo) => v.condominioId === storedId)) {
-      setCondominioAtivoIdState(storedId);
-    } else if (vinculos && vinculos.length > 0) {
-      const firstId = vinculos[0].id;
-      setCondominioAtivoIdState(firstId);
-      localStorage.setItem("condominioAtivoId", firstId);
-    }
-  }, [vinculos, isLoadingVinculos]);
+      if (isLoadingVinculos) return;
+
+      const activeFromSession = session?.activeCondominioId ?? null;
+
+      if (activeFromSession && vinculos?.some((v: Vinculo) => v.condominioId === activeFromSession)) {
+        setCondominioAtivoIdState(activeFromSession);
+        return;
+      }
+
+      if (vinculos && vinculos.length > 0) {
+        const firstId = vinculos[0].condominioId;
+        setCondominioAtivoIdState(firstId);
+        setActiveCondominioId(firstId);
+      }
+    }, [vinculos, isLoadingVinculos, session?.activeCondominioId]);
 
   // Efeito para auto-selecionar bloco e unidade se o usuário for MORADOR
   useEffect(() => {
@@ -110,8 +114,9 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   // Handler para trocar de condomínio
   const setCondominioAtivoId = (id: string | null) => {
-    setCondominioAtivoIdState(id);
-    // Limpa a seleção de bloco/unidade ao trocar de condomínio
+      setCondominioAtivoIdState(id);
+      if (id) setActiveCondominioId(id);
+// Limpa a seleção de bloco/unidade ao trocar de condomínio
     setBlocoAtivoId(null);
     setUnidadeAtivaId(null);
     if (id) {
