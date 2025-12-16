@@ -54,7 +54,7 @@ const CondominioContext = createContext<CondominioContextType | undefined>(
 );
 
 export function CondominioProvider({ children }: { children: ReactNode }) {
-  const { session, isSessionLoading } = useSessionCtx();
+  const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
   const firestore = useFirestore();
   
   // State
@@ -120,9 +120,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     setBlocoAtivoId(null);
     setUnidadeAtivaId(null);
     if (id) {
-      localStorage.setItem("condominioAtivoId", id);
     } else {
-      localStorage.removeItem("condominioAtivoId");
     }
   };
 
