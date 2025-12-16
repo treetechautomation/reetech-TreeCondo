@@ -194,7 +194,53 @@
           }
         }
       },
-      "required": ["role", "status", "createdAt", "createdBy"]
+      "required": ["role", "status", "createdAt", "createdBy"],
+      "examples": [
+        {
+          "title": "Admin do Condomínio",
+          "id": "UID_ADMIN",
+          "value": {
+            "role": "ADMIN_CONDOMINIO",
+            "status": "ATIVO",
+            "createdAt": "2024-07-31T10:00:00Z",
+            "createdBy": "SUPER_ADMIN_UID",
+            "escopo": {
+              "type": "CONDOMINIO",
+              "condominioId": "chacara-itaguai"
+            }
+          }
+        },
+        {
+          "title": "Síndico do Bloco Dálias",
+          "id": "UID_SINDICO_DALIAS",
+          "value": {
+            "role": "SINDICO",
+            "status": "ATIVO",
+            "createdAt": "2024-07-31T10:01:00Z",
+            "createdBy": "UID_ADMIN",
+            "escopo": {
+              "type": "BLOCO",
+              "condominioId": "chacara-itaguai",
+              "blocoId": "dalias"
+            }
+          }
+        },
+        {
+          "title": "Síndico do Bloco Rosas",
+          "id": "UID_SINDICO_ROSAS",
+          "value": {
+            "role": "SINDICO",
+            "status": "ATIVO",
+            "createdAt": "2024-07-31T10:02:00Z",
+            "createdBy": "UID_ADMIN",
+            "escopo": {
+              "type": "BLOCO",
+              "condominioId": "chacara-itaguai",
+              "blocoId": "rosas"
+            }
+          }
+        }
+      ]
     },
     "Funcionario": {
       "title": "Funcionario",
