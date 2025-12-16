@@ -180,10 +180,19 @@
       "description": "Representa um membro administrativo do condomínio, como Síndico ou Porteiro. O ID do documento é o UID do Firebase Auth.",
       "type": "object",
       "properties": {
-        "role": { "type": "string", "enum": ["SINDICO", "PORTEIRO"] },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO", "SUB_SINDICO", "PORTEIRO", "FUNCIONARIO"] },
         "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
         "createdAt": { "type": "string", "format": "date-time" },
-        "createdBy": { "type": "string", "description": "UID de quem criou o membro." }
+        "createdBy": { "type": "string", "description": "UID de quem criou o membro." },
+        "escopo": {
+          "type": "object",
+          "description": "Define o escopo de atuação do membro.",
+          "properties": {
+            "type": { "type": "string", "enum": ["GLOBAL", "CONDOMINIO", "BLOCO"] },
+            "condominioId": { "type": "string", "description": "ID do condomínio, se o escopo for CONDOMINIO ou BLOCO." },
+            "blocoId": { "type": "string", "description": "ID do bloco, se o escopo for BLOCO." }
+          }
+        }
       },
       "required": ["role", "status", "createdAt", "createdBy"]
     },
@@ -250,7 +259,7 @@
       "properties": {
         "condominioId": { "type": "string" },
         "condominioNome": { "type": "string" },
-        "role": { "type": "string", "enum": ["SINDICO", "PORTEIRO", "MORADOR"] },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO", "SUB_SINDICO", "MORADOR", "PORTEIRO", "FUNCIONARIO"] },
         "status": { "type": "string", "enum": ["ATIVO", "INATIVO", "PENDENTE"] },
         "blocoId": { "type": "string", "description": "ID do bloco, obrigatório se role='MORADOR'." },
         "unidadeId": { "type": "string", "description": "ID da unidade, obrigatório se role='MORADOR'." }
@@ -296,6 +305,17 @@
           }
         }
       ]
+    },
+    "Ramal": {
+      "title": "Ramal",
+      "description": "Representa um ramal telefônico de uma área comum dentro de um bloco.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome da área comum (Ex: 'Academia', 'Portaria')." },
+        "numero": { "type": "string", "description": "Número do ramal." },
+        "ativo": { "type": "boolean" }
+      },
+      "required": ["nome", "numero", "ativo"]
     },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" } } },
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" } } },
@@ -357,6 +377,14 @@
           "entityName": "Pet",
           "schema": { "$ref": "#/entities/Pet" },
           "description": "Pets associados a uma unidade."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/blocos/{blocoId}/ramais/{ramalId}",
+        "definition": {
+          "entityName": "Ramal",
+          "schema": { "$ref": "#/entities/Ramal" },
+          "description": "Ramais de áreas comuns de um bloco."
         }
       },
       {
