@@ -3,19 +3,8 @@
 import {
   AlertTriangle,
   Archive,
-  BookUser,
-  Building,
   CalendarDays,
-  FileText,
-  Home,
-  KeyRound,
-  Megaphone,
-  Package,
-  Search,
-  Settings,
-  Shield,
   Users,
-  Vote,
 } from "lucide-react";
 
 import {
@@ -25,237 +14,93 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
-import { UserNavClient } from "@/components/user-nav-client";
-import { Logo } from "@/components/logo";
 import { Overview } from "@/components/dashboard/overview";
 import { RecentAnnouncements } from "@/components/dashboard/recent-announcements";
-import { ActiveLink } from "@/components/active-link";
-import { CondominioSelector } from "@/components/condominio-selector";
-import { BlocoUnidadeSelector } from "@/components/bloco-unidade-selector";
-import { useSessionCtx } from "@/contexts/SessionContext";
-import { hasRole } from "@/lib/acl";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 export default function Dashboard() {
-  const { session } = useSessionCtx();
-  const canSeeAdminGlobal = hasRole(session, ["SUPER_ADMIN"]);
-  const canSeeCondominios = hasRole(session, ["SUPER_ADMIN"]);
-  const canSeeCadastros = hasRole(session, ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO"]);
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="p-4 space-y-4">
-          <Logo />
-          <CondominioSelector />
-          <BlocoUnidadeSelector />
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/">
-                <Home />
-                Painel
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/anuncios">
-                <Megaphone />
-                Anúncios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reservas">
-                <CalendarDays />
-                Reservas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reunioes">
-                <Users />
-                Reuniões
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/incidentes">
-                <AlertTriangle />
-                Incidentes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/encomendas">
-                <Package />
-                Encomendas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/documentos">
-                <FileText />
-                Documentos
-              </ActiveLink>
-            </SidebarMenuItem>
-             <SidebarMenuItem>
-              <ActiveLink href="/enquetes">
-                <Vote />
-                Enquetes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/acesso">
-                <KeyRound />
-                Acesso
-              </ActiveLink>
-            </SidebarMenuItem>
-            {canSeeCadastros && (
-              <SidebarMenuItem>
-                <ActiveLink href="/cadastros">
-                  <BookUser />
-                  Cadastros
-                </ActiveLink>
-              </SidebarMenuItem>
-            )}
-            {canSeeCondominios && (
-              <SidebarMenuItem>
-                <ActiveLink href="/condominios">
-                  <Building />
-                  Condomínios
-                </ActiveLink>
-              </SidebarMenuItem>
-            )}
-            {canSeeAdminGlobal && (
-              <SidebarMenuItem>
-                <ActiveLink href="/administrador-global">
-                  <Shield />
-                  Administrador Global
-                </ActiveLink>
-              </SidebarMenuItem>
-            )}
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter className="p-4">
-           <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/configuracoes">
-                <Settings />
-                Configurações
-              </ActiveLink>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Painel
-          </h1>
-          <div className="ml-auto flex items-center gap-4">
-            <form className="hidden md:block">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Pesquisar..."
-                  className="w-full appearance-none bg-background pl-8 shadow-none md:w-[200px] lg:w-[320px]"
-                />
-              </div>
-            </form>
-            <UserNavClient />
-          </div>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Novas Encomendas
-                </CardTitle>
-                <Archive className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">3</div>
-                <p className="text-xs text-muted-foreground">
-                  Aguardando retirada na portaria
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Incidentes Abertos
-                </CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">5</div>
-                <p className="text-xs text-muted-foreground">
-                  +2 da semana passada
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Próximas Reservas
-                </CardTitle>
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2</div>
-                <p className="text-xs text-muted-foreground">
-                  Salão de festas e churrasqueira neste fim de semana
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Próxima Assembleia
-                </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">30 de Julho</div>
-                <p className="text-xs text-muted-foreground">
-                  Assembleia Geral Ordinária
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="mt-4 grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
-            <Card className="xl:col-span-2">
-              <CardHeader>
-                <CardTitle className="font-headline">Visão Geral de Incidentes</CardTitle>
-              </CardHeader>
-              <CardContent className="h-72 pl-2">
-                <Overview />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-headline">Anúncios Recentes</CardTitle>
-                <CardDescription>
-                  Fique por dentro das últimas notícias.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <RecentAnnouncements />
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <AppLayout pageTitle="Painel">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Novas Encomendas
+              </CardTitle>
+              <Archive className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">3</div>
+              <p className="text-xs text-muted-foreground">
+                Aguardando retirada na portaria
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Incidentes Abertos
+              </CardTitle>
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">5</div>
+              <p className="text-xs text-muted-foreground">
+                +2 da semana passada
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Próximas Reservas
+              </CardTitle>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">2</div>
+              <p className="text-xs text-muted-foreground">
+                Salão de festas e churrasqueira neste fim de semana
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Próxima Assembleia
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">30 de Julho</div>
+              <p className="text-xs text-muted-foreground">
+                Assembleia Geral Ordinária
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="mt-4 grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
+          <Card className="xl:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-headline">Visão Geral de Incidentes</CardTitle>
+            </CardHeader>
+            <CardContent className="h-72 pl-2">
+              <Overview />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-headline">Anúncios Recentes</CardTitle>
+              <CardDescription>
+                Fique por dentro das últimas notícias.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RecentAnnouncements />
+            </CardContent>
+          </Card>
+        </div>
+    </AppLayout>
   );
 }

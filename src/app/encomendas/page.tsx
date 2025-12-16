@@ -1,43 +1,15 @@
 "use client";
 
 import {
-  Home,
-  Megaphone,
-  CalendarDays,
-  Users,
-  AlertTriangle,
-  Package,
-  FileText,
-  Settings,
-  Search,
-  Vote,
-  KeyRound,
-  BookUser,
-  Building,
-  Shield,
   PlusCircle,
   QrCode,
   PackageCheck,
   Camera,
-  Archive,
   Clock,
   History,
 } from "lucide-react";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
-import { Logo } from "@/components/logo";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Input } from "@/components/ui/input";
-import { UserNavClient } from "@/components/user-nav-client";
-import { ActiveLink } from "@/components/active-link";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -58,8 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 
 const waitingPackages = [
     { id: "PKG001", unit: "Apto 101", carrier: "Correios", arrival: "28/07/2024 10:30", code: "A1B2C3D4" },
@@ -74,222 +44,112 @@ const deliveredPackages = [
 
 
 export default function EncomendasPage() {
-  return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="p-4">
-          <Logo />
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/">
-                <Home />
-                Painel
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/anuncios">
-                <Megaphone />
-                Anúncios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reservas">
-                <CalendarDays />
-                Reservas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reunioes">
-                <Users />
-                Reuniões
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/incidentes">
-                <AlertTriangle />
-                Incidentes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/encomendas">
-                <Package />
-                Encomendas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/documentos">
-                <FileText />
-                Documentos
-              </ActiveLink>
-            </SidebarMenuItem>
-             <SidebarMenuItem>
-              <ActiveLink href="/enquetes">
-                <Vote />
-                Enquetes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/acesso">
-                <KeyRound />
-                Acesso
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/cadastros">
-                <BookUser />
-                Cadastros
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/condominios">
-                <Building />
-                Condomínios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/administrador-global">
-                <Shield />
-                Administrador Global
-              </ActiveLink>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter className="p-4">
-           <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/configuracoes">
-                <Settings />
-                Configurações
-              </ActiveLink>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Gestão de Encomendas
-          </h1>
-          <div className="ml-auto flex items-center gap-4">
-            <form className="hidden md:block">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Pesquisar por unidade ou código..."
-                  className="w-full appearance-none bg-background pl-8 shadow-none md:w-[200px] lg:w-[320px]"
-                />
-              </div>
-            </form>
-             <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <PlusCircle />
-                  <span className="hidden sm:inline-block">Registrar Encomenda</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Registrar Nova Encomenda</DialogTitle>
-                  <DialogDescription>
-                    Insira os dados da encomenda e notifique o morador.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="unit" className="text-right">
-                      Unidade
-                    </Label>
-                    <Input id="unit" placeholder="Ex: Apto 101" className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="carrier" className="text-right">
-                      Transportadora
-                    </Label>
-                     <Input id="carrier" placeholder="Ex: Correios, Mercado Livre" className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Foto</Label>
-                    <div className="col-span-3">
-                        <Button variant="outline">
-                            <Camera className="mr-2" />
-                            Tirar Foto do Pacote
-                        </Button>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit">
-                    <PackageCheck className="mr-2"/>
-                    Registrar e Notificar
+
+  const HeaderActions = () => (
+     <Dialog>
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <PlusCircle />
+            <span className="hidden sm:inline-block">Registrar Encomenda</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Registrar Nova Encomenda</DialogTitle>
+            <DialogDescription>
+              Insira os dados da encomenda e notifique o morador.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="unit" className="text-right">
+                Unidade
+              </Label>
+              <Input id="unit" placeholder="Ex: Apto 101" className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="carrier" className="text-right">
+                Transportadora
+              </Label>
+                <Input id="carrier" placeholder="Ex: Correios, Mercado Livre" className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Foto</Label>
+              <div className="col-span-3">
+                  <Button variant="outline">
+                      <Camera className="mr-2" />
+                      Tirar Foto do Pacote
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <UserNavClient />
+              </div>
+            </div>
           </div>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-8">
-            <Tabs defaultValue="waiting">
-              <TabsList className="mb-4">
-                  <TabsTrigger value="waiting"><Clock className="mr-2" />Aguardando</TabsTrigger>
-                  <TabsTrigger value="history"><History className="mr-2" />Histórico</TabsTrigger>
-              </TabsList>
-              <TabsContent value="waiting">
+          <DialogFooter>
+            <Button type="submit">
+              <PackageCheck className="mr-2"/>
+              Registrar e Notificar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+  );
+
+  return (
+    <AppLayout pageTitle="Gestão de Encomendas" headerActions={<HeaderActions />}>
+        <Tabs defaultValue="waiting">
+            <TabsList className="mb-4">
+                <TabsTrigger value="waiting"><Clock className="mr-2" />Aguardando</TabsTrigger>
+                <TabsTrigger value="history"><History className="mr-2" />Histórico</TabsTrigger>
+            </TabsList>
+            <TabsContent value="waiting">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="hidden sm:table-cell">Cód.</TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Chegada</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {waitingPackages.map((pkg) => (
+                        <TableRow key={pkg.id}>
+                        <TableCell className="font-mono hidden sm:table-cell">{pkg.id}</TableCell>
+                        <TableCell>{pkg.unit}</TableCell>
+                        <TableCell>{pkg.arrival}</TableCell>
+                        <TableCell className="text-right">
+                            <Button variant="outline" size="sm">
+                                <QrCode className="mr-2" />
+                                <span className="hidden sm:inline-block">Registrar Retirada</span>
+                            </Button>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+            </TabsContent>
+            <TabsContent value="history">
                 <Table>
-                    <TableHeader>
-                        <TableRow>
+                <TableHeader>
+                    <TableRow>
                             <TableHead className="hidden sm:table-cell">Cód.</TableHead>
                             <TableHead>Unidade</TableHead>
-                            <TableHead>Chegada</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                       {waitingPackages.map((pkg) => (
-                         <TableRow key={pkg.id}>
-                            <TableCell className="font-mono hidden sm:table-cell">{pkg.id}</TableCell>
-                            <TableCell>{pkg.unit}</TableCell>
-                            <TableCell>{pkg.arrival}</TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="outline" size="sm">
-                                    <QrCode className="mr-2" />
-                                    <span className="hidden sm:inline-block">Registrar Retirada</span>
-                                </Button>
-                            </TableCell>
-                        </TableRow>
-                       ))}
-                    </TableBody>
-                </Table>
-              </TabsContent>
-              <TabsContent value="history">
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                             <TableHead className="hidden sm:table-cell">Cód.</TableHead>
-                             <TableHead>Unidade</TableHead>
-                             <TableHead>Retirada</TableHead>
-                             <TableHead className="hidden md:table-cell">Retirado por</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                       {deliveredPackages.map((pkg) => (
-                         <TableRow key={pkg.id}>
-                            <TableCell className="font-mono hidden sm:table-cell">{pkg.id}</TableCell>
-                            <TableCell>{pkg.unit}</TableCell>
-                            <TableCell>{pkg.pickup}</TableCell>
-                            <TableCell className="hidden md:table-cell">{pkg.by}</TableCell>
-                        </TableRow>
-                       ))}
-                    </TableBody>
-                </Table>
-              </TabsContent>
-            </Tabs>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+                            <TableHead>Retirada</TableHead>
+                            <TableHead className="hidden md:table-cell">Retirado por</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {deliveredPackages.map((pkg) => (
+                        <TableRow key={pkg.id}>
+                        <TableCell className="font-mono hidden sm:table-cell">{pkg.id}</TableCell>
+                        <TableCell>{pkg.unit}</TableCell>
+                        <TableCell>{pkg.pickup}</TableCell>
+                        <TableCell className="hidden md:table-cell">{pkg.by}</TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+            </TabsContent>
+        </Tabs>
+    </AppLayout>
   );
 }

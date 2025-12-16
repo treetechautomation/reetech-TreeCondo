@@ -1,43 +1,15 @@
 "use client";
 import React from 'react';
 import {
-  Home,
-  Megaphone,
-  CalendarDays,
-  Users,
-  AlertTriangle,
-  Package,
-  FileText,
-  Settings,
-  Search,
-  Vote,
-  KeyRound,
-  BookUser,
-  Building,
   PlusCircle,
   BarChart,
-  Edit,
-  Trash2,
   Send,
   Plus,
   ShieldCheck,
-  Shield,
+  Vote
 } from "lucide-react";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
-import { Logo } from "@/components/logo";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Input } from "@/components/ui/input";
-import { UserNavClient } from "@/components/user-nav-client";
-import { ActiveLink } from "@/components/active-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -113,252 +85,145 @@ export default function EnquetesPage() {
         setOptions(newOptions);
     }
 
-  return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="p-4">
-          <Logo />
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/">
-                <Home />
-                Painel
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/anuncios">
-                <Megaphone />
-                Anúncios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reservas">
-                <CalendarDays />
-                Reservas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reunioes">
-                <Users />
-                Reuniões
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/incidentes">
-                <AlertTriangle />
-                Incidentes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/encomendas">
-                <Package />
-                Encomendas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/documentos">
-                <FileText />
-                Documentos
-              </ActiveLink>
-            </SidebarMenuItem>
-             <SidebarMenuItem>
-              <ActiveLink href="/enquetes">
-                <Vote />
-                Enquetes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/acesso">
-                <KeyRound />
-                Acesso
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/cadastros">
-                <BookUser />
-                Cadastros
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/condominios">
-                <Building />
-                Condomínios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/administrador-global">
-                <Shield />
-                Administrador Global
-              </ActiveLink>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter className="p-4">
-           <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/configuracoes">
-                <Settings />
-                Configurações
-              </ActiveLink>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset className="flex flex-col">
-        <header className="flex h-16 items-center gap-4 border-b bg-card px-4 md:px-6">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="font-headline text-lg font-semibold md:text-xl">
-            Enquetes e Votações
-          </h1>
-          <div className="ml-auto flex items-center gap-4">
-            <form>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Pesquisar enquetes..."
-                  className="w-full appearance-none bg-background pl-8 shadow-none md:w-[200px] lg:w-[320px]"
-                />
-              </div>
-            </form>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <PlusCircle />
-                  Nova Enquete
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Criar Nova Enquete/Votação</DialogTitle>
-                  <DialogDescription>
-                    Configure e lance uma nova pesquisa para os moradores.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="poll-title" className="text-right">
-                      Título
-                    </Label>
-                    <Input id="poll-title" placeholder="Ex: Escolha da nova cor da fachada" className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="poll-category" className="text-right">
-                      Categoria
-                    </Label>
-                     <Select>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Selecione a categoria" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="feedback">Coleta de Feedback pré-assembleia</SelectItem>
-                        <SelectItem value="satisfaction">Pesquisa de Satisfação</SelectItem>
-                        <SelectItem value="official">Votação Oficial</SelectItem>
-                         <SelectItem value="other">Outra</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="poll-desc" className="text-right">
-                      Pergunta
-                    </Label>
-                    <Textarea id="poll-desc" placeholder="Descreva a pergunta ou o tema da enquete." className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Tipo de Resposta</Label>
-                    <RadioGroup defaultValue="multiple" className="col-span-3 flex gap-4" onValueChange={setResponseType}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="multiple" id="r-multi" />
-                        <Label htmlFor="r-multi">Múltipla Escolha</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="descriptive" id="r-desc" />
-                        <Label htmlFor="r-desc">Descritiva (Opinião)</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                   {responseType === 'multiple' && (
-                     <div className="grid grid-cols-4 items-start gap-4">
-                        <Label className="text-right pt-2">Opções</Label>
-                        <div className="col-span-3 space-y-2">
-                            {options.map((option, index) => (
-                                <Input key={index} value={option} onChange={(e) => handleOptionChange(index, e.target.value)} placeholder={`Opção ${index + 1}`} />
-                            ))}
-                            <Button variant="outline" size="sm" onClick={addOption}><Plus className="mr-2"/> Adicionar opção</Button>
-                        </div>
-                     </div>
-                  )}
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="legal-validity" className="text-right">
-                      Validade Jurídica
-                    </Label>
-                    <div className="col-span-3 flex items-center gap-2">
-                        <Switch id="legal-validity" />
-                        <span className="text-xs text-muted-foreground">Marque se for uma votação com valor legal (ex: assembleia).</span>
-                    </div>
+    const HeaderActions = () => (
+       <Dialog>
+        <DialogTrigger asChild>
+          <Button>
+            <PlusCircle />
+            Nova Enquete
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Criar Nova Enquete/Votação</DialogTitle>
+            <DialogDescription>
+              Configure e lance uma nova pesquisa para os moradores.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="poll-title" className="text-right">
+                Título
+              </Label>
+              <Input id="poll-title" placeholder="Ex: Escolha da nova cor da fachada" className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="poll-category" className="text-right">
+                Categoria
+              </Label>
+                <Select>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="feedback">Coleta de Feedback pré-assembleia</SelectItem>
+                  <SelectItem value="satisfaction">Pesquisa de Satisfação</SelectItem>
+                  <SelectItem value="official">Votação Oficial</SelectItem>
+                    <SelectItem value="other">Outra</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="poll-desc" className="text-right">
+                Pergunta
+              </Label>
+              <Textarea id="poll-desc" placeholder="Descreva a pergunta ou o tema da enquete." className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Tipo de Resposta</Label>
+              <RadioGroup defaultValue="multiple" className="col-span-3 flex gap-4" onValueChange={setResponseType}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="multiple" id="r-multi" />
+                  <Label htmlFor="r-multi">Múltipla Escolha</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="descriptive" id="r-desc" />
+                  <Label htmlFor="r-desc">Descritiva (Opinião)</Label>
+                </div>
+              </RadioGroup>
+            </div>
+              {responseType === 'multiple' && (
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right pt-2">Opções</Label>
+                  <div className="col-span-3 space-y-2">
+                      {options.map((option, index) => (
+                          <Input key={index} value={option} onChange={(e) => handleOptionChange(index, e.target.value)} placeholder={`Opção ${index + 1}`} />
+                      ))}
+                      <Button variant="outline" size="sm" onClick={addOption}><Plus className="mr-2"/> Adicionar opção</Button>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="submit">
-                    <Send className="mr-2" />
-                    Lançar Enquete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <UserNavClient />
+            )}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="legal-validity" className="text-right">
+                Validade Jurídica
+              </Label>
+              <div className="col-span-3 flex items-center gap-2">
+                  <Switch id="legal-validity" />
+                  <span className="text-xs text-muted-foreground">Marque se for uma votação com valor legal (ex: assembleia).</span>
+              </div>
+            </div>
           </div>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-8">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {polls.map((poll) => (
-              <Card key={poll.id} className="flex flex-col">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                        <CardTitle className="text-lg">{poll.title}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
-                            {poll.category}
-                            {poll.legal && <span title="Votação com validade jurídica"><ShieldCheck className="text-primary" /></span>}
-                        </CardDescription>
-                    </div>
-                    <Badge variant={poll.status === 'Aberta' ? 'default' : 'secondary'}>{poll.status}</Badge>
+          <DialogFooter>
+            <Button type="submit">
+              <Send className="mr-2" />
+              Lançar Enquete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+
+  return (
+    <AppLayout pageTitle="Enquetes e Votações" headerActions={<HeaderActions />}>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {polls.map((poll) => (
+            <Card key={poll.id} className="flex flex-col">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                      <CardTitle className="text-lg">{poll.title}</CardTitle>
+                      <CardDescription className="flex items-center gap-2">
+                          {poll.category}
+                          {poll.legal && (
+                            <span title="Votação com validade jurídica">
+                              <ShieldCheck className="text-primary" />
+                            </span>
+                          )}
+                      </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  {poll.type === 'multiple' && poll.options ? (
-                    <div className="space-y-3">
-                      {poll.options.map(option => {
-                        const percentage = poll.totalVotes > 0 ? (option.votes / poll.totalVotes) * 100 : 0;
-                        return (
-                          <div key={option.text}>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-muted-foreground">{option.text}</span>
-                              <span>{Math.round(percentage)}% ({option.votes} votos)</span>
-                            </div>
-                            <Progress value={percentage} />
+                  <Badge variant={poll.status === 'Aberta' ? 'default' : 'secondary'}>{poll.status}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1">
+                {poll.type === 'multiple' && poll.options ? (
+                  <div className="space-y-3">
+                    {poll.options.map(option => {
+                      const percentage = poll.totalVotes > 0 ? (option.votes / poll.totalVotes) * 100 : 0;
+                      return (
+                        <div key={option.text}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground">{option.text}</span>
+                            <span>{Math.round(percentage)}% ({option.votes} votos)</span>
                           </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{poll.description}</p>
-                  )}
-                </CardContent>
-                <CardFooter className="flex justify-between items-center text-sm text-muted-foreground">
-                    <span>{poll.endDate}</span>
-                    <Button variant="outline" size="sm">
-                        {poll.type === 'multiple' ? <Vote className="mr-2" /> : <BarChart className="mr-2" />}
-                        {poll.status === 'Aberta' ? 'Votar' : 'Ver Resultados'}
-                    </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+                          <Progress value={percentage} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{poll.description}</p>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between items-center text-sm text-muted-foreground">
+                  <span>{poll.endDate}</span>
+                  <Button variant="outline" size="sm">
+                      {poll.type === 'multiple' ? <Vote className="mr-2" /> : <BarChart className="mr-2" />}
+                      {poll.status === 'Aberta' ? 'Votar' : 'Ver Resultados'}
+                  </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+    </AppLayout>
   );
 }
