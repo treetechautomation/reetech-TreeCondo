@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthGate } from "@/components/authgate";
 import { CondominioProvider } from '@/contexts/CondominioContext';
+import { SessionProvider } from '@/contexts/SessionContext';
 
 const APP_NAME = "TreeCondo";
 const APP_DESCRIPTION = "Gerencie seu condomínio com facilidade.";
@@ -48,18 +49,21 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=PT+Sans:wght@400;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="icon" href="/icons/icon-192.png" />
         <link rel="icon" sizes="192x192" href="/icons/icon-192.png" />
         <link rel="icon" sizes="512x512" href="/icons/icon-512.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
       </head>
       <body className="font-body antialiased bg-background">
         <FirebaseClientProvider>
-          <AuthGate>
-            <CondominioProvider>
-              {children}
-            </CondominioProvider>
-          </AuthGate>
+          <SessionProvider>
+            <AuthGate>
+              <CondominioProvider>
+                {children}
+              </CondominioProvider>
+            </AuthGate>
+          </SessionProvider>
         </FirebaseClientProvider>
         <Toaster />
       </body>
