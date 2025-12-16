@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, {
@@ -7,8 +8,9 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
+import { useSessionCtx } from "./SessionContext";
 
 export type Vinculo = {
   id: string; // condominioId
@@ -58,7 +60,7 @@ const CondominioContext = createContext<CondominioContextType | undefined>(
 );
 
 export function CondominioProvider({ children }: { children: ReactNode }) {
-  const { user } = useUser();
+  const { session, isSessionLoading } = useSessionCtx();
   const firestore = useFirestore();
   
   // State
@@ -66,12 +68,9 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   const [blocoAtivoId, setBlocoAtivoId] = useState<string | null>(null);
   const [unidadeAtivaId, setUnidadeAtivaId] = useState<string | null>(null);
 
-  // Vinculos do usuário logado
-  const vinculosRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, `userCondominios/${user.uid}/vinculos`);
-  }, [user, firestore]);
-  const { data: vinculos, isLoading: isLoadingVinculos } = useCollection<Omit<Vinculo, 'id'>>(vinculosRef);
+  // Vinculos do usuário logado (agora vem da sessão)
+  const vinculos = useMemo(() => (session?.vinculos as Vinculo[]) || [], [session]);
+  const isLoadingVinculos = isSessionLoading;
 
   const vinculoAtivo = React.useMemo(() => {
     return vinculos?.find(v => v.id === condominioAtivoId) ?? null;
@@ -95,14 +94,17 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   
   // Efeito para carregar o condomínio ativo do localStorage ou usar o primeiro vínculo
   useEffect(() => {
+    if (isLoadingVinculos) return; // Aguarda os vínculos serem carregados
+    
     const storedId = localStorage.getItem("condominioAtivoId");
     if (storedId && vinculos?.some(v => v.id === storedId)) {
       setCondominioAtivoIdState(storedId);
     } else if (vinculos && vinculos.length > 0) {
-      setCondominioAtivoIdState(vinculos[0].id);
-      localStorage.setItem("condominioAtivoId", vinculos[0].id);
+      const firstId = vinculos[0].id;
+      setCondominioAtivoIdState(firstId);
+      localStorage.setItem("condominioAtivoId", firstId);
     }
-  }, [vinculos]);
+  }, [vinculos, isLoadingVinculos]);
 
   // Efeito para auto-selecionar bloco e unidade se o usuário for MORADOR
   useEffect(() => {
