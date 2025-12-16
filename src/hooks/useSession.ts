@@ -10,7 +10,8 @@ export type Role =
   | "SINDICO"
   | "SUB_SINDICO"
   | "MORADOR"
-  | "FUNCIONARIO";
+  | "FUNCIONARIO"
+  | "PORTEIRO";
 
 export type VinculoScope =
   | { type: "GLOBAL" }
@@ -20,6 +21,7 @@ export type VinculoScope =
 
 export type Vinculo = {
   condominioId: string;
+  condominioNome?: string;
   role: Role;
   scope?: VinculoScope;
   ativo?: boolean;
@@ -34,6 +36,7 @@ export type Session = {
   vinculos: Vinculo[];
   activeCondominioId: string | null;
   isSuperAdmin: boolean;
+  activeVinculo: Vinculo | null;
 };
 
 const mem = {
@@ -90,6 +93,7 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
     const data = d.data() as any;
     return {
       condominioId: data.condominioId ?? d.id,
+      condominioNome: data.condominioNome,
       role: data.role,
       scope: data.scope,
       ativo: data.ativo ?? true,
@@ -104,6 +108,22 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
   }
   return vinculos;
 }
+
+function buildSession(uid: string, user: any, vinculos: Vinculo[], activeCondominioId: string | null): Session {
+    const activeVinculo = vinculos.find(v => v.condominioId === activeCondominioId) ?? null;
+    const isSuperAdmin = vinculos.some(v => v.role === "SUPER_ADMIN");
+
+    return {
+        uid,
+        email: user?.email ?? null,
+        displayName: user?.displayName ?? null,
+        vinculos,
+        activeCondominioId,
+        isSuperAdmin,
+        activeVinculo,
+    };
+}
+
 
 export function useSession() {
   const { user, isUserLoading } = useUser();
@@ -123,16 +143,8 @@ export function useSession() {
     try {
       const vinculos = await fetchVinculos(uid, force);
       const activeCondominioId = pickActiveCondominio(uid, vinculos);
-      const isSuperAdmin = vinculos.some((v) => v.role === "SUPER_ADMIN");
-
-      const s: Session = {
-        uid,
-        email: user?.email ?? null,
-        displayName: user?.displayName ?? null,
-        vinculos,
-        activeCondominioId,
-        isSuperAdmin,
-      };
+      
+      const s = buildSession(uid, user, vinculos, activeCondominioId);
 
       mem.sessionByUid.set(uid, { at: Date.now(), session: s });
 
@@ -217,21 +229,23 @@ export function useSession() {
     error,
     refreshSession,
     setActiveCondominioId: (condominioId: string) => {
-      if (!uid) return;
+      if (!uid || !user) return;
 
       if (typeof window !== "undefined") {
         localStorage.setItem(LS_ACTIVE_COND(uid), condominioId);
       }
+      
+      setSession((prev) => {
+          if (!prev) return null;
+          const newSession = buildSession(uid, user, prev.vinculos, condominioId);
+          
+          mem.sessionByUid.set(uid, {
+            at: Date.now(),
+            session: newSession,
+          });
 
-      setSession((prev) => (prev ? { ...prev, activeCondominioId: condominioId } : prev));
-
-      const prevMem = mem.sessionByUid.get(uid);
-      if (prevMem?.session) {
-        mem.sessionByUid.set(uid, {
-          at: prevMem.at,
-          session: { ...prevMem.session, activeCondominioId: condominioId },
-        });
-      }
+          return newSession;
+      });
     },
   };
 }

@@ -44,8 +44,15 @@ import { RecentAnnouncements } from "@/components/dashboard/recent-announcements
 import { ActiveLink } from "@/components/active-link";
 import { CondominioSelector } from "@/components/condominio-selector";
 import { BlocoUnidadeSelector } from "@/components/bloco-unidade-selector";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { hasRole } from "@/lib/acl";
 
 export default function Dashboard() {
+  const { session } = useSessionCtx();
+  const canSeeAdminGlobal = hasRole(session, ["SUPER_ADMIN"]);
+  const canSeeCondominios = hasRole(session, ["SUPER_ADMIN"]);
+  const canSeeCadastros = hasRole(session, ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO"]);
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -110,24 +117,30 @@ export default function Dashboard() {
                 Acesso
               </ActiveLink>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/cadastros">
-                <BookUser />
-                Cadastros
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/condominios">
-                <Building />
-                Condomínios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/administrador-global">
-                <Shield />
-                Administrador Global
-              </ActiveLink>
-            </SidebarMenuItem>
+            {canSeeCadastros && (
+              <SidebarMenuItem>
+                <ActiveLink href="/cadastros">
+                  <BookUser />
+                  Cadastros
+                </ActiveLink>
+              </SidebarMenuItem>
+            )}
+            {canSeeCondominios && (
+              <SidebarMenuItem>
+                <ActiveLink href="/condominios">
+                  <Building />
+                  Condomínios
+                </ActiveLink>
+              </SidebarMenuItem>
+            )}
+            {canSeeAdminGlobal && (
+              <SidebarMenuItem>
+                <ActiveLink href="/administrador-global">
+                  <Shield />
+                  Administrador Global
+                </ActiveLink>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
