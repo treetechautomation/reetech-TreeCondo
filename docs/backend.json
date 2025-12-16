@@ -359,9 +359,28 @@
       "properties": {
         "nome": { "type": "string", "description": "Nome da área comum (Ex: 'Academia', 'Portaria')." },
         "numero": { "type": "string", "description": "Número do ramal." },
-        "ativo": { "type": "boolean" }
+        "ativo": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["nome", "numero", "ativo"]
+      "required": ["nome", "numero", "ativo", "createdAt"],
+      "examples": [
+        {
+          "title": "Ramais Bloco Dálias",
+          "value": [
+            { "id": "SALA_DE_ADMINISTRACAO", "data": { "nome": "Sala de Administração", "numero": "94", "ativo": true, "createdAt": "2024-07-31T12:00:00Z" } },
+            { "id": "PORTARIA", "data": { "nome": "Portaria", "numero": "92", "ativo": true, "createdAt": "2024-07-31T12:01:00Z" } },
+            { "id": "ACADEMIA", "data": { "nome": "Academia", "numero": "90", "ativo": true, "createdAt": "2024-07-31T12:02:00Z" } }
+          ]
+        },
+        {
+          "title": "Ramais Bloco Rosas",
+          "value": [
+            { "id": "SALA_DE_ADMINISTRACAO", "data": { "nome": "Sala de Administração", "numero": "84", "ativo": true, "createdAt": "2024-07-31T12:03:00Z" } },
+            { "id": "PORTARIA", "data": { "nome": "Portaria", "numero": "82", "ativo": true, "createdAt": "2024-07-31T12:04:00Z" } },
+            { "id": "ACADEMIA", "data": { "nome": "Academia", "numero": "80", "ativo": true, "createdAt": "2024-07-31T12:05:00Z" } }
+          ]
+        }
+      ]
     },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" } } },
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" } } },
