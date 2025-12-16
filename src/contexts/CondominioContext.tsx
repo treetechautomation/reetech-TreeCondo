@@ -1,13 +1,7 @@
 
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useSessionCtx } from "./SessionContext";
@@ -73,7 +67,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   const isLoadingVinculos = isSessionLoading;
 
   const vinculoAtivo = React.useMemo(() => {
-    return vinculos?.find(v => v.id === condominioAtivoId) ?? null;
+    return vinculos?.find((v: Vinculo) => v.condominioId === condominioAtivoId) ?? null;
   }, [vinculos, condominioAtivoId]);
 
 
@@ -97,7 +91,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     if (isLoadingVinculos) return; // Aguarda os vínculos serem carregados
     
     const storedId = localStorage.getItem("condominioAtivoId");
-    if (storedId && vinculos?.some(v => v.id === storedId)) {
+    if (storedId && vinculos?.some((v: Vinculo) => v.condominioId === storedId)) {
       setCondominioAtivoIdState(storedId);
     } else if (vinculos && vinculos.length > 0) {
       const firstId = vinculos[0].id;
