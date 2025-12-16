@@ -96,14 +96,19 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   }, [vinculoAtivo]);
 
   // Handler para trocar de condomínio
-  const setCondominioAtivoId = (id: string | null) => {
-    if (id) setActiveCondominioId(id);
+  const handleSetCondominioAtivoId = (id: string | null) => {
+    if (id) {
+      setActiveCondominioId(id);
+      // Resetar seletores de bloco e unidade ao trocar de condomínio
+      setBlocoAtivoId(null);
+      setUnidadeAtivaId(null);
+    }
   };
 
   const value = {
     // Condominio
     condominioAtivoId,
-    setCondominioAtivoId,
+    setCondominioAtivoId: handleSetCondominioAtivoId,
     vinculos: vinculos || [],
     isLoadingVinculos,
     vinculoAtivo,

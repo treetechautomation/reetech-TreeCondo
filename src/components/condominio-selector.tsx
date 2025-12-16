@@ -26,6 +26,8 @@ export function CondominioSelector() {
     condominioAtivoId,
     setCondominioAtivoId,
     isLoadingVinculos,
+    setBlocoAtivoId,
+    setUnidadeAtivaId
   } = useCondominio();
   const [open, setOpen] = React.useState(false);
 
@@ -80,6 +82,8 @@ export function CondominioSelector() {
                     setCondominioAtivoId(
                       currentValue === condominioAtivoId ? "" : currentValue
                     );
+                    setBlocoAtivoId(null);
+                    setUnidadeAtivaId(null);
                     setOpen(false);
                   }}
                 >
