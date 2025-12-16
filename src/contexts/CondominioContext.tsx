@@ -55,11 +55,11 @@ const CondominioContext = createContext<CondominioContextType | undefined>(
 
 export function CondominioProvider({ children }: { children: ReactNode }) {
   const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
+  const condominioAtivoId = session?.activeCondominioId ?? null;
   const firestore = useFirestore();
   
   // State
-  const [condominioAtivoId, setCondominioAtivoIdState] = useState<string | null>(null);
-  const [blocoAtivoId, setBlocoAtivoId] = useState<string | null>(null);
+    const [blocoAtivoId, setBlocoAtivoId] = useState<string | null>(null);
   const [unidadeAtivaId, setUnidadeAtivaId] = useState<string | null>(null);
 
   // Vinculos do usuário logado (agora vem da sessão)
@@ -87,24 +87,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   const { data: unidades, isLoading: isLoadingUnidades } = useCollection<Omit<Unidade, 'id'>>(unidadesRef);
   
   // Efeito para carregar o condomínio ativo do localStorage ou usar o primeiro vínculo
-  useEffect(() => {
-      if (isLoadingVinculos) return;
-
-      const activeFromSession = session?.activeCondominioId ?? null;
-
-      if (activeFromSession && vinculos?.some((v: Vinculo) => v.condominioId === activeFromSession)) {
-        setCondominioAtivoIdState(activeFromSession);
-        return;
-      }
-
-      if (vinculos && vinculos.length > 0) {
-        const firstId = vinculos[0].condominioId;
-        setCondominioAtivoIdState(firstId);
-        setActiveCondominioId(firstId);
-      }
-    }, [vinculos, isLoadingVinculos, session?.activeCondominioId]);
-
-  // Efeito para auto-selecionar bloco e unidade se o usuário for MORADOR
+    // Efeito para auto-selecionar bloco e unidade se o usuário for MORADOR
   useEffect(() => {
     if (vinculoAtivo?.role === 'MORADOR' && vinculoAtivo.blocoId && vinculoAtivo.unidadeId) {
         setBlocoAtivoId(vinculoAtivo.blocoId);
@@ -114,14 +97,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   // Handler para trocar de condomínio
   const setCondominioAtivoId = (id: string | null) => {
-      setCondominioAtivoIdState(id);
-      if (id) setActiveCondominioId(id);
-// Limpa a seleção de bloco/unidade ao trocar de condomínio
-    setBlocoAtivoId(null);
-    setUnidadeAtivaId(null);
-    if (id) {
-    } else {
-    }
+    if (id) setActiveCondominioId(id);
   };
 
   const value = {
