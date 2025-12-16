@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useUser, initializeFirebase } from "@/firebase";
 import { collection, getDocs } from "firebase/firestore";
 
@@ -65,19 +65,22 @@ function pickActiveCondominio(uid: string, vinculos: Vinculo[]): string | null {
   return first ?? null;
 }
 
-async function fetchVinculos(uid: string): Promise<Vinculo[]> {
+async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
   const now = Date.now();
 
-  const m = mem.vinculosByUid.get(uid);
-  if (m && now - m.at < TTL_MS) return m.vinculos;
+  if (!force) {
+    const m = mem.vinculosByUid.get(uid);
+    if (m && now - m.at < TTL_MS) return m.vinculos;
 
-  const fromLs = safeJsonParse<{ at: number; vinculos: Vinculo[] }>(
-    typeof window !== "undefined" ? localStorage.getItem(LS_KEY(uid)) : null
-  );
-  if (fromLs && now - fromLs.at < TTL_MS && Array.isArray(fromLs.vinculos)) {
-    mem.vinculosByUid.set(uid, { at: fromLs.at, vinculos: fromLs.vinculos });
-    return fromLs.vinculos;
+    const fromLs = safeJsonParse<{ at: number; vinculos: Vinculo[] }>(
+      typeof window !== "undefined" ? localStorage.getItem(LS_KEY(uid)) : null
+    );
+    if (fromLs && now - fromLs.at < TTL_MS && Array.isArray(fromLs.vinculos)) {
+      mem.vinculosByUid.set(uid, { at: fromLs.at, vinculos: fromLs.vinculos });
+      return fromLs.vinculos;
+    }
   }
+
 
   const { firestore } = initializeFirebase();
   const ref = collection(firestore, `userCondominios/${uid}/vinculos`);
@@ -111,8 +114,40 @@ export function useSession() {
 
   const uid = user?.uid ?? null;
   const inflightRef = useRef<Promise<void> | null>(null);
+  const inflightRefreshRef = useRef<Promise<void> | null>(null);
+
 
   const isPublicReady = useMemo(() => !isUserLoading, [isUserLoading]);
+
+  const loadSession = useCallback(async (uid: string, force = false) => {
+    try {
+      const vinculos = await fetchVinculos(uid, force);
+      const activeCondominioId = pickActiveCondominio(uid, vinculos);
+      const isSuperAdmin = vinculos.some((v) => v.role === "SUPER_ADMIN");
+
+      const s: Session = {
+        uid,
+        email: user?.email ?? null,
+        displayName: user?.displayName ?? null,
+        vinculos,
+        activeCondominioId,
+        isSuperAdmin,
+      };
+
+      mem.sessionByUid.set(uid, { at: Date.now(), session: s });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LS_KEY(uid), JSON.stringify({ at: Date.now(), session: s }));
+        if (activeCondominioId) localStorage.setItem(LS_ACTIVE_COND(uid), activeCondominioId);
+      }
+
+      setSession(s);
+    } catch (e: any) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setSession(null);
+    }
+  }, [user]);
+
 
   useEffect(() => {
     if (!isPublicReady) return;
@@ -126,24 +161,27 @@ export function useSession() {
 
     const now = Date.now();
 
-    const ms = mem.sessionByUid.get(uid);
-    if (ms && now - ms.at < TTL_MS) {
-      setSession(ms.session);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (!inflightRef.current) {
+        const ms = mem.sessionByUid.get(uid);
+        if (ms && now - ms.at < TTL_MS) {
+            setSession(ms.session);
+            setLoading(false);
+            setError(null);
+            return;
+        }
 
-    const fromLs = safeJsonParse<{ at: number; session: Session }>(
-      typeof window !== "undefined" ? localStorage.getItem(LS_KEY(uid)) : null
-    );
-    if (fromLs && fromLs.session?.uid === uid && now - fromLs.at < TTL_MS) {
-      mem.sessionByUid.set(uid, { at: fromLs.at, session: fromLs.session });
-      setSession(fromLs.session);
-      setLoading(false);
-      setError(null);
-      return;
+        const fromLs = safeJsonParse<{ at: number; session: Session }>(
+            typeof window !== "undefined" ? localStorage.getItem(LS_KEY(uid)) : null
+        );
+        if (fromLs && fromLs.session?.uid === uid && now - fromLs.at < TTL_MS) {
+            mem.sessionByUid.set(uid, { at: fromLs.at, session: fromLs.session });
+            setSession(fromLs.session);
+            setLoading(false);
+            setError(null);
+            return;
+        }
     }
+    
 
     if (inflightRef.current) return;
 
@@ -151,42 +189,33 @@ export function useSession() {
     setError(null);
 
     inflightRef.current = (async () => {
-      try {
-        const vinculos = await fetchVinculos(uid);
-        const activeCondominioId = pickActiveCondominio(uid, vinculos);
-        const isSuperAdmin = vinculos.some((v) => v.role === "SUPER_ADMIN");
-
-        const s: Session = {
-          uid,
-          email: user?.email ?? null,
-          displayName: user?.displayName ?? null,
-          vinculos,
-          activeCondominioId,
-          isSuperAdmin,
-        };
-
-        mem.sessionByUid.set(uid, { at: Date.now(), session: s });
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem(LS_KEY(uid), JSON.stringify({ at: Date.now(), session: s }));
-          if (activeCondominioId) localStorage.setItem(LS_ACTIVE_COND(uid), activeCondominioId);
-        }
-
-        setSession(s);
-      } catch (e: any) {
-        setError(e instanceof Error ? e : new Error(String(e)));
-        setSession(null);
-      } finally {
+        await loadSession(uid, false);
         setLoading(false);
         inflightRef.current = null;
-      }
     })();
-  }, [uid, isPublicReady, user]);
+  }, [uid, isPublicReady, loadSession]);
+
+   const refreshSession = useCallback(async () => {
+    if (!uid) return;
+    if (inflightRefreshRef.current) return;
+
+    setLoading(true);
+    setError(null);
+    
+    inflightRefreshRef.current = (async () => {
+        await loadSession(uid, true);
+        setLoading(false);
+        inflightRefreshRef.current = null;
+    })();
+
+    await inflightRefreshRef.current;
+  }, [uid, loadSession]);
 
   return {
     session,
     isSessionLoading: isUserLoading || loading,
     error,
+    refreshSession,
     setActiveCondominioId: (condominioId: string) => {
       if (!uid) return;
 
