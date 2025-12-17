@@ -16,12 +16,29 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
-import { useAuth, useUser } from "@/firebase";
+import { useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { Badge } from "@/components/ui/badge";
+
+const ROLE_LABELS: Record<string, string> = {
+    SUPER_ADMIN: "Super Admin",
+    ADMIN_CONDOMINIO: "Admin do Condomínio",
+    SINDICO: "Síndico",
+    SUB_SINDICO: "Sub-síndico",
+    MORADOR: "Morador",
+    PORTEIRO: "Porteiro",
+    FUNCIONARIO: "Funcionário",
+};
+
+function formatRole(role: string) {
+    return ROLE_LABELS[role] || role;
+}
+
 
 export function UserNav() {
-  const { user, isUserLoading } = useUser();
+  const { session, isSessionLoading } = useSessionCtx();
   const auth = useAuth();
   const router = useRouter();
 
@@ -30,10 +47,12 @@ export function UserNav() {
     router.push('/login');
   };
 
-  if (isUserLoading) {
+  if (isSessionLoading || !session) {
     // Pode mostrar um skeleton/loading state aqui se preferir
     return null; 
   }
+
+  const { user, isSuperAdmin, activeVinculo } = session;
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
@@ -43,6 +62,8 @@ export function UserNav() {
     }
     return name.substring(0, 2).toUpperCase();
   }
+  
+  const displayRole = isSuperAdmin ? 'SUPER_ADMIN' : activeVinculo?.role;
 
   return (
     <DropdownMenu>
@@ -61,6 +82,11 @@ export function UserNav() {
             <p className="text-xs leading-none text-muted-foreground">
               {user?.email || "Nenhum e-mail"}
             </p>
+            {displayRole && (
+                 <p className="text-xs font-medium leading-none text-primary pt-1">
+                    {formatRole(displayRole)}
+                </p>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

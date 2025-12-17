@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useUser, initializeFirebase } from "@/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import type { User } from 'firebase/auth';
 
 export type Role =
   | "SUPER_ADMIN"
@@ -30,6 +31,7 @@ export type Vinculo = {
 };
 
 export type Session = {
+  user: User | null;
   uid: string;
   email: string | null;
   displayName: string | null;
@@ -61,10 +63,12 @@ function safeJsonParse<T>(s: string | null): T | null {
 function pickActiveCondominio(uid: string, vinculos: Vinculo[]): string | null {
   const saved =
     typeof window !== "undefined" ? localStorage.getItem(LS_ACTIVE_COND(uid)) : null;
+
   if (saved && vinculos.some((v) => v.condominioId === saved)) return saved;
 
   const first =
     vinculos.find((v) => v.ativo !== false)?.condominioId ?? vinculos[0]?.condominioId ?? null;
+
   return first ?? null;
 }
 
@@ -78,12 +82,12 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
     const fromLs = safeJsonParse<{ at: number; vinculos: Vinculo[] }>(
       typeof window !== "undefined" ? localStorage.getItem(LS_KEY(uid)) : null
     );
+
     if (fromLs && now - fromLs.at < TTL_MS && Array.isArray(fromLs.vinculos)) {
       mem.vinculosByUid.set(uid, { at: fromLs.at, vinculos: fromLs.vinculos });
       return fromLs.vinculos;
     }
   }
-
 
   const { firestore } = initializeFirebase();
   const ref = collection(firestore, `userCondominios/${uid}/vinculos`);
@@ -103,39 +107,48 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
   });
 
   mem.vinculosByUid.set(uid, { at: now, vinculos });
+
   if (typeof window !== "undefined") {
-    // Apenas armazena os vínculos, não a sessão inteira, para mais robustez
     localStorage.setItem(LS_KEY(uid), JSON.stringify({ at: now, vinculos }));
   }
+
   return vinculos;
 }
 
-function buildSession(uid: string, user: any, vinculos: Vinculo[], activeCondominioId: string | null): Session {
-    const activeVinculo = vinculos.find(v => v.condominioId === activeCondominioId) ?? null;
-    const isSuperAdmin = vinculos.some(v => v.role === "SUPER_ADMIN");
+function buildSession(
+  uid: string,
+  user: User,
+  vinculos: Vinculo[],
+  activeCondominioId: string | null
+): Session {
+  const activeVinculo = vinculos.find((v) => v.condominioId === activeCondominioId) ?? null;
 
-    const sessionData = {
-        uid,
-        email: user?.email ?? null,
-        displayName: user?.displayName ?? null,
-        vinculos,
-        activeCondominioId,
-        isSuperAdmin,
-        activeVinculo,
-    };
-    
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("DEBUG_SESSION_BUILT", {
-        isSuperAdmin: sessionData.isSuperAdmin,
-        activeCondominioId: sessionData.activeCondominioId,
-        activeRole: sessionData.activeVinculo?.role,
-        vinculos: sessionData.vinculos.map(v => ({id: v.condominioId, role: v.role})),
-      });
-    }
+  // ✅ Super Admin via Custom Claim (Auth) + fallback por vínculo
+  const isSuperAdmin =
+    Boolean((user as any)?.claims?.super_admin) || vinculos.some((v) => v.role === "SUPER_ADMIN");
 
-    return sessionData;
+  const sessionData: Session = {
+    user,
+    uid,
+    email: user?.email ?? null,
+    displayName: user?.displayName ?? null,
+    vinculos,
+    activeCondominioId,
+    isSuperAdmin,
+    activeVinculo,
+  };
+
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("DEBUG_SESSION_BUILT", {
+      isSuperAdmin: sessionData.isSuperAdmin,
+      activeCondominioId: sessionData.activeCondominioId,
+      activeRole: sessionData.activeVinculo?.role,
+      vinculos: sessionData.vinculos.map((v) => ({ id: v.condominioId, role: v.role })),
+    });
+  }
+
+  return sessionData;
 }
-
 
 export function useSession() {
   const { user, isUserLoading } = useUser();
@@ -148,65 +161,78 @@ export function useSession() {
   const inflightRef = useRef<Promise<void> | null>(null);
   const inflightRefreshRef = useRef<Promise<void> | null>(null);
 
-  const loadSession = useCallback(async (uid: string, force = false) => {
-    try {
-      const vinculos = await fetchVinculos(uid, force);
-      const activeCondominioId = pickActiveCondominio(uid, vinculos);
-      
-      const s = buildSession(uid, user, vinculos, activeCondominioId);
+  const loadSession = useCallback(
+    async (currentUser: User, force = false) => {
+        const currentUid = currentUser.uid;
+      try {
+        const vinculos = await fetchVinculos(currentUid, force);
+        const activeCondominioId = pickActiveCondominio(currentUid, vinculos);
 
-      mem.sessionByUid.set(uid, { at: Date.now(), session: s });
+        // ✅ Puxa custom claims do token (força refresh para pegar super_admin recém-setado)
+        const tokenResult = await currentUser?.getIdTokenResult(true);
+        const claims = tokenResult?.claims ?? {};
 
-      if (typeof window !== "undefined" && activeCondominioId) {
-        localStorage.setItem(LS_ACTIVE_COND(uid), activeCondominioId);
+        // injeta claims no user para buildSession ler
+        (currentUser as any).claims = claims;
+
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("DEBUG_CLAIMS_FROM_TOKEN", claims);
+        }
+
+        const s = buildSession(currentUid, currentUser, vinculos, activeCondominioId);
+
+        mem.sessionByUid.set(currentUid, { at: Date.now(), session: s });
+
+        if (typeof window !== "undefined" && activeCondominioId) {
+          localStorage.setItem(LS_ACTIVE_COND(currentUid), activeCondominioId);
+        }
+
+        setSession(s);
+      } catch (e: any) {
+        setError(e instanceof Error ? e : new Error(String(e)));
+        setSession(null);
       }
-
-      setSession(s);
-    } catch (e: any) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-      setSession(null);
-    }
-  }, [user]);
-
+    },
+    []
+  );
 
   useEffect(() => {
     if (isUserLoading) return;
 
-    if (!uid) {
+    if (!user) {
       setSession(null);
       setLoading(false);
       setError(null);
       return;
     }
-    
+
     if (inflightRef.current) return;
 
     setLoading(true);
     setError(null);
 
-    // Sempre força a busca de vínculos na primeira carga da página para garantir dados frescos.
     inflightRef.current = (async () => {
-        await loadSession(uid, true); // <--- MUDANÇA PRINCIPAL AQUI
-        setLoading(false);
-        inflightRef.current = null;
+      await loadSession(user, true); // força buscar dados frescos (vínculos + claims)
+      setLoading(false);
+      inflightRef.current = null;
     })();
-  }, [uid, isUserLoading, loadSession]);
+  }, [user, isUserLoading, loadSession]);
 
-   const refreshSession = useCallback(async () => {
-    if (!uid) return;
+  const refreshSession = useCallback(async () => {
+    if (!user) return;
     if (inflightRefreshRef.current) return;
 
     setLoading(true);
     setError(null);
-    
+
     inflightRefreshRef.current = (async () => {
-        await loadSession(uid, true);
-        setLoading(false);
-        inflightRefreshRef.current = null;
+      await loadSession(user, true);
+      setLoading(false);
+      inflightRefreshRef.current = null;
     })();
 
     await inflightRefreshRef.current;
-  }, [uid, loadSession]);
+  }, [user, loadSession]);
 
   return {
     session,
@@ -219,17 +245,18 @@ export function useSession() {
       if (typeof window !== "undefined") {
         localStorage.setItem(LS_ACTIVE_COND(uid), condominioId);
       }
-      
-      setSession((prev) => {
-          if (!prev) return null;
-          const newSession = buildSession(uid, user, prev.vinculos, condominioId);
-          
-          mem.sessionByUid.set(uid, {
-            at: Date.now(),
-            session: newSession,
-          });
 
-          return newSession;
+      setSession((prev) => {
+        if (!prev) return null;
+
+        const newSession = buildSession(uid, user, prev.vinculos, condominioId);
+
+        mem.sessionByUid.set(uid, {
+          at: Date.now(),
+          session: newSession,
+        });
+
+        return newSession;
       });
     },
   };
