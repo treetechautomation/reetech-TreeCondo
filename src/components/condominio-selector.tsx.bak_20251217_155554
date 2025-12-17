@@ -2,6 +2,8 @@
 
 import React from "react";
 import { ChevronsUpDown, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 import { useCondominio } from "@/contexts/CondominioContext";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,14 +27,10 @@ function norm(s: string) {
 }
 
 export function CondominioSelector() {
-  const {
-    vinculos,
-    condominioAtivoId,
-    setCondominioAtivoId,
-    isLoadingVinculos,
-    setBlocoAtivoId,
-    setUnidadeAtivaId,
-  } = useCondominio();
+  const router = useRouter();
+
+  const { vinculos, condominioAtivoId, setCondominioAtivoId, isLoadingVinculos } =
+    useCondominio();
 
   const [open, setOpen] = React.useState(false);
 
@@ -40,25 +38,42 @@ export function CondominioSelector() {
     const list = (vinculos || [])
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
-        condominioId: v.condominioId,
-        condominioNome: v.condominioNome || v.condominioId,
+        id: v.condominioId,
+        nome: v.condominioNome || v.condominioId,
       }));
 
+    // remove duplicados por id
     const seen = new Set<string>();
     return list.filter((o) => {
-      if (seen.has(o.condominioId)) return false;
-      seen.add(o.condominioId);
+      if (seen.has(o.id)) return false;
+      seen.add(o.id);
       return true;
     });
   }, [vinculos]);
 
   const active = React.useMemo(() => {
-    return options.find((o) => o.condominioId === condominioAtivoId) || null;
+    return options.find((o) => o.id === condominioAtivoId) || null;
   }, [options, condominioAtivoId]);
 
-  if (isLoadingVinculos) return <Skeleton className="h-10 w-full" />;
+  if (isLoadingVinculos) {
+    return <Skeleton className="h-10 w-full" />;
+  }
 
-  const disabled = options.length === 0;
+  if (!options.length) {
+    return (
+      <Button
+        variant="outline"
+        role="combobox"
+        className="w-full justify-between"
+        disabled
+      >
+        Nenhum condomínio
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+    );
+  }
+
+  const isDisabled = options.length <= 1;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,14 +83,10 @@ export function CondominioSelector() {
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between"
-          disabled={disabled}
+          disabled={isDisabled}
         >
           <span className="truncate">
-            {active
-              ? active.condominioNome
-              : disabled
-              ? "Nenhum condomínio"
-              : "Selecione o condomínio"}
+            {active ? active.nome : "Selecione o condomínio"}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -83,9 +94,11 @@ export function CondominioSelector() {
 
       <PopoverContent className="w-[var(--sidebar-width)] p-0" align="start">
         <Command
-          filter={(value, search) =>
-            norm(value).includes(norm(search)) ? 1 : 0
-          }
+          filter={(value, search) => {
+            const v = norm(value);
+            const s = norm(search);
+            return v.includes(s) ? 1 : 0;
+          }}
         >
           <CommandInput placeholder="Procurar condomínio..." />
           <CommandList>
@@ -93,18 +106,20 @@ export function CondominioSelector() {
 
             <CommandGroup>
               {options.map((o) => {
-                const selected = o.condominioId === condominioAtivoId;
-                const value = `${o.condominioNome} | ${o.condominioId}`;
+                const selected = o.id === condominioAtivoId;
+                const value = `${o.id} | ${o.nome}`; // importante pra busca
 
                 return (
                   <CommandItem
-                    key={o.condominioId}
+                    key={o.id}
                     value={value}
                     onSelect={() => {
-                      setCondominioAtivoId(o.condominioId);
-                      setBlocoAtivoId(null);
-                      setUnidadeAtivaId(null);
+                      // SEM toggle pra "" — sempre troca pro ID selecionado
+                      setCondominioAtivoId(o.id);
                       setOpen(false);
+
+                      // garante que páginas/app router re-renderizem com o novo condomínio
+                      router.refresh();
                     }}
                     className="cursor-pointer"
                   >
@@ -114,7 +129,7 @@ export function CondominioSelector() {
                         selected ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    <span className="truncate">{o.condominioNome}</span>
+                    <span className="truncate">{o.nome}</span>
                   </CommandItem>
                 );
               })}

@@ -1,83 +1,123 @@
-import type { Session } from "@/hooks/useSession";
+"use client";
 
-export type MenuModuleId =
-  | "painel"
-  | "anuncios"
-  | "reservas"
-  | "reunioes"
-  | "incidentes"
-  | "encomendas"
-  | "documentos"
-  | "enquetes"
-  | "acesso"
-  | "cadastros"
-  | "condominios"
-  | "administrador-global"
-  | "configuracoes";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { initializeFirebase } from "@/firebase";
 
-export type RoleKey = "SINDICO" | "MORADOR" | "PORTEIRO" | "SUPER_ADMIN";
+export type MenuRoleKey = "sindico" | "morador" | "porteiro";
 
-export type MenuModule = {
-  id: MenuModuleId;
-  label: string;
-  roles: Partial<Record<RoleKey, boolean>>;
+/**
+ * Mapa: moduleId -> { sindico, morador, porteiro }
+ * Ex: roles.painel.sindico === true
+ */
+export type MenuPermissionsMap = Record<string, Record<MenuRoleKey, boolean>>;
+
+export type MenuPermissionsDoc = {
+  roles: MenuPermissionsMap;
+  updatedAt?: any;
 };
 
 /**
- * Lista base de módulos do menu.
- * Ajuste conforme sua necessidade (id/label).
+ * Normaliza qualquer coisa que venha da UI para um formato 100% compatível com Firestore:
+ * - aceita Array (ex.: defaultModules da tela) ou Object (map)
+ * - remove qualquer campo não-boolean
+ * - nunca retorna undefined
  */
-export const MENU_MODULES: MenuModule[] = [
-  { id: "painel", label: "Painel", roles: { SINDICO: true, MORADOR: true, PORTEIRO: true } },
-  { id: "anuncios", label: "Anúncios", roles: { SINDICO: true, MORADOR: true, PORTEIRO: false } },
-  { id: "reservas", label: "Reservas", roles: { SINDICO: true, MORADOR: true, PORTEIRO: false } },
-  { id: "reunioes", label: "Reuniões", roles: { SINDICO: true, MORADOR: true, PORTEIRO: false } },
-  { id: "incidentes", label: "Incidentes", roles: { SINDICO: true, MORADOR: true, PORTEIRO: true } },
-  { id: "encomendas", label: "Encomendas", roles: { SINDICO: true, MORADOR: true, PORTEIRO: true } },
-  { id: "documentos", label: "Documentos", roles: { SINDICO: true, MORADOR: true, PORTEIRO: false } },
-  { id: "enquetes", label: "Enquetes", roles: { SINDICO: true, MORADOR: true, PORTEIRO: false } },
-  { id: "acesso", label: "Acesso", roles: { SINDICO: true, MORADOR: true, PORTEIRO: true } },
-  { id: "cadastros", label: "Cadastros", roles: { SINDICO: true, MORADOR: false, PORTEIRO: false } },
-  { id: "condominios", label: "Condomínios", roles: { SINDICO: false, MORADOR: false, PORTEIRO: false } },
-  { id: "administrador-global", label: "Administrador Global", roles: { SINDICO: false, MORADOR: false, PORTEIRO: false } },
-  { id: "configuracoes", label: "Configurações", roles: { SINDICO: true, MORADOR: true, PORTEIRO: true } },
-];
+export function normalizeMenuPermissions(input: any): MenuPermissionsMap {
+  const roleKeys: MenuRoleKey[] = ["sindico", "morador", "porteiro"];
 
-/**
- * Retorna a role efetiva do usuário no condomínio ativo.
- * - Super admin sempre ganha.
- * - Senão usa a role do vínculo ativo.
- */
-export function getEffectiveRole(session: Session | null): RoleKey | null {
-  if (!session) return null;
-  if (session.isSuperAdmin) return "SUPER_ADMIN";
-  const r = session.activeVinculo?.role;
-  return (r as RoleKey) ?? null;
+  // Caso 1: a tela manda um array de módulos [{id, roles:{...}, icon, name...}]
+  if (Array.isArray(input)) {
+    const out: MenuPermissionsMap = {};
+    for (const m of input) {
+      const id = String(m?.id ?? "").trim();
+      if (!id) continue;
+
+      const rolesObj = m?.roles ?? {};
+      out[id] = {
+        sindico: roleKeys.includes("sindico") ? rolesObj?.sindico === true : false,
+        morador: roleKeys.includes("morador") ? rolesObj?.morador === true : false,
+        porteiro: roleKeys.includes("porteiro") ? rolesObj?.porteiro === true : false,
+      };
+    }
+    return out;
+  }
+
+  // Caso 2: a tela manda um map { [moduleId]: { sindico, morador, porteiro } }
+  if (input && typeof input === "object") {
+    const out: MenuPermissionsMap = {};
+    for (const [moduleId, rolesObj] of Object.entries(input)) {
+      const id = String(moduleId ?? "").trim();
+      if (!id) continue;
+
+      const r: any = rolesObj ?? {};
+      out[id] = {
+        sindico: r?.sindico === true,
+        morador: r?.morador === true,
+        porteiro: r?.porteiro === true,
+      };
+    }
+    return out;
+  }
+
+  // Fallback
+  return {};
+}
+
+function getMenuPermissionsRef(condominioId: string) {
+  const { firestore } = initializeFirebase();
+  return doc(firestore, `condominios/${condominioId}/config/menuPermissions`);
+}
+
+export async function fetchMenuPermissions(condominioId: string): Promise<MenuPermissionsDoc | null> {
+  const ref = getMenuPermissionsRef(condominioId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+
+  const data = snap.data() as any;
+  const roles = normalizeMenuPermissions(data?.roles);
+  return { roles, updatedAt: data?.updatedAt };
 }
 
 /**
- * Filtra módulos visíveis conforme sessão.
+ * Salva permissões já normalizadas.
+ * IMPORTANTE: passamos roles como MAP de booleans. Sem undefined, sem icon, sem funções.
  */
-export function getVisibleMenuModules(session: Session | null): MenuModule[] {
-  const role = getEffectiveRole(session);
-  if (!role) return [];
+export async function saveMenuPermissions(params: {
+  condominioId: string;
+  roles: any; // vem da tela em qualquer formato (array ou map)
+}) {
+  const { condominioId, roles } = params;
+  if (!condominioId) throw new Error("condominioId é obrigatório");
 
-  // SUPER_ADMIN vê tudo
-  if (role === "SUPER_ADMIN") return MENU_MODULES;
+  const normalized = normalizeMenuPermissions(roles);
 
-  return MENU_MODULES.filter((m) => m.roles[role] === true);
+  // Garantia extra: Firestore não aceita undefined
+  // (aqui já não deve ter, mas deixamos blindado)
+  for (const [moduleId, roleMap] of Object.entries(normalized)) {
+    normalized[moduleId] = {
+      sindico: roleMap?.sindico === true,
+      morador: roleMap?.morador === true,
+      porteiro: roleMap?.porteiro === true,
+    };
+  }
+
+  const ref = getMenuPermissionsRef(condominioId);
+  await setDoc(
+    ref,
+    {
+      roles: normalized,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return { ok: true, roles: normalized };
 }
 
 /**
- * Checa se um módulo específico pode aparecer.
+ * Helper para a UI: verifica se um perfil pode ver um módulo
  */
-export function canSeeModule(session: Session | null, moduleId: MenuModuleId): boolean {
-  const role = getEffectiveRole(session);
-  if (!role) return false;
-  if (role === "SUPER_ADMIN") return true;
-
-  const mod = MENU_MODULES.find((m) => m.id === moduleId);
-  if (!mod) return false;
-
-  return mod.roles[role] === true;
+export function canSeeModule(roles: MenuPermissionsMap | null | undefined, moduleId: string, role: MenuRoleKey) {
+  if (!roles) return false;
+  return roles?.[moduleId]?.[role] === true;
 }
