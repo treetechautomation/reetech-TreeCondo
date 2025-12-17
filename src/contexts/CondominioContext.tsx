@@ -1,7 +1,14 @@
-
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useMemo,
+  useCallback,
+} from "react";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useSessionCtx } from "./SessionContext";
@@ -10,26 +17,26 @@ export type Vinculo = {
   id: string; // condominioId
   condominioId: string;
   condominioNome: string;
-  role: "SINDICO" | "MORADOR" | "PORTEIRO";
+  role: "SINDICO" | "MORADOR" | "PORTEIRO" | "ADMIN_CONDOMINIO" | "SUPER_ADMIN";
   status: "ATIVO" | "INATIVO" | "PENDENTE";
   blocoId?: string;
   unidadeId?: string;
 };
 
 export type Bloco = {
-    id: string;
-    nome: string;
-    ordem: number;
-}
+  id: string;
+  nome: string;
+  ordem: number;
+};
 
 export type Unidade = {
-    id: string;
-    numero: string;
-    andar: number;
-}
+  id: string;
+  numero: string;
+  andar: number;
+};
 
 interface CondominioContextType {
-  // Condominio
+  // Condomínio
   condominioAtivoId: string | null;
   setCondominioAtivoId: (id: string | null) => void;
   vinculos: Vinculo[];
@@ -53,73 +60,201 @@ const CondominioContext = createContext<CondominioContextType | undefined>(
   undefined
 );
 
+const LS_BLOCO = (condominioId: string) => `tc_active_bloco_${condominioId}`;
+const LS_UNIDADE = (condominioId: string) => `tc_active_unidade_${condominioId}`;
+
 export function CondominioProvider({ children }: { children: ReactNode }) {
   const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
-  const condominioAtivoId = session?.activeCondominioId ?? null;
   const firestore = useFirestore();
-  
-  // State
-    const [blocoAtivoId, setBlocoAtivoId] = useState<string | null>(null);
-  const [unidadeAtivaId, setUnidadeAtivaId] = useState<string | null>(null);
 
-  // Vinculos do usuário logado (agora vem da sessão)
+  const condominioAtivoId = session?.activeCondominioId ?? null;
+
   const vinculos = useMemo(() => (session?.vinculos as Vinculo[]) || [], [session]);
   const isLoadingVinculos = isSessionLoading;
 
-  const vinculoAtivo = React.useMemo(() => {
-    return vinculos?.find((v: Vinculo) => v.condominioId === condominioAtivoId) ?? null;
+  const vinculoAtivo = useMemo(() => {
+    if (!condominioAtivoId) return null;
+    return (
+      vinculos.find((v) => v.condominioId === condominioAtivoId) ?? null
+    );
   }, [vinculos, condominioAtivoId]);
 
+  const [blocoAtivoId, _setBlocoAtivoId] = useState<string | null>(null);
+  const [unidadeAtivaId, _setUnidadeAtivaId] = useState<string | null>(null);
 
-  // Blocos do condomínio ativo
   const blocosRef = useMemoFirebase(() => {
     if (!firestore || !condominioAtivoId) return null;
-    return query(collection(firestore, `condominios/${condominioAtivoId}/blocos`), orderBy('ordem'));
+    return query(
+      collection(firestore, `condominios/${condominioAtivoId}/blocos`),
+      orderBy("ordem")
+    );
   }, [firestore, condominioAtivoId]);
-  const { data: blocos, isLoading: isLoadingBlocos } = useCollection<Omit<Bloco, 'id'>>(blocosRef);
 
+  const { data: blocosRaw, isLoading: isLoadingBlocos } =
+    useCollection<Bloco>(blocosRef);
 
-  // Unidades do bloco ativo
+  const blocos: Bloco[] = useMemo(() => (blocosRaw as any) || [], [blocosRaw]);
+
   const unidadesRef = useMemoFirebase(() => {
     if (!firestore || !condominioAtivoId || !blocoAtivoId) return null;
-    return query(collection(firestore, `condominios/${condominioAtivoId}/blocos/${blocoAtivoId}/unidades`), orderBy('numero'));
+    return query(
+      collection(
+        firestore,
+        `condominios/${condominioAtivoId}/blocos/${blocoAtivoId}/unidades`
+      ),
+      orderBy("numero")
+    );
   }, [firestore, condominioAtivoId, blocoAtivoId]);
-  const { data: unidades, isLoading: isLoadingUnidades } = useCollection<Omit<Unidade, 'id'>>(unidadesRef);
-  
-  // Efeito para carregar o condomínio ativo do localStorage ou usar o primeiro vínculo
-    // Efeito para auto-selecionar bloco e unidade se o usuário for MORADOR
+
+  const { data: unidadesRaw, isLoading: isLoadingUnidades } =
+    useCollection<Unidade>(unidadesRef);
+
+  const unidades: Unidade[] = useMemo(
+    () => (unidadesRaw as any) || [],
+    [unidadesRaw]
+  );
+
+  const setBlocoAtivoId = useCallback(
+    (id: string | null) => {
+      _setBlocoAtivoId(id);
+      // ao trocar bloco, unidade deve resetar
+      _setUnidadeAtivaId(null);
+
+      if (typeof window !== "undefined" && condominioAtivoId) {
+        if (id) localStorage.setItem(LS_BLOCO(condominioAtivoId), id);
+        else localStorage.removeItem(LS_BLOCO(condominioAtivoId));
+        localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+      }
+    },
+    [condominioAtivoId]
+  );
+
+  const setUnidadeAtivaId = useCallback(
+    (id: string | null) => {
+      _setUnidadeAtivaId(id);
+      if (typeof window !== "undefined" && condominioAtivoId) {
+        if (id) localStorage.setItem(LS_UNIDADE(condominioAtivoId), id);
+        else localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+      }
+    },
+    [condominioAtivoId]
+  );
+
+  // MORADOR: força bloco/unidade do vínculo
   useEffect(() => {
-    if (vinculoAtivo?.role === 'MORADOR' && vinculoAtivo.blocoId && vinculoAtivo.unidadeId) {
-        setBlocoAtivoId(vinculoAtivo.blocoId);
-        setUnidadeAtivaId(vinculoAtivo.unidadeId);
+    if (!vinculoAtivo) return;
+
+    if (
+      vinculoAtivo.role === "MORADOR" &&
+      vinculoAtivo.blocoId &&
+      vinculoAtivo.unidadeId
+    ) {
+      _setBlocoAtivoId(vinculoAtivo.blocoId);
+      _setUnidadeAtivaId(vinculoAtivo.unidadeId);
     }
   }, [vinculoAtivo]);
 
-  // Handler para trocar de condomínio
-  const handleSetCondominioAtivoId = (id: string | null) => {
-    if (id) {
-      setActiveCondominioId(id);
-      // Resetar seletores de bloco e unidade ao trocar de condomínio
-      setBlocoAtivoId(null);
-      setUnidadeAtivaId(null);
+  // Ao trocar condomínio: restaura seleção bloco/unidade do localStorage, ou escolhe automaticamente
+  useEffect(() => {
+    if (!condominioAtivoId) {
+      _setBlocoAtivoId(null);
+      _setUnidadeAtivaId(null);
+      return;
     }
-  };
 
-  const value = {
-    // Condominio
+    // MORADOR não usa auto-seleção; ele já foi setado pelo effect acima
+    if (vinculoAtivo?.role === "MORADOR") return;
+
+    let restoredBloco: string | null = null;
+
+    if (typeof window !== "undefined") {
+      restoredBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
+    }
+
+    // se tiver bloco salvo, usa ele; se não, tenta primeiro bloco quando carregar
+    if (restoredBloco) _setBlocoAtivoId(restoredBloco);
+    else _setBlocoAtivoId(null);
+
+    _setUnidadeAtivaId(null);
+  }, [condominioAtivoId, vinculoAtivo?.role]);
+
+  // Quando blocos carregarem e não houver bloco ativo, escolhe o primeiro
+  useEffect(() => {
+    if (!condominioAtivoId) return;
+    if (vinculoAtivo?.role === "MORADOR") return;
+    if (isLoadingBlocos) return;
+
+    if (!blocoAtivoId && blocos?.length) {
+      setBlocoAtivoId(blocos[0].id);
+    }
+  }, [
+    condominioAtivoId,
+    vinculoAtivo?.role,
+    isLoadingBlocos,
+    blocos,
+    blocoAtivoId,
+    setBlocoAtivoId,
+  ]);
+
+  // Quando unidades carregarem e não houver unidade ativa, restaura do LS ou escolhe a primeira
+  useEffect(() => {
+    if (!condominioAtivoId) return;
+    if (vinculoAtivo?.role === "MORADOR") return;
+    if (isLoadingUnidades) return;
+    if (!blocoAtivoId) return;
+
+    let restoredUnidade: string | null = null;
+    if (typeof window !== "undefined") {
+      restoredUnidade = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
+    }
+
+    if (!unidadeAtivaId) {
+      const exists = restoredUnidade && unidades?.some((u) => u.id === restoredUnidade);
+      if (exists) setUnidadeAtivaId(restoredUnidade!);
+      else if (unidades?.length) setUnidadeAtivaId(unidades[0].id);
+    }
+  }, [
+    condominioAtivoId,
+    vinculoAtivo?.role,
+    isLoadingUnidades,
+    blocoAtivoId,
+    unidades,
+    unidadeAtivaId,
+    setUnidadeAtivaId,
+  ]);
+
+  // Trocar condomínio (IMPORTANTE: aceitar null também)
+  const handleSetCondominioAtivoId = useCallback(
+    (id: string | null) => {
+      // permite limpar
+      if (!id) {
+        setActiveCondominioId(""); // se o teu setActiveCondominioId não aceita null, manda string vazia
+        _setBlocoAtivoId(null);
+        _setUnidadeAtivaId(null);
+        return;
+      }
+
+      setActiveCondominioId(id);
+
+      // reset local (os effects acima vão auto-restore/auto-select)
+      _setBlocoAtivoId(null);
+      _setUnidadeAtivaId(null);
+    },
+    [setActiveCondominioId]
+  );
+
+  const value: CondominioContextType = {
     condominioAtivoId,
     setCondominioAtivoId: handleSetCondominioAtivoId,
     vinculos: vinculos || [],
     isLoadingVinculos,
     vinculoAtivo,
 
-    // Bloco
     blocoAtivoId,
     setBlocoAtivoId,
     blocos: blocos || [],
     isLoadingBlocos,
 
-    // Unidade
     unidadeAtivaId,
     setUnidadeAtivaId,
     unidades: unidades || [],
