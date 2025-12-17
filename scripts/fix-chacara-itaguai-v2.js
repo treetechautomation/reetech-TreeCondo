@@ -15,7 +15,6 @@ const db = admin.firestore();
 
 const condominioId = "chacara-itaguai";
 const UID_SUPER_ADMIN = "p0XWt3ed7VgiEjHoItfmNq31cT62";
-
 const UID_ADMIN_CONDOMINIO = "UID_ADMIN";
 const UID_SINDICO_DALIAS = "UID_SINDICO_DALIAS";
 const UID_SINDICO_ROSAS = "UID_SINDICO_ROSAS";
@@ -38,39 +37,71 @@ async function upsertRamal(blocoId, docId, data) {
     ...data,
     ativo: true,
     createdAt: nowISO(),
-    createdBy: UID_SUPER_ADMIN,
+    createdBy: UID_ADMIN_CONDOMINIO,
   }, { merge: true });
 }
 
 (async () => {
-  // ✅ 1) Corrigir membros no formato que o verify espera
-  await upsertMembro(UID_ADMIN_CONDOMINIO, "ADMIN_CONDOMINIO", {
-    type: "CONDOMINIO",
-    condominioId,
+  const batch = db.batch();
+
+  // 1) Corrigir membros no formato que o verify espera
+  const adminCondoRef = db.doc(`condominios/${condominioId}/membros/${UID_ADMIN_CONDOMINIO}`);
+  batch.set(adminCondoRef, {
+    uid: UID_ADMIN_CONDOMINIO,
+    role: "ADMIN_CONDOMINIO",
+    ativo: true,
+    scope: { type: "CONDOMINIO", condominioId },
+    createdAt: nowISO(),
+    createdBy: UID_SUPER_ADMIN,
+  }, { merge: true });
+
+  const sindicoDaliasRef = db.doc(`condominios/${condominioId}/membros/${UID_SINDICO_DALIAS}`);
+  batch.set(sindicoDaliasRef, {
+    uid: UID_SINDICO_DALIAS,
+    role: "SINDICO",
+    ativo: true,
+    scope: { type: "BLOCO", condominioId, blocoId: "dalias" },
+    createdAt: nowISO(),
+    createdBy: UID_ADMIN_CONDOMINIO,
+  }, { merge: true });
+
+  const sindicoRosasRef = db.doc(`condominios/${condominioId}/membros/${UID_SINDICO_ROSAS}`);
+  batch.set(sindicoRosasRef, {
+    uid: UID_SINDICO_ROSAS,
+    role: "SINDICO",
+    ativo: true,
+scope: { type: "BLOCO", condominioId, blocoId: "rosas" },
+    createdAt: nowISO(),
+    createdBy: UID_ADMIN_CONDOMINIO,
+  }, { merge: true });
+  
+  console.log("-> Membros preparados para correção.");
+
+  // 2) Criar 3+ ramais válidos por bloco
+  const ramaisDalias = [
+    { id: "guarita-dalias", data: { area: "Guarita", ramal: "101" } },
+    { id: "clube-dalias",   data: { area: "Clube",   ramal: "102" } },
+    { id: "zelador-dalias", data: { area: "Zelador", ramal: "103" } },
+  ];
+  ramaisDalias.forEach(r => {
+    const ref = db.doc(`condominios/${condominioId}/blocos/dalias/ramais/${r.id}`);
+    batch.set(ref, { ...r.data, ativo: true, createdAt: nowISO(), createdBy: UID_ADMIN_CONDOMINIO }, { merge: true });
   });
 
-  await upsertMembro(UID_SINDICO_DALIAS, "SINDICO", {
-    type: "BLOCO",
-    condominioId,
-    blocoId: "dalias",
+  const ramaisRosas = [
+    { id: "guarita-rosas", data: { area: "Guarita", ramal: "201" } },
+    { id: "clube-rosas",   data: { area: "Clube",   ramal: "202" } },
+    { id: "zelador-rosas", data: { area: "Zelador", ramal: "203" } },
+  ];
+  ramaisRosas.forEach(r => {
+    const ref = db.doc(`condominios/${condominioId}/blocos/rosas/ramais/${r.id}`);
+    batch.set(ref, { ...r.data, ativo: true, createdAt: nowISO(), createdBy: UID_ADMIN_CONDOMINIO }, { merge: true });
   });
 
-  await upsertMembro(UID_SINDICO_ROSAS, "SINDICO", {
-    type: "BLOCO",
-    condominioId,
-    blocoId: "rosas",
-  });
+  console.log("-> Ramais preparados para correção.");
 
-  // ✅ 2) Criar 3+ ramais válidos por bloco (com area/ramal/ativo)
-  // DÁLIAS
-  await upsertRamal("dalias", "guarita-dalias", { area: "GUARITA", ramal: "101", nome: "Guarita Dálias" });
-  await upsertRamal("dalias", "clube-dalias",   { area: "CLUBE",   ramal: "102", nome: "Clube (Dálias)" });
-  await upsertRamal("dalias", "zelador-dalias", { area: "ZELADOR", ramal: "103", nome: "Zelador (Dálias)" });
+  await batch.commit();
 
-  // ROSAS
-  await upsertRamal("rosas", "guarita-rosas", { area: "GUARITA", ramal: "201", nome: "Guarita Rosas" });
-  await upsertRamal("rosas", "clube-rosas",   { area: "CLUBE",   ramal: "202", nome: "Clube (Rosas)" });
-  await upsertRamal("rosas", "zelador-rosas", { area: "ZELADOR", ramal: "203", nome: "Zelador (Rosas)" });
-
-  console.log("✅ FIX OK: membros e ramais ajustados no padrão do verify.");
+  console.log("\n✅ FIX OK: membros e ramais ajustados no padrão do verify.");
+  console.log("👉 Próximo passo: rode `npm run sync` e depois `npm run verify` novamente.");
 })();

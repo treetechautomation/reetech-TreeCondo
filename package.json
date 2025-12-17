@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -H 0.0.0.0",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "NODE_ENV=production next build",
@@ -11,7 +11,11 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "set-admin": "node scripts/setAdmin.cjs",
-    "inspect-db": "node scripts/inspect-db.mjs"
+    "inspect-db": "node scripts/inspect-db.mjs",
+    "seed": "node scripts/seed-chacara-itaguai.js",
+    "sync": "node scripts/sync-vinculos-chacara-itaguai.js",
+    "fix": "node scripts/fix-chacara-itaguai-v2.js",
+    "verify": "node scripts/verify-chacara-itaguai.js"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

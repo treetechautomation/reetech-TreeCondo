@@ -14,21 +14,16 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // ✅ IDs fixos e “padrão mercado”
-// condomínio
 const condominioId = "chacara-itaguai";
 
-// blocos
 const blocos = [
   { id: "dalias", nome: "Dálias", ordem: 1 },
   { id: "rosas", nome: "Rosas", ordem: 2 },
 ];
 
-// ✅ UIDs (troque se quiser depois)
-// Você já tem este super admin:
 const UID_SUPER_ADMIN = "p0XWt3ed7VgiEjHoItfmNq31cT62";
 
-// Por enquanto vamos usar placeholders pro script passar.
-// Se você já tiver os UIDs reais do admin e dos síndicos, substitua aqui.
+// IDs que serão usados para os membros administrativos
 const UID_ADMIN_CONDOMINIO = "UID_ADMIN";
 const UID_SINDICO_DALIAS = "UID_SINDICO_DALIAS";
 const UID_SINDICO_ROSAS = "UID_SINDICO_ROSAS";
@@ -37,19 +32,22 @@ function nowISO() { return new Date().toISOString(); }
 
 (async () => {
   console.log(`Iniciando seed para o condomínio: ${condominioId}`);
+  const batch = db.batch();
 
   // 1) Doc do condomínio
-  await db.doc(`condominios/${condominioId}`).set({
+  const condominioRef = db.doc(`condominios/${condominioId}`);
+  batch.set(condominioRef, {
     nome: "Chácara Itaguaí",
     ativo: true,
     createdAt: nowISO(),
     createdBy: UID_SUPER_ADMIN,
   }, { merge: true });
-  console.log("-> Documento do condomínio criado/atualizado.");
+  console.log("-> Documento do condomínio preparado.");
 
-  // 2) Blocos
+  // 2) Blocos e ramais iniciais
   for (const b of blocos) {
-    await db.doc(`condominios/${condominioId}/blocos/${b.id}`).set({
+    const blocoRef = db.doc(`condominios/${condominioId}/blocos/${b.id}`);
+    batch.set(blocoRef, {
       nome: b.nome,
       ordem: b.ordem,
       ativo: true,
@@ -57,20 +55,20 @@ function nowISO() { return new Date().toISOString(); }
       createdBy: UID_SUPER_ADMIN,
     }, { merge: true });
 
-    // 3) Subcoleção ramais (criar pelo menos 1 doc, pra coleção existir)
-    await db.doc(`condominios/${condominioId}/blocos/${b.id}/ramais/guarita-${b.id}`).set({
+    const ramalRef = db.doc(`condominios/${condominioId}/blocos/${b.id}/ramais/guarita-${b.id}`);
+    batch.set(ramalRef, {
       area: `Guarita (${b.nome})`,
       ramal: b.id === "dalias" ? "100" : "200",
       ativo: true,
       createdAt: nowISO(),
       createdBy: UID_SUPER_ADMIN,
     }, { merge: true });
-    console.log(`--> Bloco '${b.nome}' e ramal inicial criados/atualizados.`);
+    console.log(`--> Bloco '${b.nome}' e ramal inicial preparados.`);
   }
 
-  // 4) Membros (padrão mercado + seu caso: 2 síndicos e 1 admin gerenciando os 2)
-  // ADMIN_CONDOMINIO: gerencia o condomínio todo
-  await db.doc(`condominios/${condominioId}/membros/${UID_ADMIN_CONDOMINIO}`).set({
+  // 3) Membros (Admin do Condomínio e Síndicos por bloco)
+  const adminCondoRef = db.doc(`condominios/${condominioId}/membros/${UID_ADMIN_CONDOMINIO}`);
+  batch.set(adminCondoRef, {
     uid: UID_ADMIN_CONDOMINIO,
     role: "ADMIN_CONDOMINIO",
     ativo: true,
@@ -78,28 +76,33 @@ function nowISO() { return new Date().toISOString(); }
     createdAt: nowISO(),
     createdBy: UID_SUPER_ADMIN,
   }, { merge: true });
-  console.log("-> Membro ADMIN_CONDOMINIO criado/atualizado.");
+  console.log("-> Membro ADMIN_CONDOMINIO preparado.");
 
-  // SINDICO de cada bloco
-  await db.doc(`condominios/${condominioId}/membros/${UID_SINDICO_DALIAS}`).set({
+  const sindicoDaliasRef = db.doc(`condominios/${condominioId}/membros/${UID_SINDICO_DALIAS}`);
+  batch.set(sindicoDaliasRef, {
     uid: UID_SINDICO_DALIAS,
     role: "SINDICO",
     ativo: true,
     scope: { type: "BLOCO", condominioId: condominioId, blocoId: "dalias" },
     createdAt: nowISO(),
-    createdBy: UID_SUPER_ADMIN,
+    createdBy: UID_ADMIN_CONDOMINIO,
   }, { merge: true });
-  console.log("-> Membro SINDICO (Dálias) criado/atualizado.");
+  console.log("-> Membro SINDICO (Dálias) preparado.");
 
-  await db.doc(`condominios/${condominioId}/membros/${UID_SINDICO_ROSAS}`).set({
+  const sindicoRosasRef = db.doc(`condominios/${condominioId}/membros/${UID_SINDICO_ROSAS}`);
+  batch.set(sindicoRosasRef, {
     uid: UID_SINDICO_ROSAS,
     role: "SINDICO",
     ativo: true,
     scope: { type: "BLOCO", condominioId: condominioId, blocoId: "rosas" },
     createdAt: nowISO(),
-    createdBy: UID_SUPER_ADMIN,
+    createdBy: UID_ADMIN_CONDOMINIO,
   }, { merge: true });
-  console.log("-> Membro SINDICO (Rosas) criado/atualizado.");
+  console.log("-> Membro SINDICO (Rosas) preparado.");
 
-  console.log("\n✅ SEED OK: condomínio + blocos + ramais + membros criados/atualizados.");
+  // Executa todas as operações em um único batch
+  await batch.commit();
+
+  console.log("\n✅ SEED OK: Operações concluídas com sucesso.");
+  console.log("👉 Próximo passo: rode `npm run sync` para criar os vínculos de acesso.");
 })();

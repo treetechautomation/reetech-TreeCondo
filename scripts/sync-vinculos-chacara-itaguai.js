@@ -17,19 +17,20 @@ const condominioId = "chacara-itaguai";
 
 (async () => {
   try {
+    console.log(`Iniciando sincronização de vínculos para o condomínio: ${condominioId}`);
+    
     const condominioDoc = await db.doc(`condominios/${condominioId}`).get();
     if (!condominioDoc.exists) {
-        console.error(`❌ Erro: Condomínio com ID '${condominioId}' não encontrado. Rode o script de seed primeiro.`);
+        console.error(`❌ Erro: Condomínio com ID '${condominioId}' não encontrado. Rode 'npm run seed' primeiro.`);
         return;
     }
     const condominioNome = condominioDoc.data().nome;
 
-
     const membrosRef = db.collection(`condominios/${condominioId}/membros`);
-    const membrosSnap = await membrosRef.get();
+    const membrosSnap = await membrosRef.where('ativo', '==', true).get();
 
     if (membrosSnap.empty) {
-      console.log("Nenhum membro encontrado para sincronizar.");
+      console.log("⚠️ Nenhum membro ativo encontrado para sincronizar.");
       return;
     }
 
@@ -39,7 +40,7 @@ const condominioId = "chacara-itaguai";
     for (const membroDoc of membrosSnap.docs) {
       const membro = membroDoc.data();
       if (!membro.uid) {
-        console.warn(`Membro com ID ${membroDoc.id} não possui campo 'uid'. Pulando.`);
+        console.warn(`- Pulando membro com ID ${membroDoc.id} (sem campo 'uid').`);
         continue;
       }
 
@@ -48,7 +49,7 @@ const condominioId = "chacara-itaguai";
       const vinculoData = {
         uid: membro.uid,
         condominioId: condominioId,
-        condominioNome: condominioNome, // Adicionado
+        condominioNome: condominioNome,
         role: membro.role,
         scope: membro.scope,
         ativo: membro.ativo,
@@ -61,7 +62,8 @@ const condominioId = "chacara-itaguai";
     }
 
     await batch.commit();
-    console.log(`✅ Sucesso! ${count} vínculos foram sincronizados.`);
+    console.log(`\n✅ Sucesso! ${count} vínculos foram sincronizados.`);
+    console.log("👉 Próximo passo: rode `npm run verify` para checar a consistência dos dados.");
 
   } catch (error) {
     console.error("❌ Erro ao sincronizar vínculos:", error);
