@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -125,7 +126,7 @@ function buildSession(
 
   // ✅ Super Admin via Custom Claim (Auth) + fallback por vínculo
   const isSuperAdmin =
-    Boolean((user as any)?.claims?.super_admin) || vinculos.some((v) => v.role === "SUPER_ADMIN");
+    (user as any)?.claims?.super_admin === true || vinculos.some((v) => v.role === "SUPER_ADMIN");
 
   const sessionData: Session = {
     user,
