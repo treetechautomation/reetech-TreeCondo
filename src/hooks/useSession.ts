@@ -1,10 +1,9 @@
-
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useUser, initializeFirebase } from "@/firebase";
 import { collection, getDocs } from "firebase/firestore";
-import type { User } from 'firebase/auth';
+import type { IdTokenResult } from "firebase/auth";
 
 export type Role =
   | "SUPER_ADMIN"
@@ -32,7 +31,6 @@ export type Vinculo = {
 };
 
 export type Session = {
-  user: User | null;
   uid: string;
   email: string | null;
   displayName: string | null;
@@ -40,10 +38,10 @@ export type Session = {
   activeCondominioId: string | null;
   isSuperAdmin: boolean;
   activeVinculo: Vinculo | null;
+  claims?: Record<string, any>;
 };
 
 const mem = {
-  sessionByUid: new Map<string, { at: number; session: Session }>(),
   vinculosByUid: new Map<string, { at: number; vinculos: Vinculo[] }>(),
 };
 
@@ -61,10 +59,36 @@ function safeJsonParse<T>(s: string | null): T | null {
   }
 }
 
-function pickActiveCondominio(uid: string, vinculos: Vinculo[]): string | null {
+async function fetchClaims(force = true): Promise<IdTokenResult | null> {
+  const { auth } = initializeFirebase();
+  const u = auth.currentUser;
+  if (!u) return null;
+  try {
+    return await u.getIdTokenResult(force);
+  } catch {
+    return null;
+  }
+}
+
+function pickActiveCondominio(
+  uid: string,
+  vinculos: Vinculo[],
+  isSuperAdmin: boolean
+): string | null {
   const saved =
     typeof window !== "undefined" ? localStorage.getItem(LS_ACTIVE_COND(uid)) : null;
 
+  // ✅ SUPER_ADMIN pode manter qualquer condomínio salvo (não depende de vínculos)
+  if (isSuperAdmin) {
+    return (
+      saved ??
+      vinculos.find((v) => v.ativo !== false)?.condominioId ??
+      vinculos[0]?.condominioId ??
+      null
+    );
+  }
+
+  // 🔒 Usuário comum: só aceita se estiver nos vínculos
   if (saved && vinculos.some((v) => v.condominioId === saved)) return saved;
 
   const first =
@@ -116,20 +140,23 @@ async function fetchVinculos(uid: string, force = false): Promise<Vinculo[]> {
   return vinculos;
 }
 
-function buildSession(
-  uid: string,
-  user: User,
-  vinculos: Vinculo[],
-  activeCondominioId: string | null
-): Session {
-  const activeVinculo = vinculos.find((v) => v.condominioId === activeCondominioId) ?? null;
+function buildSession(params: {
+  uid: string;
+  user: any;
+  vinculos: Vinculo[];
+  activeCondominioId: string | null;
+  claims?: Record<string, any>;
+}) {
+  const { uid, user, vinculos, activeCondominioId, claims } = params;
 
-  // ✅ Super Admin via Custom Claim (Auth) + fallback por vínculo
-  const isSuperAdmin =
-    (user as any)?.claims?.super_admin === true || vinculos.some((v) => v.role === "SUPER_ADMIN");
+  const isSuperAdminFromClaim = claims?.super_admin === true;
+  const isSuperAdminFromVinculo = vinculos.some((v) => v.role === "SUPER_ADMIN");
+  const isSuperAdmin = isSuperAdminFromClaim || isSuperAdminFromVinculo;
+
+  const activeVinculo =
+    vinculos.find((v) => v.condominioId === activeCondominioId) ?? null;
 
   const sessionData: Session = {
-    user,
     uid,
     email: user?.email ?? null,
     displayName: user?.displayName ?? null,
@@ -137,9 +164,11 @@ function buildSession(
     activeCondominioId,
     isSuperAdmin,
     activeVinculo,
+    claims,
   };
 
   if (process.env.NODE_ENV !== "production") {
+    console.debug("DEBUG_CLAIMS_FROM_TOKEN", claims);
     console.debug("DEBUG_SESSION_BUILT", {
       isSuperAdmin: sessionData.isSuperAdmin,
       activeCondominioId: sessionData.activeCondominioId,
@@ -159,33 +188,27 @@ export function useSession() {
   const [error, setError] = useState<Error | null>(null);
 
   const uid = user?.uid ?? null;
+
   const inflightRef = useRef<Promise<void> | null>(null);
   const inflightRefreshRef = useRef<Promise<void> | null>(null);
 
   const loadSession = useCallback(
-    async (currentUser: User, force = false) => {
-        const currentUid = currentUser.uid;
+    async (uid: string, force = false) => {
       try {
-        const vinculos = await fetchVinculos(currentUid, force);
-        const activeCondominioId = pickActiveCondominio(currentUid, vinculos);
+        const tokenResult = await fetchClaims(true);
+        const claims = (tokenResult?.claims ?? {}) as Record<string, any>;
 
-        // ✅ Puxa custom claims do token (força refresh para pegar super_admin recém-setado)
-        const tokenResult = await currentUser?.getIdTokenResult(true);
-        const claims = tokenResult?.claims ?? {};
+        const vinculos = await fetchVinculos(uid, force);
 
-        // injeta claims no user para buildSession ler
-        (currentUser as any).claims = claims;
+        const isSuperAdminTemp =
+          claims?.super_admin === true || vinculos.some((v) => v.role === "SUPER_ADMIN");
 
-        if (process.env.NODE_ENV !== "production") {
-          console.debug("DEBUG_CLAIMS_FROM_TOKEN", claims);
-        }
+        const activeCondominioId = pickActiveCondominio(uid, vinculos, isSuperAdminTemp);
 
-        const s = buildSession(currentUid, currentUser, vinculos, activeCondominioId);
-
-        mem.sessionByUid.set(currentUid, { at: Date.now(), session: s });
+        const s = buildSession({ uid, user, vinculos, activeCondominioId, claims });
 
         if (typeof window !== "undefined" && activeCondominioId) {
-          localStorage.setItem(LS_ACTIVE_COND(currentUid), activeCondominioId);
+          localStorage.setItem(LS_ACTIVE_COND(uid), activeCondominioId);
         }
 
         setSession(s);
@@ -194,13 +217,13 @@ export function useSession() {
         setSession(null);
       }
     },
-    []
+    [user]
   );
 
   useEffect(() => {
     if (isUserLoading) return;
 
-    if (!user) {
+    if (!uid) {
       setSession(null);
       setLoading(false);
       setError(null);
@@ -213,27 +236,27 @@ export function useSession() {
     setError(null);
 
     inflightRef.current = (async () => {
-      await loadSession(user, true); // força buscar dados frescos (vínculos + claims)
+      await loadSession(uid, true);
       setLoading(false);
       inflightRef.current = null;
     })();
-  }, [user, isUserLoading, loadSession]);
+  }, [uid, isUserLoading, loadSession]);
 
   const refreshSession = useCallback(async () => {
-    if (!user) return;
+    if (!uid) return;
     if (inflightRefreshRef.current) return;
 
     setLoading(true);
     setError(null);
 
     inflightRefreshRef.current = (async () => {
-      await loadSession(user, true);
+      await loadSession(uid, true);
       setLoading(false);
       inflightRefreshRef.current = null;
     })();
 
     await inflightRefreshRef.current;
-  }, [user, loadSession]);
+  }, [uid, loadSession]);
 
   return {
     session,
@@ -249,15 +272,13 @@ export function useSession() {
 
       setSession((prev) => {
         if (!prev) return null;
-
-        const newSession = buildSession(uid, user, prev.vinculos, condominioId);
-
-        mem.sessionByUid.set(uid, {
-          at: Date.now(),
-          session: newSession,
+        return buildSession({
+          uid,
+          user,
+          vinculos: prev.vinculos,
+          activeCondominioId: condominioId,
+          claims: prev.claims,
         });
-
-        return newSession;
       });
     },
   };
