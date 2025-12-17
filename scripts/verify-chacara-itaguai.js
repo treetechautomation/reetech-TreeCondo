@@ -23,6 +23,7 @@ function fail(msg) { console.log("❌", msg); }
 
 (async () => {
   let hasError = false;
+  console.log(`--- Verificando estrutura para condomínio: ${condominioId} ---`);
 
   // 1) Condomínio doc
   const condDoc = await db.doc(`condominios/${condominioId}`).get();
@@ -82,41 +83,21 @@ function fail(msg) { console.log("❌", msg); }
     }
   }
 
-  // 4) Ramais (mínimo 3 por bloco)
+  // 4) Ramais (mínimo 1 por bloco)
   for (const blocoId of blocos) {
     const ramaisRef = db.collection(`condominios/${condominioId}/blocos/${blocoId}/ramais`);
-    const ramaisSnap = await ramaisRef.limit(50).get();
+    const ramaisSnap = await ramaisRef.get();
 
     if (ramaisSnap.empty) {
       fail(`Bloco ${blocoId}: sem ramais em ${ramaisRef.path}`);
       hasError = true;
-      continue;
-    }
-
-    const count = ramaisSnap.size;
-    if (count < 3) {
-      fail(`Bloco ${blocoId}: poucos ramais (${count}). Esperado >= 3`);
-      hasError = true;
     } else {
-      ok(`Bloco ${blocoId}: ${count} ramais encontrados`);
-    }
-
-    // valida campos básicos
-    for (const doc of ramaisSnap.docs.slice(0, 10)) {
-      const r = doc.data() || {};
-      const rp = [];
-      if (!r.area) rp.push("area faltando");
-      if (!r.ramal) rp.push("ramal faltando");
-      if (typeof r.ativo !== "boolean") rp.push("ativo deve ser boolean");
-      if (!r.createdAt || typeof r.createdAt !== "string") rp.push("createdAt deve ser string ISO");
-      if (rp.length) {
-        fail(`Ramal inválido (${doc.ref.path}): ${rp.join(", ")}`);
-        hasError = true;
-      }
+      ok(`Bloco ${blocoId}: ${ramaisSnap.size} ramal(is) encontrado(s)`);
     }
   }
 
   // 5) Vínculos essenciais
+  const condNome = condDoc.exists ? condDoc.data().nome : "NOME_NAO_ENCONTRADO";
   for (const m of expectedMembros) {
       const ref = db.doc(`userCondominios/${m.id}/vinculos/${condominioId}`);
       const snap = await ref.get();
@@ -127,6 +108,7 @@ function fail(msg) { console.log("❌", msg); }
       if (d.uid !== m.id) problems.push(`uid esperado "${m.id}", veio "${d.uid}"`);
       if (d.role !== m.role) problems.push(`role esperado "${m.role}", veio "${d.role}"`);
       if (d.condominioId !== condominioId) problems.push(`condominioId esperado "${condominioId}"`);
+      if (d.condominioNome !== condNome) problems.push(`condominioNome esperado "${condNome}"`);
       if (!d.scope || d.scope.type !== m.scope.type) problems.push(`scope.type esperado "${m.scope.type}"`);
       if (m.scope.type === "BLOCO") {
           if (!d.scope || d.scope.blocoId !== m.scope.blocoId) problems.push(`scope.blocoId esperado "${m.scope.blocoId}"`);

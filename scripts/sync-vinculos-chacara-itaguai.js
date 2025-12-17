@@ -17,6 +17,14 @@ const condominioId = "chacara-itaguai";
 
 (async () => {
   try {
+    const condominioDoc = await db.doc(`condominios/${condominioId}`).get();
+    if (!condominioDoc.exists) {
+        console.error(`❌ Erro: Condomínio com ID '${condominioId}' não encontrado. Rode o script de seed primeiro.`);
+        return;
+    }
+    const condominioNome = condominioDoc.data().nome;
+
+
     const membrosRef = db.collection(`condominios/${condominioId}/membros`);
     const membrosSnap = await membrosRef.get();
 
@@ -40,6 +48,7 @@ const condominioId = "chacara-itaguai";
       const vinculoData = {
         uid: membro.uid,
         condominioId: condominioId,
+        condominioNome: condominioNome, // Adicionado
         role: membro.role,
         scope: membro.scope,
         ativo: membro.ativo,
