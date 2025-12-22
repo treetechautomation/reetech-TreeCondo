@@ -1,266 +1,209 @@
 "use client";
 
-import {
-  PlusCircle,
-  Edit,
-  Trash2,
-} from "lucide-react";
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import { useAdminCondominios } from "@/hooks/useAdminCondominios";
 
-import { useMemo, useState } from "react";
-import { useCondominios } from "@/hooks/useCondominios";
-import {
-  criarCondominio,
-  deletarCondominio,
-} from "@/firebase/firestore/condominios.service";
-import { useFirestore, useUser, useClaims } from "@/firebase";
-import { useToast } from "@/hooks/use-toast";
+interface FormState {
+  nome: string;
+  cnpj: string;
+  ativo: boolean;
+}
 
 export default function CondominiosPage() {
-  const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
-  const { claims, isClaimsLoading } = useClaims();
-  const { toast } = useToast();
+  const { condominios, loading, criarCondominio, saving } =
+    useAdminCondominios();
 
-  const isSuperAdmin = claims?.super_admin === true;
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<FormState>({
+    nome: "",
+    cnpj: "",
+    ativo: true,
+  });
 
-  const { data: condominios, loading } = useCondominios();
+  const limparForm = () =>
+    setForm({
+      nome: "",
+      cnpj: "",
+      ativo: true,
+    });
 
-  const [open, setOpen] = useState(false);
-  const [nome, setNome] = useState("");
-  const [cnpj, setCnpj] = useState("");
-  const [cep, setCep] = useState("");
-  const [saving, setSaving] = useState(false);
+  const handleSalvar = async () => {
+    try {
+      if (!form.nome.trim()) {
+        alert("Informe o nome do condomínio");
+        return;
+      }
 
-  const canRender = useMemo(() => {
-    if (isUserLoading || isClaimsLoading) return false;
-    if (!user) return false;
-    if (!isSuperAdmin) return false;
-    return true;
-  }, [isUserLoading, isClaimsLoading, user, isSuperAdmin]);
+      await criarCondominio({
+        nome: form.nome,
+        cnpj: form.cnpj,
+        ativo: form.ativo,
+      });
 
-  const handleCreate = () => {
-    if (!user) return;
-
-    if (!nome.trim()) {
-      toast({ title: "Informe o nome do condomínio." });
-      return;
+      limparForm();
+      setShowForm(false);
+    } catch (e: any) {
+      console.error("Erro ao salvar condomínio:", e);
+      alert(
+        e?.message ||
+          "Erro ao salvar condomínio. Verifique as permissões no Firestore Rules."
+      );
     }
-
-    setSaving(true);
-
-    const payload = {
-      nome: nome.trim(),
-      cnpj: cnpj.trim() || undefined,
-      cep: cep.trim() || undefined,
-    };
-
-    criarCondominio(firestore, user.uid, payload)
-      .then(() => {
-        toast({ title: "Condomínio criado com sucesso!" });
-        setNome("");
-        setCnpj("");
-        setCep("");
-        setOpen(false);
-      })
-      .catch((e: any) => {
-        // O erro de permissão já é tratado pelo emitter,
-        // mas podemos exibir um erro genérico para outras falhas.
-        console.error(e);
-        toast({
-          variant: "destructive",
-          title: "Erro ao criar condomínio",
-          description: e?.message || "Tente novamente.",
-        });
-      })
-      .finally(() => {
-        setSaving(false);
-      });
-  };
-
-  const handleDelete = (condominioId: string) => {
-    deletarCondominio(firestore, condominioId)
-      .then(() => {
-        toast({ title: "Condomínio excluído." });
-      })
-      .catch((e: any) => {
-        console.error(e);
-        toast({
-          variant: "destructive",
-          title: "Erro ao excluir",
-          description: e?.message || "Tente novamente.",
-        });
-      });
   };
 
   const HeaderActions = () => (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button>
-            <PlusCircle className="mr-2" />
-            Novo Condomínio
-          </Button>
-        </DialogTrigger>
-
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Cadastrar Novo Condomínio</DialogTitle>
-            <DialogDescription>
-              Insira as informações do novo condomínio. A estrutura inicial (bloco, unidade, síndico) será criada automaticamente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="nome-condo" className="text-right">
-                Nome
-              </Label>
-              <Input
-                id="nome-condo"
-                placeholder="Nome do Condomínio"
-                className="col-span-3"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="cnpj-condo" className="text-right">
-                CNPJ
-              </Label>
-              <Input
-                id="cnpj-condo"
-                placeholder="00.000.000/0001-00"
-                className="col-span-3"
-                value={cnpj}
-                onChange={(e) => setCnpj(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="cep-condo" className="text-right">
-                CEP
-              </Label>
-              <Input
-                id="cep-condo"
-                placeholder="00000-000"
-                className="col-span-3"
-                value={cep}
-                onChange={(e) => setCep(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" onClick={handleCreate} disabled={saving}>
-              {saving ? "Salvando..." : "Salvar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    <Button onClick={() => setShowForm(true)}>
+      + Novo Condomínio
+    </Button>
   );
 
-  if (!canRender) return <AppLayout pageTitle="Condomínios">Acesso negado.</AppLayout>;
-
   return (
-    <AppLayout pageTitle="Gestão de Condomínios" headerActions={<HeaderActions />}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome do Condomínio</TableHead>
-              <TableHead>CNPJ</TableHead>
-              <TableHead>Ativo</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
+    <AppLayout
+      pageTitle="Gestão de Condomínios"
+      headerActions={<HeaderActions />}
+    >
+      <div className="space-y-6">
+        {showForm && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 max-w-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800">
+                Novo Condomínio
+              </h2>
+              <button
+                className="text-sm text-slate-500 hover:text-slate-700"
+                onClick={() => {
+                  setShowForm(false);
+                  limparForm();
+                }}
+              >
+                Fechar
+              </button>
+            </div>
 
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
-                  Carregando...
-                </TableCell>
-              </TableRow>
-            ) : condominios.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
-                  Nenhum condomínio cadastrado.
-                </TableCell>
-              </TableRow>
-            ) : (
-              condominios.map((condo) => (
-                <TableRow key={condo.id}>
-                  <TableCell className="font-medium">{condo.nome}</TableCell>
-                  <TableCell>{condo.cnpj ?? "-"}</TableCell>
-                  <TableCell>{condo.ativo ? "Sim" : "Não"}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon" disabled>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Você tem certeza?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Essa ação não pode ser desfeita. Isso excluirá
-                            permanentemente o condomínio e removerá seus dados
-                            de nossos servidores.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(condo.id)}
-                          >
-                            Continuar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Nome do condomínio
+                </label>
+                <input
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-slate-50"
+                  placeholder="Ex: Chácara Itaguaí"
+                  value={form.nome}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, nome: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  CNPJ (opcional)
+                </label>
+                <input
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-slate-50"
+                  placeholder="00.000.000/0000-00"
+                  value={form.cnpj}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, cnpj: e.target.value }))
+                  }
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-400"
+                  checked={form.ativo}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, ativo: e.target.checked }))
+                  }
+                />
+                Condomínio ativo
+              </label>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  className="px-4 py-2 text-sm rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  onClick={() => {
+                    setShowForm(false);
+                    limparForm();
+                  }}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="px-5 py-2 text-sm rounded-md bg-emerald-500 text-white font-medium hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleSalvar}
+                  disabled={saving}
+                  type="button"
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-6 py-3 text-left font-semibold">
+                  Nome do condomínio
+                </th>
+                <th className="px-6 py-3 text-left font-semibold">CNPJ</th>
+                <th className="px-6 py-3 text-left font-semibold">Ativo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-6 py-6 text-center text-slate-400"
+                  >
+                    Carregando condomínios...
+                  </td>
+                </tr>
+              ) : condominios.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-6 py-6 text-center text-slate-400"
+                  >
+                    Nenhum condomínio cadastrado.
+                  </td>
+                </tr>
+              ) : (
+                condominios.map((condo) => (
+                  <tr key={condo.id} className="border-t border-slate-100">
+                    <td className="px-6 py-3 text-slate-800">
+                      {condo.nome || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-700">
+                      {condo.cnpj || "—"}
+                    </td>
+                    <td className="px-6 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          condo.ativo
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {condo.ativo ? "Ativo" : "Inativo"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </AppLayout>
   );
 }

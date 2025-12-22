@@ -5,63 +5,68 @@ import React, {
   useContext,
   useState,
   useEffect,
-  ReactNode,
   useMemo,
   useCallback,
+  ReactNode,
 } from "react";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
 import { useSessionCtx } from "./SessionContext";
+import { useFirestore } from "@/firebase";
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  QueryDocumentSnapshot,
+  DocumentData,
+} from "firebase/firestore";
+
+const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
+const LS_UNIDADE = (condominioId: string) => `tc_bloco_${condominioId}_unidade`;
+
+export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ADMIN";
 
 export type Vinculo = {
-  id: string; // condominioId
   condominioId: string;
-  condominioNome: string;
-  role: "SINDICO" | "MORADOR" | "PORTEIRO" | "ADMIN_CONDOMINIO" | "SUPER_ADMIN";
-  status: "ATIVO" | "INATIVO" | "PENDENTE";
-  blocoId?: string;
-  unidadeId?: string;
+  role: VinculoRole;
+  blocoId?: string | null;
+  unidadeId?: string | null;
+  status: "ATIVO" | "INATIVO";
 };
 
 export type Bloco = {
   id: string;
   nome: string;
-  ordem: number;
+  ordem?: number | null;
 };
 
 export type Unidade = {
   id: string;
   numero: string;
-  andar: number;
+  blocoId: string;
 };
 
-interface CondominioContextType {
-  // Condomínio
+type CondominioContextType = {
   condominioAtivoId: string | null;
   setCondominioAtivoId: (id: string | null) => void;
-  vinculos: Vinculo[];
-  isLoadingVinculos: boolean;
-  vinculoAtivo: Vinculo | null;
 
-  // Bloco
-  blocoAtivoId: string | null;
-  setBlocoAtivoId: (id: string | null) => void;
+  vinculos: Vinculo[];
+  vinculoAtivo: Vinculo | null;
+  isLoadingVinculos: boolean;
+
   blocos: Bloco[];
   isLoadingBlocos: boolean;
+  blocoAtivoId: string | null;
+  setBlocoAtivoId: (id: string | null) => void;
 
-  // Unidade
-  unidadeAtivaId: string | null;
-  setUnidadeAtivaId: (id: string | null) => void;
   unidades: Unidade[];
   isLoadingUnidades: boolean;
-}
+  unidadeAtivaId: string | null;
+  setUnidadeAtivaId: (id: string | null) => void;
+};
 
 const CondominioContext = createContext<CondominioContextType | undefined>(
   undefined
 );
-
-const LS_BLOCO = (condominioId: string) => `tc_active_bloco_${condominioId}`;
-const LS_UNIDADE = (condominioId: string) => `tc_active_unidade_${condominioId}`;
 
 export function CondominioProvider({ children }: { children: ReactNode }) {
   const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
@@ -69,7 +74,11 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   const condominioAtivoId = session?.activeCondominioId ?? null;
 
-  const vinculos = useMemo(() => (session?.vinculos as Vinculo[]) || [], [session]);
+  // --- Vínculos (vem da Session) ---
+  const vinculos: Vinculo[] = useMemo(
+    () => (session?.vinculos as Vinculo[] | undefined) ?? [],
+    [session]
+  );
   const isLoadingVinculos = isSessionLoading;
 
   const vinculoAtivo = useMemo(() => {
@@ -79,186 +88,214 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     );
   }, [vinculos, condominioAtivoId]);
 
-  const [blocoAtivoId, _setBlocoAtivoId] = useState<string | null>(null);
-  const [unidadeAtivaId, _setUnidadeAtivaId] = useState<string | null>(null);
+  // --- Blocos / Unidades (estado local) ---
+  const [blocos, setBlocos] = useState<Bloco[]>([]);
+  const [isLoadingBlocos, setIsLoadingBlocos] = useState(false);
+  const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(null);
 
-  const blocosRef = useMemoFirebase(() => {
-    if (!firestore || !condominioAtivoId) return null;
-    return query(
+  const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [isLoadingUnidades, setIsLoadingUnidades] = useState(false);
+  const [unidadeAtivaId, setUnidadeAtivaIdState] = useState<string | null>(
+    null
+  );
+
+  // Se o usuário logar e tiver vínculos mas nenhum condominioAtivoId, escolhe o primeiro
+  useEffect(() => {
+    if (!condominioAtivoId && vinculos.length > 0) {
+      setActiveCondominioId(vinculos[0].condominioId);
+    }
+  }, [condominioAtivoId, vinculos, setActiveCondominioId]);
+
+  // Restaurar bloco/unidade do localStorage quando trocar de condomínio
+  useEffect(() => {
+    if (!condominioAtivoId) {
+      setBlocoAtivoIdState(null);
+      setUnidadeAtivaIdState(null);
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+
+    const savedBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
+    const savedUnidade = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
+
+    setBlocoAtivoIdState(savedBloco || null);
+    setUnidadeAtivaIdState(savedUnidade || null);
+  }, [condominioAtivoId]);
+
+  // Listener de blocos do condomínio ativo
+  useEffect(() => {
+    if (!firestore || !condominioAtivoId) {
+      setBlocos([]);
+      return;
+    }
+
+    setIsLoadingBlocos(true);
+
+    const q = query(
       collection(firestore, `condominios/${condominioAtivoId}/blocos`),
       orderBy("ordem")
     );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Bloco[] = snapshot.docs.map(
+          (doc: QueryDocumentSnapshot<DocumentData>) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Bloco, "id">),
+          })
+        );
+        setBlocos(list);
+        setIsLoadingBlocos(false);
+
+        // Se não há bloco selecionado, tenta restaurar do LS ou pegar o primeiro
+        if (!blocoAtivoId) {
+          if (typeof window !== "undefined") {
+            const savedBloco = localStorage.getItem(
+              LS_BLOCO(condominioAtivoId)
+            );
+            if (savedBloco && list.find((b) => b.id === savedBloco)) {
+              setBlocoAtivoIdState(savedBloco);
+              return;
+            }
+          }
+          if (list.length > 0) {
+            setBlocoAtivoIdState(list[0].id);
+          }
+        }
+      },
+      (error) => {
+        console.error("Erro ao buscar blocos:", error);
+        setIsLoadingBlocos(false);
+      }
+    );
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, condominioAtivoId]);
 
-  const { data: blocosRaw, isLoading: isLoadingBlocos } =
-    useCollection<Bloco>(blocosRef);
+  // Listener de unidades do bloco ativo
+  useEffect(() => {
+    if (!firestore || !condominioAtivoId || !blocoAtivoId) {
+      setUnidades([]);
+      return;
+    }
 
-  const blocos: Bloco[] = useMemo(() => (blocosRaw as any) || [], [blocosRaw]);
+    setIsLoadingUnidades(true);
 
-  const unidadesRef = useMemoFirebase(() => {
-    if (!firestore || !condominioAtivoId || !blocoAtivoId) return null;
-    return query(
+    const q = query(
       collection(
         firestore,
         `condominios/${condominioAtivoId}/blocos/${blocoAtivoId}/unidades`
       ),
       orderBy("numero")
     );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Unidade[] = snapshot.docs.map(
+          (doc: QueryDocumentSnapshot<DocumentData>) => ({
+            id: doc.id,
+            blocoId: blocoAtivoId,
+            ...(doc.data() as Omit<Unidade, "id" | "blocoId">),
+          })
+        );
+        setUnidades(list);
+        setIsLoadingUnidades(false);
+
+        // Se não há unidade selecionada, tenta restaurar ou pegar a primeira
+        if (!unidadeAtivaId) {
+          if (typeof window !== "undefined") {
+            const savedUnidade = localStorage.getItem(
+              LS_UNIDADE(condominioAtivoId)
+            );
+            if (savedUnidade && list.find((u) => u.id === savedUnidade)) {
+              setUnidadeAtivaIdState(savedUnidade);
+              return;
+            }
+          }
+          if (list.length > 0) {
+            setUnidadeAtivaIdState(list[0].id);
+          }
+        }
+      },
+      (error) => {
+        console.error("Erro ao buscar unidades:", error);
+        setIsLoadingUnidades(false);
+      }
+    );
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, condominioAtivoId, blocoAtivoId]);
 
-  const { data: unidadesRaw, isLoading: isLoadingUnidades } =
-    useCollection<Unidade>(unidadesRef);
+  const handleSetCondominioAtivoId = useCallback(
+    (id: string | null) => {
+      setActiveCondominioId(id);
+      if (!id) return;
 
-  const unidades: Unidade[] = useMemo(
-    () => (unidadesRaw as any) || [],
-    [unidadesRaw]
+      // Quando troca de condomínio, limpamos seleções antigas
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(LS_BLOCO(id));
+        localStorage.removeItem(LS_UNIDADE(id));
+      }
+      setBlocoAtivoIdState(null);
+      setUnidadeAtivaIdState(null);
+    },
+    [setActiveCondominioId]
   );
 
-  const setBlocoAtivoId = useCallback(
+  const handleSetBlocoAtivoId = useCallback(
     (id: string | null) => {
-      _setBlocoAtivoId(id);
-      // ao trocar bloco, unidade deve resetar
-      _setUnidadeAtivaId(null);
+      setBlocoAtivoIdState(id);
+      setUnidadeAtivaIdState(null);
 
       if (typeof window !== "undefined" && condominioAtivoId) {
-        if (id) localStorage.setItem(LS_BLOCO(condominioAtivoId), id);
-        else localStorage.removeItem(LS_BLOCO(condominioAtivoId));
+        if (id) {
+          localStorage.setItem(LS_BLOCO(condominioAtivoId), id);
+        } else {
+          localStorage.removeItem(LS_BLOCO(condominioAtivoId));
+        }
         localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
       }
     },
     [condominioAtivoId]
   );
 
-  const setUnidadeAtivaId = useCallback(
+  const handleSetUnidadeAtivaId = useCallback(
     (id: string | null) => {
-      _setUnidadeAtivaId(id);
+      setUnidadeAtivaIdState(id);
+
       if (typeof window !== "undefined" && condominioAtivoId) {
-        if (id) localStorage.setItem(LS_UNIDADE(condominioAtivoId), id);
-        else localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+        if (id) {
+          localStorage.setItem(LS_UNIDADE(condominioAtivoId), id);
+        } else {
+          localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+        }
       }
     },
     [condominioAtivoId]
   );
 
-  // MORADOR: força bloco/unidade do vínculo
-  useEffect(() => {
-    if (!vinculoAtivo) return;
-
-    if (
-      vinculoAtivo.role === "MORADOR" &&
-      vinculoAtivo.blocoId &&
-      vinculoAtivo.unidadeId
-    ) {
-      _setBlocoAtivoId(vinculoAtivo.blocoId);
-      _setUnidadeAtivaId(vinculoAtivo.unidadeId);
-    }
-  }, [vinculoAtivo]);
-
-  // Ao trocar condomínio: restaura seleção bloco/unidade do localStorage, ou escolhe automaticamente
-  useEffect(() => {
-    if (!condominioAtivoId) {
-      _setBlocoAtivoId(null);
-      _setUnidadeAtivaId(null);
-      return;
-    }
-
-    // MORADOR não usa auto-seleção; ele já foi setado pelo effect acima
-    if (vinculoAtivo?.role === "MORADOR") return;
-
-    let restoredBloco: string | null = null;
-
-    if (typeof window !== "undefined") {
-      restoredBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
-    }
-
-    // se tiver bloco salvo, usa ele; se não, tenta primeiro bloco quando carregar
-    if (restoredBloco) _setBlocoAtivoId(restoredBloco);
-    else _setBlocoAtivoId(null);
-
-    _setUnidadeAtivaId(null);
-  }, [condominioAtivoId, vinculoAtivo?.role]);
-
-  // Quando blocos carregarem e não houver bloco ativo, escolhe o primeiro
-  useEffect(() => {
-    if (!condominioAtivoId) return;
-    if (vinculoAtivo?.role === "MORADOR") return;
-    if (isLoadingBlocos) return;
-
-    if (!blocoAtivoId && blocos?.length) {
-      setBlocoAtivoId(blocos[0].id);
-    }
-  }, [
-    condominioAtivoId,
-    vinculoAtivo?.role,
-    isLoadingBlocos,
-    blocos,
-    blocoAtivoId,
-    setBlocoAtivoId,
-  ]);
-
-  // Quando unidades carregarem e não houver unidade ativa, restaura do LS ou escolhe a primeira
-  useEffect(() => {
-    if (!condominioAtivoId) return;
-    if (vinculoAtivo?.role === "MORADOR") return;
-    if (isLoadingUnidades) return;
-    if (!blocoAtivoId) return;
-
-    let restoredUnidade: string | null = null;
-    if (typeof window !== "undefined") {
-      restoredUnidade = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
-    }
-
-    if (!unidadeAtivaId) {
-      const exists = restoredUnidade && unidades?.some((u) => u.id === restoredUnidade);
-      if (exists) setUnidadeAtivaId(restoredUnidade!);
-      else if (unidades?.length) setUnidadeAtivaId(unidades[0].id);
-    }
-  }, [
-    condominioAtivoId,
-    vinculoAtivo?.role,
-    isLoadingUnidades,
-    blocoAtivoId,
-    unidades,
-    unidadeAtivaId,
-    setUnidadeAtivaId,
-  ]);
-
-  // Trocar condomínio (IMPORTANTE: aceitar null também)
-  const handleSetCondominioAtivoId = useCallback(
-    (id: string | null) => {
-      // permite limpar
-      if (!id) {
-        setActiveCondominioId(""); // se o teu setActiveCondominioId não aceita null, manda string vazia
-        _setBlocoAtivoId(null);
-        _setUnidadeAtivaId(null);
-        return;
-      }
-
-      setActiveCondominioId(id);
-
-      // reset local (os effects acima vão auto-restore/auto-select)
-      _setBlocoAtivoId(null);
-      _setUnidadeAtivaId(null);
-    },
-    [setActiveCondominioId]
-  );
-
   const value: CondominioContextType = {
     condominioAtivoId,
     setCondominioAtivoId: handleSetCondominioAtivoId,
-    vinculos: vinculos || [],
-    isLoadingVinculos,
+
+    vinculos,
     vinculoAtivo,
+    isLoadingVinculos,
 
-    blocoAtivoId,
-    setBlocoAtivoId,
-    blocos: blocos || [],
+    blocos,
     isLoadingBlocos,
+    blocoAtivoId,
+    setBlocoAtivoId: handleSetBlocoAtivoId,
 
-    unidadeAtivaId,
-    setUnidadeAtivaId,
-    unidades: unidades || [],
+    unidades,
     isLoadingUnidades,
+    unidadeAtivaId,
+    setUnidadeAtivaId: handleSetUnidadeAtivaId,
   };
 
   return (
@@ -269,9 +306,9 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 }
 
 export function useCondominio() {
-  const context = useContext(CondominioContext);
-  if (context === undefined) {
-    throw new Error("useCondominio must be used within a CondominioProvider");
+  const ctx = useContext(CondominioContext);
+  if (!ctx) {
+    throw new Error("useCondominio must be used within CondominioProvider");
   }
-  return context;
+  return ctx;
 }

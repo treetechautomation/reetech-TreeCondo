@@ -30,8 +30,6 @@ import {
 import { Logo } from '@/components/logo';
 import { UserNavClient } from '@/components/user-nav-client';
 import { ActiveLink } from '@/components/active-link';
-import { CondominioSelector } from '@/components/condominio-selector';
-import { BlocoUnidadeSelector } from '@/components/bloco-unidade-selector';
 import { useSessionCtx } from '@/contexts/SessionContext';
 import { hasRole } from '@/lib/acl';
 import React from 'react';
@@ -63,8 +61,7 @@ export function AppLayout({
       <Sidebar>
         <SidebarHeader className="p-4 space-y-4">
           <Logo />
-          <CondominioSelector />
-          <BlocoUnidadeSelector />
+          {/* Seletor de condomínio saiu daqui, agora fica na tela de login */}
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>

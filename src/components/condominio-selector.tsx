@@ -40,42 +40,39 @@ export function CondominioSelector() {
     const list = (vinculos || [])
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
-        condominioId: v.condominioId,
-        condominioNome: v.condominioNome || v.condominioId,
+        id: v.condominioId,
+        nome: v.condominioNome || v.condominioId,
       }));
 
+    // evita duplicados
     const seen = new Set<string>();
     return list.filter((o) => {
-      if (seen.has(o.condominioId)) return false;
-      seen.add(o.condominioId);
+      if (seen.has(o.id)) return false;
+      seen.add(o.id);
       return true;
     });
   }, [vinculos]);
 
   const active = React.useMemo(() => {
-    return options.find((o) => o.condominioId === condominioAtivoId) || null;
+    return options.find((o) => o.id === condominioAtivoId) || null;
   }, [options, condominioAtivoId]);
 
   if (isLoadingVinculos) return <Skeleton className="h-10 w-full" />;
 
-  const disabled = options.length === 0;
+  if (options.length === 0) {
+    return (
+      <Button variant="outline" role="combobox" className="w-full justify-between" disabled>
+        Nenhum condomínio
+      </Button>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between"
-          disabled={disabled}
-        >
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
           <span className="truncate">
-            {active
-              ? active.condominioNome
-              : disabled
-              ? "Nenhum condomínio"
-              : "Selecione o condomínio"}
+            {active ? active.nome : "Selecione o condomínio"}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -83,38 +80,34 @@ export function CondominioSelector() {
 
       <PopoverContent className="w-[var(--sidebar-width)] p-0" align="start">
         <Command
-          filter={(value, search) =>
-            norm(value).includes(norm(search)) ? 1 : 0
-          }
+          filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}
         >
           <CommandInput placeholder="Procurar condomínio..." />
           <CommandList>
             <CommandEmpty>Nenhum condomínio encontrado.</CommandEmpty>
-
             <CommandGroup>
               {options.map((o) => {
-                const selected = o.condominioId === condominioAtivoId;
-                const value = `${o.condominioNome} | ${o.condominioId}`;
+                const selected = o.id === condominioAtivoId;
+                const value = `${o.id} | ${o.nome}`;
 
                 return (
                   <CommandItem
-                    key={o.condominioId}
+                    key={o.id}
                     value={value}
+                    disabled={selected}
                     onSelect={() => {
-                      setCondominioAtivoId(o.condominioId);
+                      // ✅ troca sempre para o id do item (nunca manda "")
+                      setCondominioAtivoId(o.id);
+
+                      // reset local do layout
                       setBlocoAtivoId(null);
                       setUnidadeAtivaId(null);
+
                       setOpen(false);
                     }}
-                    className="cursor-pointer"
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selected ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <span className="truncate">{o.condominioNome}</span>
+                    <Check className={cn("mr-2 h-4 w-4", selected ? "opacity-100" : "opacity-0")} />
+                    <span className="truncate">{o.nome}</span>
                   </CommandItem>
                 );
               })}

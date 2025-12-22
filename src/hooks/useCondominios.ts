@@ -1,74 +1,99 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { useFirestore } from "@/firebase";
-import { 
-  getDocs, 
-  query, 
-  orderBy, 
-  type FirestoreError 
+import {
+  collection,
+  getDocs,
+  QuerySnapshot,
+  DocumentData,
 } from "firebase/firestore";
-import { getCondominiosRef } from "@/firebase/firestore/paths";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 
-export type Condominio = {
+export type CondominioItem = {
   id: string;
   nome: string;
-  cnpj?: string | null;
-  cep?: string | null;
   ativo: boolean;
-  createdAt: any; // serverTimestamp() é convertido para Timestamp
-  createdBy: string;
 };
 
-export function useCondominios() {
+type UseCondominiosState = {
+  data: CondominioItem[];
+  loading: boolean;
+  error: Error | null;
+};
+
+export function useCondominios(): UseCondominiosState {
   const firestore = useFirestore();
-  const [data, setData] = useState<Condominio[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const [data, setData] = useState<CondominioItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!firestore) return;
+    console.log("[useCondominios] effect start. Firestore:", firestore);
 
-    let isMounted = true;
+    if (!firestore) {
+      console.warn("[useCondominios] Firestore não inicializado ainda.");
+      return;
+    }
 
-    const fetchCondominios = async () => {
+    let cancelled = false;
+
+    async function fetchCondominios() {
+      console.log("[useCondominios] Buscando coleção 'condominios'...");
+
       setLoading(true);
+      setError(null);
+
       try {
-        const condominiosRef = getCondominiosRef(firestore);
-        const q = query(condominiosRef, orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        
-        if (isMounted) {
-          const condominiosData = snapshot.docs.map(
-            (doc) => ({ id: doc.id, ...doc.data() } as Condominio)
-          );
-          setData(condominiosData);
-          setError(null);
-        }
-      } catch (err: any) {
-        console.error("Erro ao buscar condomínios (hook):", err);
-        const contextualError = new FirestorePermissionError({
-            operation: 'list',
-            path: 'condominios',
+        const ref = collection(firestore, "condominios");
+        const snap: QuerySnapshot<DocumentData> = await getDocs(ref);
+
+        console.log(
+          "[useCondominios] getDocs retornou",
+          snap.size,
+          "documentos"
+        );
+
+        const items: CondominioItem[] = [];
+        snap.forEach((doc) => {
+          const d = doc.data() as any;
+          console.log("[useCondominios] doc:", doc.id, d);
+
+          const ativo = d.ativo !== false; // se não tiver campo, assume true
+          if (!ativo) {
+            console.log("[useCondominios] ignorando porque ativo == false:", doc.id);
+            return;
+          }
+
+          items.push({
+            id: doc.id,
+            nome: d.nome ?? "Condomínio sem nome",
+            ativo,
+          });
         });
-        errorEmitter.emit('permission-error', contextualError);
-        if (isMounted) {
-          setError(contextualError);
+
+        if (!cancelled) {
+          console.log("[useCondominios] itens finais:", items);
+          setData(items);
+        }
+      } catch (e: any) {
+        console.error("[useCondominios] ERRO ao buscar condomínios:", e);
+        if (!cancelled) {
+          setError(e instanceof Error ? e : new Error(String(e)));
+          setData([]);
         }
       } finally {
-        if (isMounted) {
+        if (!cancelled) {
           setLoading(false);
+          console.log("[useCondominios] loading = false");
         }
       }
-    };
+    }
 
     fetchCondominios();
 
     return () => {
-      isMounted = false;
+      cancelled = true;
+      console.log("[useCondominios] effect cleanup (cancelled = true)");
     };
   }, [firestore]);
 
