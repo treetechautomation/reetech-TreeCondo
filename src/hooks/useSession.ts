@@ -1,127 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
 import type { User } from "firebase/auth";
 import { useUser, useClaims } from "@/firebase";
 
 /**
- * Papéis suportados na aplicação.
- * Ajuste aqui se criar novos tipos de usuário depois.
+ * Estado de sessão que o resto do app usa
  */
-export type Role = "SUPER_ADMIN" | "SINDICO" | "MORADOR" | "PORTEIRO";
-
-/**
- * Estrutura dos vinculos que podem vir em custom claims.
- * (Deixamos bem genérico pra não quebrar nada.)
- */
-export type VinculoScope = "GLOBAL" | "CONDOMINIO" | "BLOCO" | "UNIDADE";
-
-export interface VinculoClaim {
-  condominioId: string;
-  role: Role;
-  scope?: VinculoScope;
-  blocoId?: string;
-  unidadeId?: string;
-}
-
-export interface SessionClaims {
-  super_admin?: boolean;
-  roles?: Role[];
-  vinculos?: VinculoClaim[];
-  // Qualquer outra coisa que você queira colocar nos claims
-  [key: string]: any;
-}
-
-export interface ActiveVinculo {
-  condominioId: string | null;
-  role: Role;
-  scope: VinculoScope;
-  blocoId?: string | null;
-  unidadeId?: string | null;
-}
-
-/**
- * Sessão “rica” que o resto da aplicação vai consumir.
- */
-export interface Session {
+export type Session = {
   user: User;
-  claims: SessionClaims | null;
-  isSuperAdmin: boolean;
-  roles: Role[];
-  activeVinculo: ActiveVinculo | null;
   activeCondominioId: string | null;
-}
+  /**
+   * Vem dos custom claims do Firebase Auth (no ID token)
+   * Ex.: { super_admin: true }
+   */
+  claims: Record<string, any> | null;
+  superAdmin: boolean;
+};
 
-export interface UseSessionResult {
-  session: Session | null;
-  isSessionLoading: boolean;
-  refreshClaims: () => Promise<void>;
-}
-
-const SUPER_ADMIN_EMAIL = "treecommunity@treetechautomation.com";
-
-export function useSession(): UseSessionResult {
+export function useSessionBase() {
+  // Usuário autenticado (hook pronto do Firebase Studio)
   const { user, isUserLoading } = useUser();
-  const { claims, isClaimsLoading, refreshClaims } = useClaims();
+  // Custom claims do usuário (hook pronto do Firebase Studio)
+  const { claims, isClaimsLoading } = useClaims();
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [isSessionLoading, setIsSessionLoading] = useState(true);
+  const [activeCondominioId, setActiveCondominioId] =
+    useState<string | null>(null);
 
-  useEffect(() => {
-    // Enquanto user/claims estão carregando
-    if (isUserLoading || isClaimsLoading) {
-      setIsSessionLoading(true);
-      return;
-    }
+  const session: Session | null = useMemo(() => {
+    if (!user) return null;
 
-    // Não logado
-    if (!user) {
-      setSession(null);
-      setIsSessionLoading(false);
-      return;
-    }
+    const superAdmin = claims?.super_admin === true;
 
-    const c = (claims || {}) as SessionClaims;
-
-    const rolesFromClaims = Array.isArray(c.roles) ? (c.roles as Role[]) : [];
-    const hasSuperAdminClaim =
-      c.super_admin === true || rolesFromClaims.includes("SUPER_ADMIN");
-
-    // REGRA ESPECIAL: esse e-mail é sempre SUPER_ADMIN no front
-    const isEmailSuperAdmin = user.email === SUPER_ADMIN_EMAIL;
-
-    const isSuperAdmin = hasSuperAdminClaim || isEmailSuperAdmin;
-
-    // Monta um activeVinculo simples (GLOBAL) para super admin
-    const activeVinculo: ActiveVinculo | null = isSuperAdmin
-      ? {
-          condominioId: null,
-          role: "SUPER_ADMIN",
-          scope: "GLOBAL",
-          blocoId: null,
-          unidadeId: null,
-        }
-      : null;
-
-    const activeCondominioId = activeVinculo?.condominioId ?? null;
-
-    setSession({
+    return {
       user,
-      claims: c,
-      isSuperAdmin,
-      roles: isSuperAdmin
-        ? (Array.from(new Set(["SUPER_ADMIN", ...rolesFromClaims])) as Role[])
-        : rolesFromClaims,
-      activeVinculo,
       activeCondominioId,
-    });
+      claims: claims ?? null,
+      superAdmin,
+    };
+  }, [user, activeCondominioId, claims]);
 
-    setIsSessionLoading(false);
-  }, [user, isUserLoading, claims, isClaimsLoading]);
+  const isSessionLoading = isUserLoading || isClaimsLoading;
+  const isAuthenticated = !!user;
 
   return {
     session,
+    user: user ?? null,
     isSessionLoading,
-    refreshClaims,
+    isUserLoading,
+    isAuthenticated,
+    activeCondominioId,
+    setActiveCondominioId,
+    claims: claims ?? null,
   };
+}
+
+/**
+ * Hook público que o resto do código já usa.
+ * Hoje ele apenas delega para o useSessionBase.
+ */
+export function useSession() {
+  return useSessionBase();
 }

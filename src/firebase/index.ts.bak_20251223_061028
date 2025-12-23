@@ -192,6 +192,3 @@ export function useUser() {
 
   return { user, isUserLoading };
 }
-
-// re-exports de hooks
-export { useAuth } from "./hooks/useAuth";

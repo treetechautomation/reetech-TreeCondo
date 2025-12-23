@@ -43,7 +43,8 @@ export function usePessoas(condominioId?: string | null): UsePessoasResult {
       return;
     }
 
-    const { firestore: db } = initializeFirebase();
+    const app = initializeFirebase();
+    const db = getFirestore(app);
 
     const colRef = collection(db, "condominios", condominioId, "membros");
     const q = query(colRef, orderBy("nome"));
@@ -79,7 +80,8 @@ export function usePessoas(condominioId?: string | null): UsePessoasResult {
   const tornarSindico = async (pessoaId: string) => {
     if (!condominioId) return;
 
-    const { firestore: db } = initializeFirebase();
+    const app = initializeFirebase();
+    const db = getFirestore(app);
 
     const membrosCol = collection(db, "condominios", condominioId, "membros");
 

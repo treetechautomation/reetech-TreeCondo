@@ -1,23 +1,26 @@
-import type { Session, SessionRole } from "@/hooks/useSession";
+"use client";
 
-/**
- * Verifica se o usuário possui pelo menos um dos papéis exigidos.
- */
-export function hasRole(
-  session: Session | null | undefined,
-  requiredRoles: SessionRole[]
-): boolean {
-  if (!session) return false;
+import { doc, setDoc, serverTimestamp, type Firestore } from "firebase/firestore";
 
-  const userRoles = session.roles ?? [];
+type RoleKey = "sindico" | "morador" | "porteiro";
 
-  // Retorna true se pelo menos um papel exigido existir na lista do usuário
-  return requiredRoles.some((role) => userRoles.includes(role));
-}
+export async function saveMenuPermissions(params: {
+  firestore: Firestore;
+  condominioId: string;
+  modules: Record<string, Record<RoleKey, boolean>>;
+  updatedBy: string;
+}) {
+  const { firestore, condominioId, modules, updatedBy } = params;
 
-/**
- * Helper específico para ver se o usuário é SUPER_ADMIN.
- */
-export function isSuperAdmin(session: Session | null | undefined): boolean {
-  return hasRole(session, ["SUPER_ADMIN"]);
+  const ref = doc(firestore, `condominios/${condominioId}/config/menuPermissions`);
+
+  await setDoc(
+    ref,
+    {
+      modules,
+      updatedBy,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }

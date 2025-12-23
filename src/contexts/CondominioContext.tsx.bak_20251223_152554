@@ -76,7 +76,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   // --- Vínculos (vem da Session) ---
   const vinculos: Vinculo[] = useMemo(
-    () => ((session as any)?.vinculos as Vinculo[] | undefined) ?? [],
+    () => (session?.vinculos as Vinculo[] | undefined) ?? [],
     [session]
   );
   const isLoadingVinculos = isSessionLoading;

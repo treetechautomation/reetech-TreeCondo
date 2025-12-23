@@ -38,7 +38,7 @@ export function CondominioSwitcher() {
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
         condominioId: v.condominioId,
-        condominioNome: (v as any).condominioNome || v.condominioId,
+        condominioNome: v.condominioNome || v.condominioId,
       }));
 
     // evita duplicados por condominioId

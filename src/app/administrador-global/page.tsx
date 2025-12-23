@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppLayout } from "@/components/layout/AppLayout";
+import AppLayout from "@/components/layout/AppLayout";
 import { Switch } from "@/components/ui/switch";
 import {
   Card,
@@ -189,7 +189,9 @@ export default function AdministradorGlobalPage() {
         </CardHeader>
 
         <CardContent>
-          {isLoadingPermDoc && <div className="mb-4 text-sm">Carregando permissões...</div>}
+          {isLoadingPermDoc && (
+            <div className="mb-4 text-sm">Carregando permissões...</div>
+          )}
 
           <Table>
             <TableHeader>

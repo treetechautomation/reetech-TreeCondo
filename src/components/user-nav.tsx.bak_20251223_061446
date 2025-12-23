@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
 import { useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { Badge } from "@/components/ui/badge";
@@ -38,11 +39,11 @@ function formatRole(role: string) {
 
 export function UserNav() {
   const { session, isSessionLoading } = useSessionCtx();
-  const { logout } = useAuth();
+  const auth = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
-    await logout();
+    await signOut(auth);
     router.push('/login');
   };
 
@@ -51,10 +52,9 @@ export function UserNav() {
     return null; 
   }
 
-  const { user, superAdmin } = session;
+  const { user, isSuperAdmin, activeVinculo } = session;
 
-  const activeVinculo = (session as any).activeVinculo ?? (session as any).vinculoAtivo ?? null;
-const getInitials = (name: string | null | undefined) => {
+  const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
     const names = name.split(' ');
     if (names.length > 1) {
@@ -63,7 +63,7 @@ const getInitials = (name: string | null | undefined) => {
     return name.substring(0, 2).toUpperCase();
   }
   
-  const displayRole = superAdmin ? 'SUPER_ADMIN' : activeVinculo?.role;
+  const displayRole = isSuperAdmin ? 'SUPER_ADMIN' : activeVinculo?.role;
 
   return (
     <DropdownMenu>

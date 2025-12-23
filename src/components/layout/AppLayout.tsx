@@ -1,174 +1,102 @@
-'use client';
+"use client";
 
-import {
-  Home,
-  Megaphone,
-  CalendarDays,
-  Users,
-  AlertTriangle,
-  Package,
-  FileText,
-  Settings,
-  Search,
-  Vote,
-  KeyRound,
-  BookUser,
-  Building,
-  Shield,
-} from 'lucide-react';
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-  SidebarFooter,
-} from '@/components/ui/sidebar';
-import { Logo } from '@/components/logo';
-import { UserNavClient } from '@/components/user-nav-client';
-import { ActiveLink } from '@/components/active-link';
-import { useSessionCtx } from '@/contexts/SessionContext';
-import { hasRole } from '@/lib/acl';
-import React from 'react';
+import React from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/firebase/hooks/useAuth";
 
-type AppLayoutProps = {
-  children: React.ReactNode;
-  pageTitle: string;
-  searchPlaceholder?: string;
+export type AppLayoutProps = {
+  pageTitle?: string;
   headerActions?: React.ReactNode;
+  children: React.ReactNode;
 };
 
-export function AppLayout({
-  children,
-  pageTitle,
-  searchPlaceholder = 'Pesquisar...',
-  headerActions,
-}: AppLayoutProps) {
-  const { session } = useSessionCtx();
-  const canSeeAdminGlobal = hasRole(session, ['SUPER_ADMIN']);
-  const canSeeCondominios = hasRole(session, ['SUPER_ADMIN', 'ADMIN_CONDOMINIO']);
-  const canSeeCadastros = hasRole(session, [
-    'SUPER_ADMIN',
-    'ADMIN_CONDOMINIO',
-    'SINDICO',
-  ]);
+function NavItem({ href, label }: { href: string; label: string }) {
+  const pathname = usePathname();
+  const active = pathname === href || pathname?.startsWith(href + "/");
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="p-4 space-y-4">
-          <Logo />
-          {/* Seletor de condomínio saiu daqui, agora fica na tela de login */}
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/">
-                <Home />
-                Painel
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/anuncios">
-                <Megaphone />
-                Anúncios
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reservas">
-                <CalendarDays />
-                Reservas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/reunioes">
-                <Users />
-                Reuniões
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/incidentes">
-                <AlertTriangle />
-                Incidentes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/encomendas">
-                <Package />
-                Encomendas
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/documentos">
-                <FileText />
-                Documentos
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/enquetes">
-                <Vote />
-                Enquetes
-              </ActiveLink>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <ActiveLink href="/acesso">
-                <KeyRound />
-                Acesso
-              </ActiveLink>
-            </SidebarMenuItem>
-            {canSeeCadastros && (
-              <SidebarMenuItem>
-                <ActiveLink href="/cadastros">
-                  <BookUser />
-                  Cadastros
-                </ActiveLink>
-              </SidebarMenuItem>
-            )}
-            {canSeeCondominios && (
-              <SidebarMenuItem>
-                <ActiveLink href="/condominios">
-                  <Building />
-                  Condomínios
-                </ActiveLink>
-              </SidebarMenuItem>
-            )}
-            {canSeeAdminGlobal && (
-              <SidebarMenuItem>
-                <ActiveLink href="/administrador-global">
-                  <Shield />
-                  Administrador Global
-                </ActiveLink>
-              </SidebarMenuItem>
-            )}
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter className="p-4">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <ActiveLink href="/configuracoes">
-                <Settings />
-                Configurações
-              </ActiveLink>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset className="flex flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-4 border-b bg-card px-4 md:px-6">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="font-headline text-lg font-semibold md:text-xl">
-            {pageTitle}
-          </h1>
-          <div className="ml-auto flex items-center gap-4">
-            <UserNavClient />
-            {headerActions}
-          </div>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-8">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+    <Link
+      href={href}
+      className={cn(
+        "block rounded-md px-3 py-2 text-sm transition-colors",
+        active ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
+      )}
+    >
+      {label}
+    </Link>
   );
 }
+
+export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { logout } = useAuth();
+
+  const hideSidebar = pathname?.startsWith("/login");
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      router.push("/login");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f7f2eb]">
+      <div className="flex min-h-screen">
+        {!hideSidebar && (
+          <aside className="w-[240px] bg-slate-900 text-white flex flex-col">
+            <div className="px-4 py-5 border-b border-white/10">
+              <div className="text-lg font-semibold">TreeCondo</div>
+            </div>
+
+            <nav className="p-3 space-y-1">
+              <NavItem href="/" label="Dashboard" />
+              <NavItem href="/condominios" label="Condomínios" />
+              <NavItem href="/cadastros" label="Cadastros" />
+              <NavItem href="/acesso" label="Acesso" />
+              <NavItem href="/anuncios" label="Anúncios" />
+              <NavItem href="/reservas" label="Reservas" />
+              <NavItem href="/incidentes" label="Incidentes" />
+              <NavItem href="/encomendas" label="Encomendas" />
+              <NavItem href="/documentos" label="Documentos" />
+              <NavItem href="/enquetes" label="Enquetes" />
+              <NavItem href="/reunioes" label="Reuniões" />
+              <NavItem href="/configuracoes" label="Configurações" />
+              <NavItem href="/administrador-global" label="Administrador Global" />
+            </nav>
+
+            <div className="mt-auto p-3 border-t border-white/10">
+              <Button variant="secondary" className="w-full" onClick={handleLogout}>
+                Sair
+              </Button>
+            </div>
+          </aside>
+        )}
+
+        <main className="flex-1">
+          {!hideSidebar && (
+            <header className="sticky top-0 z-10 bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
+              <div className="flex items-center justify-between px-6 py-4">
+                <div className="text-xl font-semibold text-slate-900">
+                  {pageTitle ?? ""}
+                </div>
+                <div className="flex items-center gap-2">
+                  {headerActions ?? null}
+                </div>
+              </div>
+            </header>
+          )}
+
+          <div className="px-6 py-6">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default AppLayout;

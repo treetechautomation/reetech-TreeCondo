@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
+import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,9 +50,6 @@ export default function PessoasPage() {
     role: "MORADOR" as MembroRole,
   });
 
-  // ---------------------------------------------------------------------------
-  // LISTAGEM EM TEMPO REAL
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!firestore || !condominioAtivoId) {
       setMembros([]);
@@ -99,9 +96,6 @@ export default function PessoasPage() {
     return () => unsub();
   }, [firestore, condominioAtivoId, toast]);
 
-  // ---------------------------------------------------------------------------
-  // CADASTRAR MORADOR / MEMBRO
-  // ---------------------------------------------------------------------------
   const handleSave = async () => {
     if (!firestore || !condominioAtivoId) {
       toast({
@@ -124,13 +118,12 @@ export default function PessoasPage() {
         firestore,
         `condominios/${condominioAtivoId}/membros`
       );
-      const newDoc = doc(colRef); // Firestore gera um ID automático
+      const newDoc = doc(colRef);
 
       await setDoc(newDoc, {
         nome: form.nome.trim(),
         email: form.email.trim(),
         role: form.role,
-        // Aqui depois podemos adicionar blocoId / unidadeId
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -152,9 +145,6 @@ export default function PessoasPage() {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // TORNAR SÍNDICO
-  // ---------------------------------------------------------------------------
   const handlePromoverSindico = async (m: Membro) => {
     if (!firestore || !condominioAtivoId) return;
 
@@ -192,7 +182,6 @@ export default function PessoasPage() {
           </div>
         )}
 
-        {/* FORMULÁRIO */}
         <div className="space-y-4 rounded-xl border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Cadastrar morador</h2>
           <div className="grid gap-4 md:grid-cols-4">
@@ -225,7 +214,6 @@ export default function PessoasPage() {
           </div>
         </div>
 
-        {/* LISTA */}
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">
             Moradores cadastrados

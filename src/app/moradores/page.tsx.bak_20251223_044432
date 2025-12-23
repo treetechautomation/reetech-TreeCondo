@@ -212,7 +212,7 @@ export default function MoradoresPage() {
             <CardDescription>
               Condomínio ativo:{" "}
               <span className="font-medium">
-                {(vinculoAtivo as any)?.condominioNome ?? condominioAtivoId}
+                {vinculoAtivo?.condominioNome ?? condominioAtivoId}
               </span>
               <br />
               Bloco: <span className="font-medium">{blocoNome}</span> — Unidade:{" "}

@@ -3,49 +3,40 @@
 import React, {
   createContext,
   useContext,
-  ReactNode,
+  type ReactNode,
 } from "react";
+import { useSessionBase, type Session } from "@/hooks/useSession";
 
-import {
-  useSessionBase,
-  type Session,
-} from "@/hooks/useSession";
-
-interface SessionContextValue {
+export type SessionContextType = {
   session: Session | null;
+  user: Session["user"] | null;
   isSessionLoading: boolean;
+  isUserLoading: boolean;
+  isAuthenticated: boolean;
+  activeCondominioId: string | null;
   setActiveCondominioId: (id: string | null) => void;
-  refreshClaims: () => Promise<void> | void;
-}
+  claims: Record<string, any> | null;
+};
 
-const SessionContext = createContext<SessionContextValue | undefined>(undefined);
+const SessionContext = createContext<SessionContextType | undefined>(
+  undefined,
+);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const {
-    session,
-    isSessionLoading,
-    setActiveCondominioId,
-    refreshClaims,
-  } = useSessionBase();
-
+  const value = useSessionBase();
   return (
-    <SessionContext.Provider
-      value={{
-        session,
-        isSessionLoading,
-        setActiveCondominioId,
-        refreshClaims,
-      }}
-    >
+    <SessionContext.Provider value={value}>
       {children}
     </SessionContext.Provider>
   );
 }
 
-export function useSessionCtx(): SessionContextValue {
+export function useSessionCtx(): SessionContextType {
   const ctx = useContext(SessionContext);
   if (!ctx) {
-    throw new Error("useSessionCtx must be used within SessionProvider");
+    throw new Error(
+      "useSessionCtx deve ser usado dentro de SessionProvider",
+    );
   }
   return ctx;
 }

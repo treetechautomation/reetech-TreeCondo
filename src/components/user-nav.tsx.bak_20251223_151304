@@ -51,10 +51,9 @@ export function UserNav() {
     return null; 
   }
 
-  const { user, superAdmin } = session;
+  const { user, superAdmin, activeVinculo } = session;
 
-  const activeVinculo = (session as any).activeVinculo ?? (session as any).vinculoAtivo ?? null;
-const getInitials = (name: string | null | undefined) => {
+  const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
     const names = name.split(' ');
     if (names.length > 1) {

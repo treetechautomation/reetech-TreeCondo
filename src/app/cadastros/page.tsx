@@ -1,6 +1,6 @@
 "use client";
 
-import { AppLayout } from "@/components/layout/AppLayout";
+import AppLayout from "@/components/layout/AppLayout";
 import Link from "next/link";
 import {
   Users,

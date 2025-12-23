@@ -44,7 +44,8 @@ export function useGestaoSindico(
     setLoading(true);
     setError(null);
 
-    const { firestore: db } = initializeFirebase();
+    const app = initializeFirebase();
+    const db = getFirestore(app);
     const membrosRef = collection(db, "condominios", condominioId, "membros");
 
     const unsub = onSnapshot(
@@ -85,7 +86,8 @@ export function useGestaoSindico(
       setLoading(true);
       setError(null);
 
-      const { firestore: db } = initializeFirebase();
+      const app = initializeFirebase();
+      const db = getFirestore(app);
       const batch = writeBatch(db);
 
       // Rebaixa síndico atual para morador, se existir

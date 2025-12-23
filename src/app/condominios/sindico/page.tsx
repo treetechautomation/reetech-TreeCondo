@@ -14,7 +14,7 @@ import { useCondominio } from "@/contexts/CondominioContext";
 import { useGestaoSindico } from "@/hooks/useGestaoSindico";
 
 export default function GestaoSindicoPage() {
-  const { condominioAtivoId, condominioAtivo } = useCondominio();
+  const { condominioAtivoId } = useCondominio();
   const { sindicoAtual, moradores, loading, error, definirSindico } =
     useGestaoSindico(condominioAtivoId);
 
@@ -36,9 +36,6 @@ export default function GestaoSindicoPage() {
     }
   };
 
-  const tituloCondominio =
-    condominioAtivo?.nome || "Condomínio não selecionado";
-
   return (
     <AppLayout pageTitle="Gestão de Síndico">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -59,7 +56,7 @@ export default function GestaoSindicoPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Síndico atual</CardTitle>
-                <CardDescription>{tituloCondominio}</CardDescription>
+                <CardDescription>Condomínio selecionado</CardDescription>
               </CardHeader>
               <CardContent>
                 {loading ? (
