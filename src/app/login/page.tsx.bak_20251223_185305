@@ -1,0 +1,509 @@
+"use client";
+
+import React, { useEffect, useState, FormEvent } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+
+import { useFirestore, initializeFirebase } from "@/firebase";
+import {
+  collection,
+  getDocs,
+  QuerySnapshot,
+  DocumentData,
+} from "firebase/firestore";
+
+import { sendPasswordResetEmail } from "firebase/auth";
+
+import { useAuth } from "@/firebase/hooks/useAuth";
+import { useSessionCtx } from "@/contexts/SessionContext";
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Moon, Sun } from "lucide-react";
+
+type CondominioItem = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
+
+export default function LoginPage() {
+  const router = useRouter();
+  const firestore = useFirestore();
+
+  const { login, isLoading: isAuthLoading } = useAuth();
+  const { setActiveCondominioId } = useSessionCtx();
+
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [condominioId, setCondominioId] = useState<string | undefined>(
+    undefined
+  );
+
+  const [condominios, setCondominios] = useState<CondominioItem[]>([]);
+  const [isLoadingCondominios, setIsLoadingCondominios] = useState(true);
+  const [condominiosError, setCondominiosError] = useState<string | null>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotStatus, setForgotStatus] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Carregar lista de condomínios públicos (visível mesmo sem login)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    console.log("[Login] useEffect condominios - firestore:", firestore);
+
+    if (!firestore) return;
+
+    let cancelled = false;
+
+    async function fetchCondominiosPublicos() {
+      console.log("[Login] Buscando coleção 'condominiosPublicos'...");
+      setIsLoadingCondominios(true);
+      setCondominiosError(null);
+
+      try {
+        const ref = collection(firestore, "condominiosPublicos");
+        const snap: QuerySnapshot<DocumentData> = await getDocs(ref);
+
+        console.log(
+          "[Login] getDocs(condominiosPublicos) retornou",
+          snap.size,
+          "docs"
+        );
+
+        const items: CondominioItem[] = [];
+        snap.forEach((doc) => {
+          const d = doc.data() as any;
+          console.log("[Login] condoPublico doc:", doc.id, d);
+
+          const ativo = d.ativo !== false;
+          if (!ativo) {
+            console.log("[Login] ignorando doc inativo:", doc.id);
+            return;
+          }
+
+          items.push({
+            id: doc.id,
+            nome: d.nome ?? "Condomínio sem nome",
+            ativo,
+          });
+        });
+
+        if (!cancelled) {
+          setCondominios(items);
+          // se só tiver 1, já pré-seleciona
+          if (items.length === 1) {
+            setCondominioId(items[0].id);
+          }
+        }
+      } catch (e: any) {
+        console.error("[Login] ERRO ao buscar condominiosPublicos:", e);
+        if (!cancelled) {
+          setCondominiosError("Não foi possível carregar a lista de condomínios.");
+          setCondominios([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingCondominios(false);
+        }
+      }
+    }
+
+    fetchCondominiosPublicos();
+
+    return () => {
+      cancelled = true;
+      console.log("[Login] cleanup effect condominios (cancelled = true)");
+    };
+  }, [firestore]);
+
+  // ---------------------------------------------------------------------------
+  // Handler de login
+  // ---------------------------------------------------------------------------
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+
+    if (!email.trim() || !senha.trim() || !condominioId) {
+      setForgotStatus(null);
+      alert("Preencha todos os campos: e-mail, senha e condomínio.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setForgotStatus(null);
+
+      await login(email.trim(), senha.trim());
+
+      // grava condomínio ativo na sessão
+      setActiveCondominioId(condominioId);
+
+      router.push("/");
+    } catch (err: any) {
+      console.error("[Login] Erro no login:", err);
+      alert(
+        err?.message ||
+          "Não foi possível fazer login. Verifique seus dados e tente novamente."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Handler "Esqueceu a senha?"
+  // ---------------------------------------------------------------------------
+  async function handleResetPassword(ev: FormEvent) {
+    ev.preventDefault();
+    setForgotStatus(null);
+
+    const targetEmail = forgotEmail.trim() || email.trim();
+    if (!targetEmail) {
+      setForgotStatus("Informe o e-mail para recuperar a senha.");
+      return;
+    }
+
+    try {
+      const { auth } = initializeFirebase();
+      await sendPasswordResetEmail(auth, targetEmail);
+      setForgotStatus(
+        "Se existir uma conta com esse e-mail, enviamos as instruções de redefinição."
+      );
+    } catch (err: any) {
+      console.error("[Login] Erro ao enviar reset de senha:", err);
+      setForgotStatus(
+        err?.message || "Não foi possível enviar o e-mail de recuperação."
+      );
+    }
+  }
+
+  const isBusy = isSubmitting || isAuthLoading;
+
+  return (
+    <div
+      className={`min-h-screen ${
+        isDark ? "bg-slate-900 text-slate-100" : "bg-[#f7f2eb] text-slate-900"
+      } transition-colors duration-300`}
+    >
+      {/* Toggle de tema */}
+      <div className="flex justify-end px-6 py-4">
+        <button
+          type="button"
+          onClick={() => setIsDark((v) => !v)}
+          className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-md
+                     bg-white/80 text-slate-800 hover:bg-white/100
+                     dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700
+                     transition-colors"
+        >
+          {isDark ? (
+            <>
+              <Sun className="h-4 w-4" />
+              Modo claro
+            </>
+          ) : (
+            <>
+              <Moon className="h-4 w-4" />
+              Modo escuro
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="flex min-h-[80vh] items-center justify-center px-4 pb-10">
+        <div className="grid w-full max-w-6xl grid-cols-1 gap-8 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          {/* Lado esquerdo – hero / marketing */}
+          <div
+            className={`
+              relative overflow-hidden rounded-3xl p-10 md:p-14
+              shadow-xl
+              bg-gradient-to-br
+              from-teal-500 via-cyan-500 to-lime-300
+              text-white
+            `}
+          >
+            {/* Glow de fundo */}
+            <div className="pointer-events-none absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+            <div className="pointer-events-none absolute bottom-0 right-0 h-52 w-52 rounded-full bg-lime-200/20 blur-3xl" />
+
+            <div className="relative z-10 flex flex-col h-full justify-between">
+              {/* Logo + título */}
+              <div className="flex items-center gap-4">
+                <div className="relative h-16 w-16 rounded-full bg-white/20 backdrop-blur">
+                  <Image
+                    src="/logo.jpeg"
+                    alt="TreeCondo Logo"
+                    fill
+                    className="object-contain p-2"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs tracking-[0.3em] uppercase opacity-80">
+                    Treetech Automation
+                  </p>
+                  <h1 className="text-2xl md:text-3xl font-semibold">
+                    TreeCondo Community
+                  </h1>
+                </div>
+              </div>
+
+              <div className="mt-10 space-y-4 max-w-xl">
+                <h2 className="text-3xl md:text-4xl font-bold leading-tight">
+                  Gestão inteligente{" "}
+                  <span className="text-lime-200 drop-shadow-sm">para</span>{" "}
+                  condomínios.
+                </h2>
+                <p className="text-base md:text-lg text-white/90">
+                  Centralize moradores, síndicos e equipes operacionais em um
+                  só painel. Aproxime comunidade, reduza ruídos e ganhe
+                  eficiência.
+                </p>
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-3 text-sm">
+                <span className="rounded-full bg-white/15 px-4 py-2 backdrop-blur">
+                  Acesso de moradores em tempo real
+                </span>
+                <span className="rounded-full bg-white/15 px-4 py-2 backdrop-blur">
+                  Controle de portaria inteligente
+                </span>
+                <span className="rounded-full bg-white/15 px-4 py-2 backdrop-blur">
+                  Reservas, incidentes e avisos em um só lugar
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lado direito – card de login */}
+          <div
+            className={`
+              relative rounded-3xl p-8 md:p-10 shadow-xl
+              ${isDark ? "bg-slate-800/90" : "bg-white"}
+            `}
+          >
+            {/* borda colorida no topo */}
+            <div
+              className="absolute inset-x-0 -top-1 h-1 rounded-t-3xl
+                         bg-gradient-to-r from-teal-500 via-cyan-500 to-lime-400"
+            />
+
+            <form onSubmit={handleSubmit} className="space-y-6 mt-2">
+              <div className="space-y-2 text-center mb-6">
+                <h2 className="text-2xl md:text-3xl font-semibold">
+                  Área de Acesso
+                </h2>
+                <p
+                  className={`text-sm ${
+                    isDark ? "text-slate-300" : "text-slate-500"
+                  }`}
+                >
+                  Entre com seu e-mail, senha e escolha o condomínio.
+                </p>
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={isDark ? "bg-slate-900 border-slate-700" : ""}
+                  placeholder="voce@seucondominio.com"
+                />
+              </div>
+
+              {/* Senha + link esqueci */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="senha">Senha</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email);
+                      setForgotStatus(null);
+                      setForgotOpen(true);
+                    }}
+                    className="text-xs font-medium text-cyan-600 hover:text-cyan-700"
+                  >
+                    Esqueceu a senha?
+                  </button>
+                </div>
+                <Input
+                  id="senha"
+                  type="password"
+                  autoComplete="current-password"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  className={isDark ? "bg-slate-900 border-slate-700" : ""}
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {/* Select condomínio */}
+              <div className="space-y-2">
+                <Label>Selecione o condomínio</Label>
+                <Select
+                  value={condominioId}
+                  onValueChange={(value) => setCondominioId(value)}
+                >
+                  <SelectTrigger
+                    className={isDark ? "bg-slate-900 border-slate-700" : ""}
+                  >
+                    <SelectValue
+                      placeholder={
+                        isLoadingCondominios
+                          ? "Carregando condomínios..."
+                          : "Selecione o condomínio"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isLoadingCondominios && (
+                      <SelectItem value="__loading" disabled>
+                        Carregando...
+                      </SelectItem>
+                    )}
+                    {!isLoadingCondominios && condominios.length === 0 && (
+                      <SelectItem value="__empty" disabled>
+                        Nenhum condomínio disponível
+                      </SelectItem>
+                    )}
+                    {condominios.map((condo) => (
+                      <SelectItem key={condo.id} value={condo.id}>
+                        {condo.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {condominiosError && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {condominiosError}
+                  </p>
+                )}
+              </div>
+
+              {/* Botão de login */}
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  disabled={isBusy}
+                  className="relative w-full overflow-hidden rounded-full
+                             bg-gradient-to-r from-teal-500 via-cyan-500 to-lime-400
+                             text-white font-semibold shadow-lg
+                             hover:brightness-105 active:scale-[0.99]
+                             transition-transform"
+                >
+                  {/* glow animado */}
+                  <span className="pointer-events-none absolute inset-0 bg-white/10 opacity-0 animate-[pulse_2s_infinite]" />
+                  {isBusy ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Entrando...
+                    </span>
+                  ) : (
+                    "Entrar"
+                  )}
+                </Button>
+              </div>
+
+              <p
+                className={`mt-4 text-center text-xs ${
+                  isDark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                TreeCondo • Uma solução Treetech Automation
+              </p>
+            </form>
+
+            {/* Modal "Esqueceu a senha?" */}
+            <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+              <DialogContent
+                className={isDark ? "bg-slate-800 text-slate-50" : ""}
+              >
+                <DialogHeader>
+                  <DialogTitle>Recuperar senha</DialogTitle>
+                  <DialogDescription>
+                    Informe seu e-mail para receber o link de redefinição de
+                    senha.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form
+                  onSubmit={handleResetPassword}
+                  className="space-y-4 pt-2"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email">E-mail</Label>
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="voce@seucondominio.com"
+                      className={
+                        isDark ? "bg-slate-900 border-slate-700" : ""
+                      }
+                    />
+                  </div>
+
+                  {forgotStatus && (
+                    <p className="text-xs text-cyan-500">{forgotStatus}</p>
+                  )}
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setForgotOpen(false)}
+                    >
+                      Fechar
+                    </Button>
+                    <Button type="submit">Enviar link</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay de loading global opcional */}
+      {isBusy && (
+        <div className="pointer-events-none fixed inset-0 flex items-center justify-center bg-black/20">
+          <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-5 py-3 shadow-lg">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+            <span className="text-sm font-medium text-slate-700">
+              Autenticando...
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,104 +1,128 @@
 "use client";
 
-import AppLayout from "@/components/layout/AppLayout";
-import Link from "next/link";
 import {
   Users,
   Building2,
   CarFront,
   BadgeCheck,
+  Dog,
+  Truck,
 } from "lucide-react";
+import Link from "next/link";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/card";
+import { useCondominio } from "@/contexts/CondominioContext";
 
 const cards = [
   {
-    title: "Pessoas (moradores, síndicos, porteiros)",
-    description:
-      "Cadastre e gerencie todos os perfis vinculados ao condomínio.",
+    title: "Moradores",
+    description: "Gerencie moradores, síndicos e membros da administração.",
     icon: Users,
-    href: "/cadastros/pessoas",
+    href: "/cadastros/moradores",
+    disabled: false,
   },
   {
-    title: "Unidades / Blocos",
-    description:
-      "Mantenha o cadastro das unidades e vincule responsáveis.",
+    title: "Funcionários",
+    description: "Cadastre porteiros, zeladores e outros funcionários.",
+    icon: BadgeCheck,
+    href: "/cadastros/funcionarios",
+    disabled: true,
+  },
+  {
+    title: "Fornecedores",
+    description: "Gerencie empresas e prestadores de serviço terceirizados.",
+    icon: Truck,
+    href: "/cadastros/fornecedores",
+    disabled: true,
+  },
+  {
+    title: "Unidades",
+    description: "Visualize e edite a estrutura de blocos e apartamentos.",
     icon: Building2,
     href: "/cadastros/unidades",
     disabled: true,
   },
   {
     title: "Veículos",
-    description:
-      "Controle veículos de moradores e visitantes.",
+    description: "Controle os veículos cadastrados para cada unidade.",
     icon: CarFront,
     href: "/cadastros/veiculos",
     disabled: true,
   },
   {
-    title: "Funcionários / Prestadores",
-    description:
-      "Cadastre equipe interna e prestadores de serviço.",
-    icon: BadgeCheck,
-    href: "/cadastros/funcionarios",
+    title: "Pets",
+    description: "Mantenha um registro dos animais de estimação do condomínio.",
+    icon: Dog,
+    href: "/cadastros/pets",
     disabled: true,
   },
 ];
 
 export default function CadastrosPage() {
+  const { condominioAtivoId } = useCondominio();
+
+  const CardItem = ({
+    title,
+    description,
+    icon: Icon,
+    href,
+    disabled,
+  }: (typeof cards)[0]) => {
+    const cardContent = (
+      <Card
+        className={`group h-full p-5 transition-all ${
+          disabled
+            ? "cursor-not-allowed bg-card/60"
+            : "hover:bg-accent hover:text-accent-foreground"
+        }`}
+      >
+        <div className="flex items-start gap-4">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+              disabled
+                ? "bg-muted text-muted-foreground"
+                : "bg-primary/10 text-primary"
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-card-foreground group-hover:text-accent-foreground">
+              {title}
+            </h2>
+            <p className="text-xs text-muted-foreground group-hover:text-accent-foreground">
+              {description}
+            </p>
+            {disabled && (
+              <div className="mt-2 inline-flex rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Em breve
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+
+    if (disabled) {
+      return <div>{cardContent}</div>;
+    }
+
+    return <Link href={href}>{cardContent}</Link>;
+  };
+
   return (
     <AppLayout pageTitle="Gestão de Cadastros">
-      <div className="max-w-6xl mx-auto py-8">
-        <p className="text-sm text-muted-foreground mb-6">
-          Escolha um tipo de cadastro para gerenciar. Por enquanto só
-          vamos ativar <strong>Pessoas</strong>, os demais ficam como
-          “em breve”.
-        </p>
-
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {cards.map((card) => {
-            const Icon = card.icon;
-            const content = (
-              <div
-                className={`group relative h-full rounded-2xl border bg-card p-5 shadow-sm transition-all hover:shadow-md ${
-                  card.disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="font-semibold text-foreground mb-1">
-                      {card.title}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {card.description}
-                    </p>
-                    {card.disabled && (
-                      <p className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        Em breve
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-
-            if (card.disabled) {
-              return (
-                <div key={card.title} className="h-full">
-                  {content}
-                </div>
-              );
-            }
-
-            return (
-              <Link key={card.title} href={card.href} className="h-full">
-                {content}
-              </Link>
-            );
-          })}
+      {!condominioAtivoId ? (
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+          <p>Selecione um condomínio para gerenciar os cadastros.</p>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {cards.map((card) => (
+            <CardItem key={card.title} {...card} />
+          ))}
+        </div>
+      )}
     </AppLayout>
   );
 }

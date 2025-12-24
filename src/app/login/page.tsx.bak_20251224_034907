@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
-import { sendMagicLink, completeMagicLink, hasMagicLinkInUrl } from "@/lib/magicLink";
+import { sendMagicLink, completeMagicLinkIfPresent } from "@/lib/magicLink";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,26 +19,19 @@ export default function LoginPage() {
   const [err, setErr] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    (async () => {
-      try {
-        if (hasMagicLinkInUrl()) {
-          const res = await completeMagicLink();
-          if (res.ok) {
-            router.replace("/primeiro-acesso");
-          } else {
-            setErr(res.error || `Falha ao completar login com link mágico: ${res.reason}`);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-        setErr("Ocorreu um erro inesperado durante o login.");
-      }
-    })();
-    
-    const emailFromParams = (search.get("email") || "").trim();
-    if (emailFromParams) setEmail(emailFromParams);
+    const run = async () => {
+      const { auth } = initializeFirebase();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      // conclui link mágico se a URL tiver o código
+      const completed = await completeMagicLinkIfPresent(auth);
+      if (completed) return;
+
+      const e = (search.get("email") || "").trim();
+      if (e) setEmail(e);
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validateEmail = (e: string) => {
@@ -51,6 +44,7 @@ export default function LoginPage() {
   const explainCommonMagicErrors = (message: string) => {
     const m = (message || "").toLowerCase();
 
+    // Firebase costuma dar: auth/unauthorized-continue-uri
     if (m.includes("unauthorized") || m.includes("continue uri") || m.includes("auth/unauthorized-continue-uri")) {
       return (
         "Seu domínio atual não está autorizado no Firebase Auth.\n" +
@@ -60,6 +54,7 @@ export default function LoginPage() {
       );
     }
 
+    // quando email link não está habilitado
     if (m.includes("operation-not-allowed") || m.includes("disabled")) {
       return (
         "Método de login por e-mail pode estar desativado.\n" +
@@ -83,9 +78,8 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // Usando window.location.origin para garantir que o link de continuação seja válido
-      const continueUrl = window.location.origin + "/login";
-      await sendMagicLink(email.trim(), continueUrl);
+      const { auth } = initializeFirebase();
+      await sendMagicLink(auth, email.trim());
       setInfo("Link enviado! Verifique seu e-mail e clique no link para entrar.");
     } catch (e: any) {
       setErr(explainCommonMagicErrors(e?.message || String(e)));
@@ -123,6 +117,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-6 bg-[#f6efe6]">
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LADO ESQUERDO (Marketing / Identidade) */}
         <div className="rounded-[28px] overflow-hidden shadow-lg border bg-gradient-to-br from-teal-500 via-cyan-500 to-lime-400 p-10 text-white">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center font-semibold">
@@ -150,6 +145,7 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* LADO DIREITO (Login) */}
         <div className="rounded-[28px] shadow-lg border bg-white/80 backdrop-blur p-10">
           <div className="flex items-start justify-between gap-3">
             <div>

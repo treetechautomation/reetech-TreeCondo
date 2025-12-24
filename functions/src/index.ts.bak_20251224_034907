@@ -85,6 +85,3 @@ export const onConviteCreated = onDocumentCreated(
     await batch.commit();
   }
 );
-
-// ---- Callables (TreeCondo) ----
-export { acceptInvite } from "./callables/acceptInvite";

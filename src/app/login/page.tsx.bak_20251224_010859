@@ -1,0 +1,120 @@
+"use client";
+
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { initializeFirebase } from "@/firebase";
+import { sendMagicLink, completeMagicLinkIfPresent } from "@/lib/magicLink";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const search = useSearchParams();
+
+  const [email, setEmail] = React.useState("");
+  const [senha, setSenha] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [info, setInfo] = React.useState<string | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const run = async () => {
+      const { auth } = initializeFirebase();
+
+      // se veio pelo link mágico, conclui e redireciona para /definir-senha
+      const completed = await completeMagicLinkIfPresent(auth);
+      if (completed) return;
+
+      // se a URL tiver ?email=, preenche
+      const e = (search.get("email") || "").trim();
+      if (e) setEmail(e);
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLoginSenha = async () => {
+    setErr(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      const { auth } = initializeFirebase();
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
+      router.replace("/");
+    } catch (e: any) {
+      setErr(e?.message || "Falha ao entrar com e-mail e senha.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMagic = async () => {
+    setErr(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      const { auth } = initializeFirebase();
+      await sendMagicLink(auth, email.trim());
+      setInfo("Link enviado! Verifique o e-mail e clique para entrar.");
+    } catch (e: any) {
+      setErr(e?.message || "Não foi possível enviar o link.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-lg grid gap-6 rounded-3xl border bg-white/70 dark:bg-slate-900/60 backdrop-blur p-8 shadow">
+        <div>
+          <h1 className="text-3xl font-semibold">Área de Acesso</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+            Morador: primeiro acesso via link mágico. Depois, entre com sua senha.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">E-mail</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 w-full rounded-xl border px-3 py-2 bg-transparent"
+              placeholder="voce@exemplo.com"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Senha</label>
+            <input
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              type="password"
+              className="mt-1 w-full rounded-xl border px-3 py-2 bg-transparent"
+              placeholder="Sua senha (se já criou)"
+            />
+          </div>
+
+          {err ? <p className="text-sm text-red-600">{err}</p> : null}
+          {info ? <p className="text-sm text-emerald-700">{info}</p> : null}
+
+          <button
+            onClick={handleLoginSenha}
+            disabled={loading}
+            className="w-full rounded-xl px-4 py-2 font-medium bg-emerald-600 text-white disabled:opacity-60"
+          >
+            {loading ? "Entrando..." : "Entrar com senha"}
+          </button>
+
+          <button
+            onClick={handleSendMagic}
+            disabled={loading || !email.trim()}
+            className="w-full rounded-xl px-4 py-2 font-medium border disabled:opacity-60"
+          >
+            Primeiro acesso (ou esqueci a senha): Enviar link mágico
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

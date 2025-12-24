@@ -1,0 +1,64 @@
+import {
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  Auth,
+} from "firebase/auth";
+
+/**
+ * Envia link mágico para o e-mail.
+ * Inclui o e-mail na URL (querystring) para evitar erro "email não confere"
+ * quando o usuário abre o link em outro dispositivo/navegador.
+ */
+export async function sendMagicLink(auth: Auth, email: string) {
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "";
+
+  const actionCodeSettings = {
+    // after click, volta para /login com flags
+    url: `${origin}/login?magic=1&email=${encodeURIComponent(email)}`,
+    handleCodeInApp: true,
+  };
+
+  // guarda no browser atual (ajuda se clicar no mesmo dispositivo)
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("treecondo_magic_email", email);
+  }
+
+  await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+}
+
+/**
+ * Se a URL atual é um link mágico válido, conclui login.
+ * Retorna true se concluiu e redirecionou.
+ */
+export async function completeMagicLinkIfPresent(auth: Auth): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  const href = window.location.href;
+  if (!isSignInWithEmailLink(auth, href)) return false;
+
+  const url = new URL(href);
+  const emailFromUrl = url.searchParams.get("email") || "";
+  const emailFromStorage = window.localStorage.getItem("treecondo_magic_email") || "";
+
+  const email = (emailFromUrl || emailFromStorage || "").trim();
+  if (!email) {
+    // último recurso: pede pro usuário digitar
+    const typed = window.prompt("Digite o e-mail que recebeu o link mágico:");
+    if (!typed) return false;
+    window.localStorage.setItem("treecondo_magic_email", typed.trim());
+  }
+
+  const finalEmail = (email || window.localStorage.getItem("treecondo_magic_email") || "").trim();
+  if (!finalEmail) return false;
+
+  await signInWithEmailLink(auth, finalEmail, href);
+
+  // limpa para evitar reaproveitar
+  window.localStorage.removeItem("treecondo_magic_email");
+
+  // manda para criar senha (primeiro acesso)
+  window.location.replace("/definir-senha");
+  return true;
+}
