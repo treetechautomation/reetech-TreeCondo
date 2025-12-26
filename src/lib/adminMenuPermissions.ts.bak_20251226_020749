@@ -1,0 +1,25 @@
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { initializeFirebase } from "@/firebase";
+import type { MenuPermissions } from "@/lib/menuPermissions";
+
+const DOC_ID = "menuPermissions";
+
+/** Caminho padrão onde a tela Admin Global vai salvar */
+export function menuPermissionsDocRef(condominioId: string) {
+  const { db } = initializeFirebase();
+  return doc(db, "condominios", condominioId, "config", DOC_ID);
+}
+
+/** Carrega permissões do condomínio */
+export async function loadMenuPermissions(condominioId: string): Promise<MenuPermissions | null> {
+  const ref = menuPermissionsDocRef(condominioId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return (snap.data() as MenuPermissions) ?? null;
+}
+
+/** Salva permissões (merge) */
+export async function saveMenuPermissions(condominioId: string, perms: MenuPermissions) {
+  const ref = menuPermissionsDocRef(condominioId);
+  await setDoc(ref, perms, { merge: true });
+}

@@ -1,6 +1,7 @@
+import WelcomeMorador from "@/components/welcome/WelcomeMorador";
+
 "use client";
 
-import WelcomeMorador from "@/components/welcome/WelcomeMorador";
 import AppLayout from "@/components/layout/AppLayout";
 import {
   Card,

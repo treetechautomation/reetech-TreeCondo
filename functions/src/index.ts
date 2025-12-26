@@ -88,3 +88,5 @@ export const onConviteCreated = onDocumentCreated(
 
 // ---- Callables (TreeCondo) ----
 export { acceptInvite } from "./callables/acceptInvite";
+
+export { adminCreateMorador } from "./callables/adminCreateMorador";

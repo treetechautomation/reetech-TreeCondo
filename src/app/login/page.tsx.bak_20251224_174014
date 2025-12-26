@@ -1,0 +1,253 @@
+"use client";
+
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { initializeFirebase } from "@/firebase";
+import {
+  completeMagicLinkIfPresent,
+  sendMagicLink,
+  setPasswordAfterMagicLink,
+} from "@/lib/magicLink";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+function isStrongEnough(pw: string) {
+  return pw.length >= 8;
+}
+
+export default function LoginPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+
+  const [tab, setTab] = React.useState<"login" | "primeiro">("login");
+
+  // Login normal
+  const [email, setEmail] = React.useState("");
+  const [senha, setSenha] = React.useState("");
+  const [loadingLogin, setLoadingLogin] = React.useState(false);
+  const [errorLogin, setErrorLogin] = React.useState<string | null>(null);
+
+  // Primeiro acesso (link mágico)
+  const [primeiroEmail, setPrimeiroEmail] = React.useState("");
+  const [loadingMagic, setLoadingMagic] = React.useState(false);
+  const [magicMsg, setMagicMsg] = React.useState<string | null>(null);
+  const [magicErr, setMagicErr] = React.useState<string | null>(null);
+
+  // Completar link mágico
+  const [needEmailToComplete, setNeedEmailToComplete] = React.useState(false);
+
+  // Criar senha após link mágico
+  const [pw1, setPw1] = React.useState("");
+  const [pw2, setPw2] = React.useState("");
+  const [loadingSetPw, setLoadingSetPw] = React.useState(false);
+  const [pwMsg, setPwMsg] = React.useState<string | null>(null);
+  const [pwErr, setPwErr] = React.useState<string | null>(null);
+
+  // 1) ao carregar: tenta completar link mágico se existir
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await completeMagicLinkIfPresent();
+        if (res.needEmail) {
+          setTab("primeiro");
+          setNeedEmailToComplete(true);
+          setMagicMsg("Confirme seu e-mail para finalizar o primeiro acesso.");
+        }
+        if (res.completed) {
+          setTab("primeiro");
+          setNeedEmailToComplete(false);
+          setMagicMsg("✅ Primeiro acesso autenticado. Agora crie sua senha.");
+        }
+      } catch (e: any) {
+        setTab("primeiro");
+        setMagicErr(e?.message || "Falha ao completar o link mágico.");
+      }
+    })();
+  }, []);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorLogin(null);
+    setLoadingLogin(true);
+    try {
+      const { auth } = initializeFirebase();
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
+      router.push("/");
+    } catch (e: any) {
+      setErrorLogin(e?.message || "Falha ao entrar.");
+    } finally {
+      setLoadingLogin(false);
+    }
+  }
+
+  async function handleSendMagic(e: React.FormEvent) {
+    e.preventDefault();
+    setMagicErr(null);
+    setMagicMsg(null);
+    setLoadingMagic(true);
+    try {
+      await sendMagicLink(primeiroEmail.trim());
+      setMagicMsg("✅ Link enviado! Abra seu e-mail e clique no link para autenticar.");
+      setNeedEmailToComplete(false);
+    } catch (e: any) {
+      setMagicErr(e?.message || "Falha ao enviar link mágico.");
+    } finally {
+      setLoadingMagic(false);
+    }
+  }
+
+  async function handleCompleteMagicWithEmail() {
+    setMagicErr(null);
+    setMagicMsg(null);
+    setLoadingMagic(true);
+    try {
+      const res = await completeMagicLinkIfPresent(primeiroEmail.trim());
+      if (res.completed) {
+        setNeedEmailToComplete(false);
+        setMagicMsg("✅ Primeiro acesso autenticado. Agora crie sua senha.");
+      } else {
+        setMagicErr("Não encontrei link válido na URL.");
+      }
+    } catch (e: any) {
+      setMagicErr(e?.message || "Falha ao completar o link mágico.");
+    } finally {
+      setLoadingMagic(false);
+    }
+  }
+
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwErr(null);
+    setPwMsg(null);
+
+    if (!isStrongEnough(pw1)) {
+      setPwErr("A senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (pw1 !== pw2) {
+      setPwErr("As senhas não conferem.");
+      return;
+    }
+
+    setLoadingSetPw(true);
+    try {
+      await setPasswordAfterMagicLink(pw1);
+      setPwMsg("✅ Senha criada com sucesso! Agora você pode entrar com e-mail e senha.");
+      // volta para aba de login
+      setTab("login");
+      setSenha("");
+    } catch (e: any) {
+      setPwErr(e?.message || "Falha ao criar senha.");
+    } finally {
+      setLoadingSetPw(false);
+    }
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-40px)] flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>TreeCondo</CardTitle>
+          <CardDescription>
+            Acesse sua conta ou finalize o primeiro acesso.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="login">Entrar</TabsTrigger>
+              <TabsTrigger value="primeiro">Primeiro acesso</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login" className="mt-4">
+              <form onSubmit={handleLogin} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-sm">E-mail</label>
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="seu@email.com" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm">Senha</label>
+                  <Input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" placeholder="••••••••" />
+                </div>
+
+                {errorLogin && <p className="text-sm text-red-500">{errorLogin}</p>}
+
+                <Button disabled={loadingLogin} className="w-full" type="submit">
+                  {loadingLogin ? "Entrando..." : "Entrar"}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="primeiro" className="mt-4">
+              <div className="space-y-4">
+                <form onSubmit={handleSendMagic} className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-sm">E-mail</label>
+                    <Input
+                      value={primeiroEmail}
+                      onChange={(e) => setPrimeiroEmail(e.target.value)}
+                      type="email"
+                      placeholder="e-mail cadastrado pelo condomínio"
+                    />
+                  </div>
+
+                  {magicMsg && <p className="text-sm text-emerald-600">{magicMsg}</p>}
+                  {magicErr && <p className="text-sm text-red-500">{magicErr}</p>}
+
+                  <Button disabled={loadingMagic} className="w-full" type="submit">
+                    {loadingMagic ? "Enviando..." : "Enviar link de primeiro acesso"}
+                  </Button>
+
+                  {needEmailToComplete && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={loadingMagic || !primeiroEmail.trim()}
+                      className="w-full"
+                      onClick={handleCompleteMagicWithEmail}
+                    >
+                      {loadingMagic ? "Finalizando..." : "Finalizar com este e-mail"}
+                    </Button>
+                  )}
+                </form>
+
+                <Card className="border-dashed">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Criar senha (após autenticar no link)</CardTitle>
+                    <CardDescription>
+                      Depois de clicar no link do e-mail, volte aqui e defina sua senha.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSetPassword} className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-sm">Nova senha</label>
+                        <Input value={pw1} onChange={(e) => setPw1(e.target.value)} type="password" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm">Confirmar senha</label>
+                        <Input value={pw2} onChange={(e) => setPw2(e.target.value)} type="password" />
+                      </div>
+
+                      {pwMsg && <p className="text-sm text-emerald-600">{pwMsg}</p>}
+                      {pwErr && <p className="text-sm text-red-500">{pwErr}</p>}
+
+                      <Button disabled={loadingSetPw} className="w-full" type="submit">
+                        {loadingSetPw ? "Salvando..." : "Criar senha"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -3,19 +3,19 @@
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function AcessoPage() {
+export default function AdministradorGlobalPage() {
   return (
-    <AppLayout pageTitle="Acesso">
+    <AppLayout pageTitle="Administrador Global">
       <Card>
         <CardHeader>
-          <CardTitle>Gestão de Acesso</CardTitle>
+          <CardTitle>Administrador Global</CardTitle>
           <CardDescription>
-            Configure políticas de acesso, autenticação e permissões.
+            Controle global do sistema (menus, permissões, configurações do condomínio).
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-sm text-slate-600">
-            (Página em construção. Aqui vai o fluxo de acesso/link mágico/senha e controle por perfil.)
+            (Página em construção. Aqui entra a tela de permissões de menu por perfil/condomínio.)
           </div>
         </CardContent>
       </Card>

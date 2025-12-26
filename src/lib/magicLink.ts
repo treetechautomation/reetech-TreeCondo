@@ -1,89 +1,70 @@
 "use client";
 
 import {
-  sendSignInLinkToEmail,
   isSignInWithEmailLink,
+  sendSignInLinkToEmail,
   signInWithEmailLink,
-  type Auth,
+  updatePassword,
 } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
-import { acceptInviteClient } from "@/lib/inviteClient";
 
-const LS_EMAIL_KEY = "treecondo_magic_email";
+const STORAGE_KEY = "treecondo_magic_email";
 
-export function getMagicEmail() {
-  try {
-    return window.localStorage.getItem(LS_EMAIL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setMagicEmail(email: string) {
-  try {
-    window.localStorage.setItem(LS_EMAIL_KEY, email);
-  } catch {}
-}
-
-export function clearMagicEmail() {
-  try {
-    window.localStorage.removeItem(LS_EMAIL_KEY);
-  } catch {}
-}
-
-export async function sendMagicLink(email: string, continueUrl: string) {
+/**
+ * Envia link mágico para o e-mail informado.
+ * Observação: este método é CLIENT-SIDE (firebase/auth).
+ */
+export async function sendMagicLink(email: string) {
   const { auth } = initializeFirebase();
 
-  // importante: o email usado aqui deve ser o mesmo no completeMagicLink
-  setMagicEmail(email);
-
   const actionCodeSettings = {
-    url: continueUrl,
+    url: `${window.location.origin}/login`,
     handleCodeInApp: true,
   };
 
+  window.localStorage.setItem(STORAGE_KEY, email);
   await sendSignInLinkToEmail(auth, email, actionCodeSettings);
 }
 
-export function hasMagicLinkInUrl(href?: string) {
-  const url = href || (typeof window !== "undefined" ? window.location.href : "");
-  if (!url) return false;
+/**
+ * Completa o login via link mágico se houver link na URL.
+ * - Se não tiver e-mail salvo (ex: abriu em outro dispositivo), retorna { needEmail: true }
+ */
+export async function completeMagicLinkIfPresent(providedEmail?: string): Promise<{
+  completed: boolean;
+  needEmail?: boolean;
+  userEmail?: string | null;
+}> {
   const { auth } = initializeFirebase();
-  return isSignInWithEmailLink(auth, url);
-}
+  const href = window.location.href;
 
-export async function completeMagicLink(href?: string) {
-  const url = href || window.location.href;
-  const { auth } = initializeFirebase();
-  
-  if (!isSignInWithEmailLink(auth, url)) return { ok: false, reason: "no_link" } as const;
+  if (!isSignInWithEmailLink(auth, href)) {
+    return { completed: false };
+  }
 
-  const stored = getMagicEmail();
-
-  // Se perdeu localStorage (outro navegador/celular), tenta usar ?email=
-  const u = new URL(url);
-  const emailFromUrl = u.searchParams.get("email");
-  const email = (stored || emailFromUrl || "").trim();
+  const storedEmail = window.localStorage.getItem(STORAGE_KEY) || "";
+  const email = (providedEmail || storedEmail || "").trim();
 
   if (!email) {
-    return { ok: false, reason: "missing_email" } as const;
+    return { completed: false, needEmail: true };
   }
 
-  const cred = await signInWithEmailLink(auth as Auth, email, url);
+  const cred = await signInWithEmailLink(auth, email, href);
 
-  // limpa pra não reaproveitar
-  clearMagicEmail();
+  // limpa para evitar reaproveitar
+  window.localStorage.removeItem(STORAGE_KEY);
 
-  // Se tiver conviteId, aceita o convite (cria vínculo)
-  const conviteId = u.searchParams.get("conviteId");
-  if (conviteId) {
-    try {
-      await acceptInviteClient(conviteId);
-    } catch (e: any) {
-      // retorna erro amigável pro front mostrar
-      return { ok: false, reason: "accept_invite_failed", error: e?.message || String(e) } as const;
-    }
-  }
+  // limpa o link da URL (deixa /login limpinho)
+  window.history.replaceState({}, document.title, "/login");
 
-  return { ok: true, user: cred.user } as const;
+  return { completed: true, userEmail: cred.user?.email ?? null };
+}
+
+/**
+ * Depois do primeiro acesso (link mágico), o usuário cria a própria senha.
+ */
+export async function setPasswordAfterMagicLink(newPassword: string) {
+  const { auth } = initializeFirebase();
+  if (!auth.currentUser) throw new Error("Usuário não autenticado.");
+  await updatePassword(auth.currentUser, newPassword);
 }

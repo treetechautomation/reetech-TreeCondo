@@ -8,12 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/firebase/hooks/useAuth";
 import { useSession, type RoleKey } from "@/hooks/useSession";
-import {
-  fetchMenuPermissions,
-  DEFAULT_PERMS,
-  type MenuKey,
-  type MenuPermissions,
-} from "@/lib/menuPermissions";
+import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions } from "@/lib/menuPermissions";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -70,7 +65,7 @@ export type AppLayoutProps = {
 function getLocalRoleFallback(): RoleKey {
   if (typeof window === "undefined") return "MORADOR";
   const raw = window.localStorage.getItem("treecondo_role");
-  if (raw === "SINDICO" || raw === "MORADOR" || raw === "PORTEIRO" || raw === "SUPER_ADMIN") return raw;
+  if (raw === "SINDICO" || raw === "MORADOR" || raw === "PORTEIRO" || raw === "ADMIN" || raw === "SUPER_ADMIN") return raw;
   return "MORADOR";
 }
 function getLocalCondoFallback(): string | null {
@@ -90,14 +85,12 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
   const [condominioId, setCondominioId] = React.useState<string | null>(null);
   const [perms, setPerms] = React.useState<MenuPermissions | null>(null);
 
+  // Resolve role/condo pela sessão (principal). localStorage só fallback.
   React.useEffect(() => {
     if (isSessionLoading) return;
 
-    // session pode não ter role/activeCondominioId dependendo da sua versão -> fallback seguro
-    const s: any = session as any;
-
-    const resolvedRole: RoleKey = (s?.role as RoleKey) ?? getLocalRoleFallback();
-    const resolvedCondo: string | null = (s?.activeCondominioId as string | null) ?? getLocalCondoFallback();
+    const resolvedRole: RoleKey = session?.role ?? getLocalRoleFallback();
+    const resolvedCondo: string | null = session?.activeCondominioId ?? getLocalCondoFallback();
 
     setRole(resolvedRole);
     setCondominioId(resolvedCondo);
@@ -114,10 +107,13 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
         setPerms(null);
       }
     })();
-  }, [isSessionLoading, session, pathname]);
+  }, [isSessionLoading, session?.role, session?.activeCondominioId, pathname]);
 
   function isAllowed(menuKey: MenuKey) {
+    // Super Admin vê tudo sempre
     if (role === "SUPER_ADMIN") return true;
+
+    // “Administrador Global” NUNCA para não-super-admin
     if (menuKey === "administrador_global") return false;
 
     const docPerms = perms?.[role]?.[menuKey];
@@ -148,25 +144,11 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
             <div className="absolute top-40 -right-28 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
             <div className="absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]" />
 
-            {/* Header com LOGO */}
             <div className="relative px-5 py-6 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)] border border-white/10">
-                  <img
-                    src="/logo-treecondo.webp"
-                    alt="TreeCondo"
-                    className="h-8 w-8 object-contain"
-                    loading="eager"
-                  />
-                </div>
-
-                <div className="leading-tight">
-                  <div className="text-xl font-semibold tracking-tight">
-                    Tree<span className="text-emerald-400">Condo</span>
-                  </div>
-                  <div className="text-xs text-white/50 mt-1">Gestão inteligente de condomínios</div>
-                </div>
+              <div className="text-xl font-semibold tracking-tight">
+                Tree<span className="text-emerald-400">Condo</span>
               </div>
+              <div className="text-xs text-white/50 mt-1">Gestão inteligente de condomínios</div>
             </div>
 
             <nav className="relative p-3 space-y-1">
@@ -175,9 +157,8 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
               ))}
             </nav>
 
-            <div className="relative mt-auto p-3 border-t border-white/10">
+            <div className="relative mt-auto p-3 border-t border-white/10">\
               <UserBadge variant="sidebar" className="mb-3" />
-
               <div className="mb-2 text-[11px] text-white/45">
                 Perfil: <span className="text-white/70">{role}</span>
                 {condominioId ? (
@@ -203,10 +184,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
             <header className="sticky top-0 z-10 bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="text-xl font-semibold text-slate-900">{pageTitle ?? ""}</div>
-                <div className="flex items-center gap-4">
-                  <UserBadge variant="header" />
-                  {headerActions ?? null}
-                </div>
+                <div className="flex items-center gap-4"><UserBadge variant="header" />{headerActions ?? null}</div>
               </div>
             </header>
           )}

@@ -18,7 +18,7 @@ import {
   saveMenuPermissions,
 } from "@/lib/menuPermissions";
 
-const ROLES: RoleKey[] = ["SINDICO", "ADMIN", "PORTEIRO", "MORADOR"];
+const ROLES: RoleKey[] = ["SINDICO", "PORTEIRO", "MORADOR"];
 const MENU_KEYS: MenuKey[] = [
   "dashboard",
   "condominios",

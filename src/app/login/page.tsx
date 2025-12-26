@@ -4,249 +4,355 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
-import { sendMagicLink, completeMagicLink, hasMagicLinkInUrl } from "@/lib/magicLink";
+import {
+  completeMagicLinkIfPresent,
+  sendMagicLink,
+  setPasswordAfterMagicLink,
+} from "@/lib/magicLink";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+function isStrongEnough(pw: string) {
+  return pw.length >= 8;
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const search = useSearchParams();
+  const params = useSearchParams();
 
-  const [mode, setMode] = React.useState<"magic" | "password">("magic");
+  const [tab, setTab] = React.useState<"login" | "primeiro">("login");
+
+  // Login normal
   const [email, setEmail] = React.useState("");
   const [senha, setSenha] = React.useState("");
+  const [loadingLogin, setLoadingLogin] = React.useState(false);
+  const [errorLogin, setErrorLogin] = React.useState<string | null>(null);
 
-  const [loading, setLoading] = React.useState(false);
-  const [info, setInfo] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  // Primeiro acesso (link mágico)
+  const [primeiroEmail, setPrimeiroEmail] = React.useState("");
+  const [loadingMagic, setLoadingMagic] = React.useState(false);
+  const [magicMsg, setMagicMsg] = React.useState<string | null>(null);
+  const [magicErr, setMagicErr] = React.useState<string | null>(null);
 
+  // Completar link mágico
+  const [needEmailToComplete, setNeedEmailToComplete] = React.useState(false);
+
+  // Criar senha após link mágico
+  const [pw1, setPw1] = React.useState("");
+  const [pw2, setPw2] = React.useState("");
+  const [loadingSetPw, setLoadingSetPw] = React.useState(false);
+  const [pwMsg, setPwMsg] = React.useState<string | null>(null);
+  const [pwErr, setPwErr] = React.useState<string | null>(null);
+
+  // Se vier com link mágico na URL, tenta completar
   React.useEffect(() => {
     (async () => {
       try {
-        if (hasMagicLinkInUrl()) {
-          const res = await completeMagicLink();
-          if (res.ok) {
-            router.replace("/primeiro-acesso");
-          } else {
-            setErr(res.error || `Falha ao completar login com link mágico: ${res.reason}`);
-          }
+        const res = await completeMagicLinkIfPresent();
+        if (res.needEmail) {
+          setTab("primeiro");
+          setNeedEmailToComplete(true);
+          setMagicMsg("Confirme seu e-mail para finalizar o primeiro acesso.");
         }
-      } catch (e) {
-        console.error(e);
-        setErr("Ocorreu um erro inesperado durante o login.");
+        if (res.completed) {
+          setTab("primeiro");
+          setNeedEmailToComplete(false);
+          setMagicMsg("✅ Primeiro acesso autenticado. Agora crie sua senha.");
+        }
+      } catch (e: any) {
+        setTab("primeiro");
+        setMagicErr(e?.message || "Falha ao completar o link mágico.");
       }
     })();
-    
-    const emailFromParams = (search.get("email") || "").trim();
-    if (emailFromParams) setEmail(emailFromParams);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const validateEmail = (e: string) => {
-    const v = e.trim();
-    if (!v) return "Informe o e-mail.";
-    if (!v.includes("@") || !v.includes(".")) return "E-mail inválido.";
-    return null;
-  };
-
-  const explainCommonMagicErrors = (message: string) => {
-    const m = (message || "").toLowerCase();
-
-    if (m.includes("unauthorized") || m.includes("continue uri") || m.includes("auth/unauthorized-continue-uri")) {
-      return (
-        "Seu domínio atual não está autorizado no Firebase Auth.\n" +
-        "Vá em: Firebase Console → Authentication → Settings → Authorized domains\n" +
-        "e adicione o domínio que aparece na barra do navegador (ex: *.cloudworkstations.dev).\n" +
-        "Depois tente enviar o link novamente."
-      );
-    }
-
-    if (m.includes("operation-not-allowed") || m.includes("disabled")) {
-      return (
-        "Método de login por e-mail pode estar desativado.\n" +
-        "Vá em: Firebase Console → Authentication → Sign-in method\n" +
-        "Habilite: Email/Password e Email link (passwordless)."
-      );
-    }
-
-    return message || "Não foi possível concluir a ação.";
-  };
-
-  const onSendMagic = async () => {
-    setErr(null);
-    setInfo(null);
-
-    const ve = validateEmail(email);
-    if (ve) {
-      setErr(ve);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Usando window.location.origin para garantir que o link de continuação seja válido
-      const continueUrl = window.location.origin + "/login";
-      await sendMagicLink(email.trim(), continueUrl);
-      setInfo("Link enviado! Verifique seu e-mail e clique no link para entrar.");
-    } catch (e: any) {
-      setErr(explainCommonMagicErrors(e?.message || String(e)));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onLoginPassword = async () => {
-    setErr(null);
-    setInfo(null);
-
-    const ve = validateEmail(email);
-    if (ve) {
-      setErr(ve);
-      return;
-    }
-    if (!senha) {
-      setErr("Informe sua senha.");
-      return;
-    }
-
-    setLoading(true);
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorLogin(null);
+    setLoadingLogin(true);
     try {
       const { auth } = initializeFirebase();
       await signInWithEmailAndPassword(auth, email.trim(), senha);
-      router.replace("/");
+      router.push("/");
     } catch (e: any) {
-      setErr(e?.message || "Falha ao entrar com e-mail e senha.");
+      setErrorLogin(e?.message || "Falha ao entrar.");
     } finally {
-      setLoading(false);
+      setLoadingLogin(false);
     }
-  };
+  }
+
+  async function handleSendMagic(e: React.FormEvent) {
+    e.preventDefault();
+    setMagicErr(null);
+    setMagicMsg(null);
+    setLoadingMagic(true);
+    try {
+      await sendMagicLink(primeiroEmail.trim());
+      setMagicMsg("✅ Link enviado! Verifique seu e-mail e clique para autenticar.");
+      setNeedEmailToComplete(false);
+    } catch (e: any) {
+      setMagicErr(e?.message || "Falha ao enviar link mágico.");
+    } finally {
+      setLoadingMagic(false);
+    }
+  }
+
+  async function handleCompleteMagicWithEmail() {
+    setMagicErr(null);
+    setMagicMsg(null);
+    setLoadingMagic(true);
+    try {
+      const res = await completeMagicLinkIfPresent(primeiroEmail.trim());
+      if (res.completed) {
+        setNeedEmailToComplete(false);
+        setMagicMsg("✅ Primeiro acesso autenticado. Agora crie sua senha.");
+      } else {
+        setMagicErr("Não encontrei link válido na URL.");
+      }
+    } catch (e: any) {
+      setMagicErr(e?.message || "Falha ao completar o link mágico.");
+    } finally {
+      setLoadingMagic(false);
+    }
+  }
+
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwErr(null);
+    setPwMsg(null);
+
+    if (!isStrongEnough(pw1)) {
+      setPwErr("A senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (pw1 !== pw2) {
+      setPwErr("As senhas não conferem.");
+      return;
+    }
+
+    setLoadingSetPw(true);
+    try {
+      await setPasswordAfterMagicLink(pw1);
+      setPwMsg("✅ Senha criada! Agora entre com e-mail e senha.");
+      setTab("login");
+      setSenha("");
+    } catch (e: any) {
+      setPwErr(e?.message || "Falha ao criar senha.");
+    } finally {
+      setLoadingSetPw(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-6 bg-[#f6efe6]">
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-[28px] overflow-hidden shadow-lg border bg-gradient-to-br from-teal-500 via-cyan-500 to-lime-400 p-10 text-white">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center font-semibold">
-              T
-            </div>
-            <div>
-              <div className="text-xs tracking-widest opacity-90">TREETECH AUTOMATION</div>
-              <div className="text-xl font-semibold">TreeCondo Community</div>
-            </div>
-          </div>
+    <div className="relative min-h-screen overflow-hidden">
+      {/* FUNDO PREMIUM */}
+      <div className="absolute inset-0 bg-[#f7f2eb]" />
+      <div className="pointer-events-none absolute inset-0">
+        {/* gradiente principal */}
+        <div className="absolute -top-48 -left-48 h-[520px] w-[520px] rounded-full bg-emerald-400/25 blur-3xl" />
+        <div className="absolute top-20 -right-40 h-[560px] w-[560px] rounded-full bg-cyan-400/20 blur-3xl" />
+        <div className="absolute bottom-[-220px] left-1/2 h-[640px] w-[640px] -translate-x-1/2 rounded-full bg-lime-300/20 blur-3xl" />
 
-          <div className="mt-10">
-            <div className="text-5xl font-extrabold leading-tight">
-              Acesso <span className="text-lime-100">inteligente</span> ao condomínio.
+        {/* brilho suave */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.55] via-white/[0.25] to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.16),transparent_55%)]" />
+      </div>
+
+      {/* CARD GLASS */}
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-[980px] grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LADO BRAND */}
+          <div className="hidden lg:flex flex-col justify-center rounded-3xl p-10 text-white overflow-hidden relative"
+               style={{ background: "linear-gradient(135deg, rgba(13,148,136,0.95), rgba(34,197,94,0.85))" }}>
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-white/15 blur-2xl" />
+              <div className="absolute bottom-[-80px] -left-24 h-72 w-72 rounded-full bg-black/10 blur-2xl" />
             </div>
-            <p className="mt-4 text-white/90 max-w-md">
-              Primeiro acesso por link mágico (sem senha). Depois, você define sua senha e entra normalmente.
-            </p>
-          </div>
 
-          <div className="mt-10 flex flex-wrap gap-3">
-            <span className="px-4 py-2 rounded-full bg-white/20 text-sm">Sem senha no primeiro acesso</span>
-            <span className="px-4 py-2 rounded-full bg-white/20 text-sm">Acesso seguro</span>
-            <span className="px-4 py-2 rounded-full bg-white/20 text-sm">Link expira automaticamente</span>
-          </div>
-        </div>
-
-        <div className="rounded-[28px] shadow-lg border bg-white/80 backdrop-blur p-10">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-3xl font-semibold text-slate-900">Área de Acesso</h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Escolha o tipo de acesso.
+            <div className="relative">
+              <div className="text-sm tracking-widest text-white/80">TREETECH AUTOMATION</div>
+              <div className="mt-2 text-4xl font-semibold">TreeCondo Community</div>
+              <p className="mt-4 text-white/90 leading-relaxed">
+                Gestão inteligente para condomínios. Centralize moradores, síndicos e operação
+                com uma experiência premium.
               </p>
-            </div>
 
-            <div className="inline-flex rounded-full border p-1 bg-white">
-              <button
-                type="button"
-                onClick={() => setMode("magic")}
-                className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  mode === "magic" ? "bg-emerald-600 text-white" : "text-slate-700"
-                }`}
-              >
-                Link mágico
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("password")}
-                className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  mode === "password" ? "bg-emerald-600 text-white" : "text-slate-700"
-                }`}
-              >
-                Senha
-              </button>
+              <div className="mt-8 flex flex-wrap gap-2">
+                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Link mágico no primeiro acesso</span>
+                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Senha criada pelo morador</span>
+                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Acesso seguro</span>
+              </div>
             </div>
           </div>
 
-          <div className="mt-8 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700">E-mail</label>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-2xl border px-4 py-3 bg-white/60 outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="voce@exemplo.com"
-                autoComplete="email"
-              />
-            </div>
+          <Card className="rounded-3xl border-black/5 bg-white/35 backdrop-blur-xl shadow-[0_20px_70px_rgba(2,6,23,0.18)]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-2xl text-slate-900">TreeCondo</CardTitle>
+              <CardDescription className="text-slate-700">
+                Acesse sua conta ou finalize o primeiro acesso.
+              </CardDescription>
+            </CardHeader>
 
-            {mode === "password" ? (
-              <div>
-                <label className="text-sm font-medium text-slate-700">Senha</label>
-                <input
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  type="password"
-                  className="mt-1 w-full rounded-2xl border px-4 py-3 bg-white/60 outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Digite sua senha"
-                  autoComplete="current-password"
-                />
+            <CardContent className="pt-4">
+              <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+                <TabsList className="grid grid-cols-2 w-full rounded-2xl bg-white/40 border border-black/5 p-1">
+                  <TabsTrigger className="rounded-xl" value="login">Entrar</TabsTrigger>
+                  <TabsTrigger className="rounded-xl" value="primeiro">Primeiro acesso</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="login" className="mt-5">
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm text-slate-700">E-mail</label>
+                      <Input
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        type="email"
+                        placeholder="seu@email.com"
+                        className="h-11 rounded-xl bg-white/60"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm text-slate-700">Senha</label>
+                      <Input
+                        value={senha}
+                        onChange={(e) => setSenha(e.target.value)}
+                        type="password"
+                        placeholder="••••••••"
+                        className="h-11 rounded-xl bg-white/60"
+                      />
+                    </div>
+
+                    {errorLogin && (
+                      <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-700">
+                        {errorLogin}
+                      </div>
+                    )}
+
+                    <Button
+                      disabled={loadingLogin}
+                      className="w-full h-11 rounded-xl text-white shadow-lg"
+                      style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
+                      type="submit"
+                    >
+                      {loadingLogin ? "Entrando..." : "Entrar"}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="primeiro" className="mt-5">
+                  <div className="space-y-5">
+                    {/* enviar link */}
+                    <form onSubmit={handleSendMagic} className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="text-sm text-slate-700">E-mail</label>
+                        <Input
+                          value={primeiroEmail}
+                          onChange={(e) => setPrimeiroEmail(e.target.value)}
+                          type="email"
+                          placeholder="e-mail cadastrado pelo condomínio"
+                          className="h-11 rounded-xl bg-white/60"
+                        />
+                      </div>
+
+                      {magicMsg && (
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800">
+                          {magicMsg}
+                        </div>
+                      )}
+                      {magicErr && (
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-700">
+                          {magicErr}
+                        </div>
+                      )}
+
+                      <Button
+                        disabled={loadingMagic}
+                        className="w-full h-11 rounded-xl text-white shadow-lg"
+                        style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
+                        type="submit"
+                      >
+                        {loadingMagic ? "Enviando..." : "Enviar link de primeiro acesso"}
+                      </Button>
+
+                      {needEmailToComplete && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={loadingMagic || !primeiroEmail.trim()}
+                          className="w-full h-11 rounded-xl bg-white/40"
+                          onClick={handleCompleteMagicWithEmail}
+                        >
+                          {loadingMagic ? "Finalizando..." : "Finalizar com este e-mail"}
+                        </Button>
+                      )}
+                    </form>
+
+                    {/* criar senha */}
+                    <div className="rounded-2xl border border-black/5 bg-white/40 p-4">
+                      <div className="mb-3">
+                        <div className="text-base font-semibold text-slate-900">
+                          Criar senha (após autenticar no link)
+                        </div>
+                        <div className="text-sm text-slate-700">
+                          Clique no link do e-mail e depois defina sua senha aqui.
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleSetPassword} className="space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-sm text-slate-700">Nova senha</label>
+                          <Input
+                            value={pw1}
+                            onChange={(e) => setPw1(e.target.value)}
+                            type="password"
+                            className="h-11 rounded-xl bg-white/60"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-sm text-slate-700">Confirmar senha</label>
+                          <Input
+                            value={pw2}
+                            onChange={(e) => setPw2(e.target.value)}
+                            type="password"
+                            className="h-11 rounded-xl bg-white/60"
+                          />
+                        </div>
+
+                        {pwMsg && (
+                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800">
+                            {pwMsg}
+                          </div>
+                        )}
+                        {pwErr && (
+                          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-700">
+                            {pwErr}
+                          </div>
+                        )}
+
+                        <Button
+                          disabled={loadingSetPw}
+                          className="w-full h-11 rounded-xl text-white shadow-lg"
+                          style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
+                          type="submit"
+                        >
+                          {loadingSetPw ? "Salvando..." : "Criar senha"}
+                        </Button>
+                      </form>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="mt-6 text-center text-xs text-slate-600">
+                TreeCondo • Uma solução Treetech Automation
               </div>
-            ) : null}
-
-            {err ? (
-              <pre className="whitespace-pre-wrap text-sm text-red-700 bg-red-50 border border-red-200 rounded-2xl p-3">
-                {err}
-              </pre>
-            ) : null}
-
-            {info ? (
-              <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
-                {info}
-              </div>
-            ) : null}
-
-            {mode === "magic" ? (
-              <button
-                type="button"
-                onClick={onSendMagic}
-                disabled={loading}
-                className="w-full rounded-2xl px-5 py-3 font-semibold text-white bg-gradient-to-r from-teal-600 to-lime-500 disabled:opacity-60"
-              >
-                {loading ? "Enviando..." : "Enviar link mágico (primeiro acesso)"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onLoginPassword}
-                disabled={loading}
-                className="w-full rounded-2xl px-5 py-3 font-semibold text-white bg-emerald-600 disabled:opacity-60"
-              >
-                {loading ? "Entrando..." : "Entrar com senha"}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setMode(mode === "magic" ? "password" : "magic")}
-              className="w-full rounded-2xl px-5 py-3 font-medium border text-slate-700 bg-white"
-            >
-              {mode === "magic" ? "Já tenho senha" : "Primeiro acesso (link mágico)"}
-            </button>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

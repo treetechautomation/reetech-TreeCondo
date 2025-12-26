@@ -1,0 +1,133 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/firebase/hooks/useAuth";
+
+export type AppLayoutProps = {
+  pageTitle?: string;
+  headerActions?: React.ReactNode;
+  children: React.ReactNode;
+};
+
+export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { logout } = useAuth();
+
+  const hideSidebar = pathname?.startsWith("/login");
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      router.push("/login");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f7f2eb]">
+      <div className="flex min-h-screen">
+        {!hideSidebar && (
+          <aside className="
+            w-[260px]
+            text-white
+            flex flex-col
+            bg-gradient-to-b
+            from-[#0f172a]
+            via-[#020617]
+            to-[#020617]
+            border-r border-white/10
+          ">
+            {/* LOGO */}
+            <div className="px-6 py-6 border-b border-white/10">
+              <div className="text-2xl font-semibold tracking-tight">
+                Tree<span className="text-emerald-400">Condo</span>
+              </div>
+              <div className="text-xs text-white/50 mt-1">
+                Gestão inteligente de condomínios
+              </div>
+            </div>
+
+            {/* MENU */}
+            <nav className="flex-1 px-3 py-4 space-y-1">
+              {[
+                ["/", "Dashboard"],
+                ["/condominios", "Condomínios"],
+                ["/cadastros", "Cadastros"],
+                ["/acesso", "Acesso"],
+                ["/anuncios", "Anúncios"],
+                ["/reservas", "Reservas"],
+                ["/incidentes", "Incidentes"],
+                ["/encomendas", "Encomendas"],
+                ["/documentos", "Documentos"],
+                ["/enquetes", "Enquetes"],
+                ["/reunioes", "Reuniões"],
+                ["/configuracoes", "Configurações"],
+                ["/administrador-global", "Administrador Global"],
+              ].map(([href, label]) => {
+                const active =
+                  pathname === href || pathname?.startsWith(href + "/");
+
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      "group flex items-center rounded-xl px-4 py-2.5 text-sm transition-all",
+                      active
+                        ? "bg-white/10 text-white border-l-4 border-emerald-400"
+                        : "text-white/70 hover:bg-white/5 hover:text-white"
+                    )}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* FOOTER */}
+            <div className="p-4 border-t border-white/10">
+              <Button
+                onClick={handleLogout}
+                className="
+                  w-full
+                  rounded-xl
+                  bg-white/10
+                  hover:bg-white/20
+                  text-white
+                  backdrop-blur
+                  border border-white/10
+                "
+              >
+                Sair
+              </Button>
+            </div>
+          </aside>
+        )}
+
+        <main className="flex-1">
+          {!hideSidebar && (
+            <header className="sticky top-0 z-10 bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
+              <div className="flex items-center justify-between px-6 py-4">
+                <div className="text-xl font-semibold text-slate-900">
+                  {pageTitle ?? ""}
+                </div>
+                <div className="flex items-center gap-2">
+                  {headerActions ?? null}
+                </div>
+              </div>
+            </header>
+          )}
+
+          <div className="px-6 py-6">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default AppLayout;

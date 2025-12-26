@@ -1,0 +1,81 @@
+import { doc, getDoc } from "firebase/firestore";
+import { initializeFirebase } from "@/firebase";
+
+export type RoleKey = "SINDICO" | "MORADOR" | "PORTEIRO" | "SUPER_ADMIN";
+
+export type MenuKey =
+  | "dashboard"
+  | "condominios"
+  | "cadastros"
+  | "acesso"
+  | "anuncios"
+  | "reservas"
+  | "incidentes"
+  | "encomendas"
+  | "documentos"
+  | "enquetes"
+  | "reunioes"
+  | "configuracoes"
+  | "administrador_global";
+
+export type MenuPermissions = Record<string, Partial<Record<MenuKey, boolean>>>;
+
+/**
+ * Defaults seguros (caso não exista doc ainda).
+ * Ajuste se quiser: aqui define o que "MORADOR" vê por padrão.
+ */
+export const DEFAULT_PERMS: MenuPermissions = {
+  SINDICO: {
+    dashboard: true,
+    condominios: true,
+    cadastros: true,
+    acesso: true,
+    anuncios: true,
+    reservas: true,
+    incidentes: true,
+    encomendas: true,
+    documentos: true,
+    enquetes: true,
+    reunioes: true,
+    configuracoes: true,
+    administrador_global: false,
+  },
+  MORADOR: {
+    dashboard: true,
+    anuncios: true,
+    reservas: true,
+    incidentes: true,
+    encomendas: false,
+    documentos: true,
+    enquetes: true,
+    reunioes: true,
+    condominios: false,
+    cadastros: false,
+    acesso: false,
+    configuracoes: false,
+    administrador_global: false,
+  },
+  PORTEIRO: {
+    dashboard: true,
+    anuncios: false,
+    reservas: false,
+    incidentes: true,
+    encomendas: true,
+    documentos: false,
+    enquetes: false,
+    reunioes: false,
+    condominios: false,
+    cadastros: false,
+    acesso: true,
+    configuracoes: false,
+    administrador_global: false,
+  },
+};
+
+export async function fetchMenuPermissions(condominioId: string): Promise<MenuPermissions | null> {
+  const { db } = initializeFirebase();
+  const ref = doc(db, "condominios", condominioId, "config", "menuPermissions");
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return (snap.data() as MenuPermissions) ?? null;
+}

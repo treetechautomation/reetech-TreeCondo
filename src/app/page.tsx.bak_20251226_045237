@@ -1,6 +1,5 @@
 "use client";
 
-import WelcomeMorador from "@/components/welcome/WelcomeMorador";
 import AppLayout from "@/components/layout/AppLayout";
 import {
   Card,
@@ -12,7 +11,6 @@ import {
 export default function Dashboard() {
   return (
     <AppLayout pageTitle="Painel">
-      <div className="mb-6"><WelcomeMorador /></div>
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
