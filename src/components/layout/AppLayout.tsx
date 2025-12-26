@@ -12,6 +12,7 @@ import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
+import { UserNav } from "@/components/user-nav";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -202,16 +203,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
 
                 {/* Footer */}
                 <div className="relative mt-auto p-3 border-t border-white/10">
-                  <div className="flex items-center gap-3">
-                    <UserBadge variant="sidebar" className="flex-1" />
-                    <Button
-                      variant="secondary"
-                      className="h-auto px-3 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/15"
-                      onClick={handleLogout}
-                    >
-                      Sair
-                    </Button>
-                  </div>
+                  <UserNav variant="sidebar" />
                 </div>
               </div>
             </div>
@@ -224,7 +216,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="text-xl font-semibold text-slate-900">{pageTitle ?? ""}</div>
                 <div className="flex items-center gap-4">
-                  <UserBadge variant="header" />
+                  <UserNav variant="header" />
                   {headerActions ?? null}
                 </div>
               </div>
@@ -239,5 +231,3 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
 }
 
 export default AppLayout;
-
-    
