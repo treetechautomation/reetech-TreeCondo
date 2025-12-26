@@ -39,7 +39,7 @@ function NavItem({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       className={cn(
-        "group relative block rounded-2xl px-3 py-2.5 text-sm transition-all",
+        "group block rounded-2xl px-3 py-2.5 text-sm transition-all",
         "border border-white/10 bg-white/[0.04] backdrop-blur-xl",
         "hover:bg-white/[0.08] hover:border-white/15 hover:shadow-[0_8px_30px_rgba(0,0,0,.22)]",
         active
@@ -47,19 +47,13 @@ function NavItem({ href, label }: { href: string; label: string }) {
           : "text-white/80"
       )}
     >
-      {/* Neon line (ativo) */}
-      <span
-        className={cn(
-          "absolute left-0 top-[10px] bottom-[10px] w-[3px] rounded-full",
-          "transition-all duration-300",
-          active
-            ? "opacity-100 bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,.65),0_0_40px_rgba(34,211,238,.20)]"
-            : "opacity-0 bg-emerald-400 group-hover:opacity-60"
-        )}
-      />
-
-      {/* Conteúdo */}
-      <div className="flex items-center gap-2 pl-2">
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "h-2 w-2 rounded-full transition-opacity",
+            active ? "opacity-100 bg-emerald-400" : "opacity-0 bg-emerald-400 group-hover:opacity-70"
+          )}
+        />
         <span className="truncate">{label}</span>
       </div>
     </Link>

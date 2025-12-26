@@ -184,7 +184,6 @@ export default function LoginPage() {
                 />
                 <div>
                   <div className="text-sm tracking-widest text-white/80">TREETECH AUTOMATION</div>
-                  <div className="mt-1 text-3xl font-semibold">TreeCondo</div>
                 </div>
               </div>
               <p className="mt-4 text-white/90 leading-relaxed">

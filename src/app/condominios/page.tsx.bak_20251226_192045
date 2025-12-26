@@ -1,13 +1,12 @@
 "use client";
 
-import * as React from "react";
 import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 
 import { useFirestore } from "@/firebase";
-import { collection, onSnapshot, orderBy, query, doc, setDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { NovoCondominioModal } from "@/components/condominios/NovoCondominioModal";
 
 interface Condominio {
@@ -18,9 +17,6 @@ interface Condominio {
 }
 
 export default function CondominiosPage() {
-  // --- Blocos (na criação do condomínio) ---
-  const [blocosCount, setBlocosCount] = React.useState<number>(0);
-  const [blocosNames, setBlocosNames] = React.useState<string>(""); // 1 por linha
   const firestore = useFirestore();
   const [condominios, setCondominios] = useState<Condominio[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
