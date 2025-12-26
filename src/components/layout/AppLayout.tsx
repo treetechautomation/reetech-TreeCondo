@@ -10,6 +10,8 @@ import { useAuth } from "@/firebase/hooks/useAuth";
 import { useSession, type RoleKey } from "@/hooks/useSession";
 import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions } from "@/lib/menuPermissions";
 import Image from "next/image";
+import { signOut } from "firebase/auth";
+import { initializeFirebase } from "@/firebase";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -125,15 +127,23 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
   const filteredNav = NAV_ITEMS.filter((i) => isAllowed(i.key));
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } finally {
-      router.push("/login");
+  try {
+    // Se existir logout no hook/context, usa. Senão, faz signOut direto.
+    if (typeof (logout as any) === "function") {
+      await (logout as any)();
+    } else {
+      const { auth } = initializeFirebase() as any;
+      await signOut(auth);
     }
-  };
+  } catch (e) {
+    console.error("[AppLayout] erro ao deslogar:", e);
+  } finally {
+    router.push("/login");
+  }
+};
 
   return (
-    <div className="min-h-screen bg-[#f7f2eb]">
+    <div className="tc-bg">
       <div className="flex min-h-screen">
         {!hideSidebar && (
           <aside className="w-[300px] text-white relative overflow-hidden">
