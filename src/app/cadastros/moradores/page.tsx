@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Camera } from "lucide-react";
 
 import { initializeFirebase } from "@/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -143,6 +144,14 @@ export default function CadastroMoradorPage() {
                 <div className="space-y-1">
                   <Label>Apartamento</Label>
                   <Input className="tc-input" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex: 302" />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Foto</Label>
+                  <Button variant="outline" type="button" className="w-full tc-btn-soft">
+                    <Camera className="mr-2" />
+                    Anexar foto
+                  </Button>
                 </div>
               </div>
 
