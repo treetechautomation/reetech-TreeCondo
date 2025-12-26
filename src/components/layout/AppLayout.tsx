@@ -153,7 +153,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
     <div className="tc-bg">
       <div className="flex min-h-screen">
         {!hideSidebar && (
-          <aside className="w-[325px] text-white relative overflow-hidden">
+          <aside className="w-[350px] text-white relative overflow-hidden">
             {/* Fundo “aurora” */}
             <div className="absolute inset-0 bg-slate-900" />
             <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
