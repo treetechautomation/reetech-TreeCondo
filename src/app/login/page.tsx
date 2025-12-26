@@ -201,7 +201,10 @@ export default function LoginPage() {
 
           <Card className="rounded-3xl border-black/5 bg-white/35 backdrop-blur-xl shadow-[0_20px_70px_rgba(2,6,23,0.18)]">
             <CardHeader className="pb-2">
-              <CardTitle className="text-2xl text-slate-900">TreeCondo</CardTitle>
+              <CardTitle className="text-2xl">
+                <span style={{ color: '#00D0E6' }}>Tree</span>
+                <span style={{ color: '#D3EA00' }}>Condo</span>
+              </CardTitle>
               <CardDescription className="text-slate-700">
                 Acesse sua conta ou finalize o primeiro acesso.
               </CardDescription>
