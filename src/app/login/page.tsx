@@ -174,7 +174,7 @@ export default function LoginPage() {
             </div>
 
             <div className="relative">
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex flex-col items-center gap-4 mb-4">
                 <Image
                   src="/logo-treecondo.jpeg"
                   alt="TreeCondo Logo"
@@ -182,8 +182,8 @@ export default function LoginPage() {
                   height={192}
                   className="rounded-2xl border-2 border-white/20"
                 />
-                <div>
-                  <div className="text-sm tracking-widest text-white/80">TREETECH AUTOMATION</div>
+                <div className="text-center">
+                  <div className="text-base tracking-[0.2em] text-white/80">TREETECH AUTOMATION</div>
                 </div>
               </div>
               <p className="mt-4 text-white/90 leading-relaxed">
