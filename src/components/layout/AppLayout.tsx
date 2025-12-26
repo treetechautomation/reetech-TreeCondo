@@ -138,10 +138,10 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
         {!hideSidebar && (
           <aside className="w-[300px] text-white relative overflow-hidden">
             {/* Fundo “aurora” */}
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #0d9488, #22c55e)' }}/>
-            <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
-            <div className="absolute top-40 -right-28 h-80 w-80 rounded-full bg-white/15 blur-3xl" />
-            <div className="absolute bottom-0 left-10 h-72 w-72 rounded-full bg-black/10 blur-3xl" />
+            <div className="absolute inset-0 bg-slate-900" />
+            <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
+            <div className="absolute top-40 -right-28 h-80 w-80 rounded-full bg-cyan-500/15 blur-3xl" />
+            <div className="absolute bottom-0 left-10 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
 
             {/* Painel 100% glass */}
             <div className="relative h-full flex flex-col p-3">
