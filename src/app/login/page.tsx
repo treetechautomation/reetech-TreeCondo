@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
@@ -173,8 +174,19 @@ export default function LoginPage() {
             </div>
 
             <div className="relative">
-              <div className="text-sm tracking-widest text-white/80">TREETECH AUTOMATION</div>
-              <div className="mt-2 text-4xl font-semibold">TreeCondo Community</div>
+              <div className="flex items-center gap-4 mb-4">
+                <Image
+                  src="/logo-treecondo.jpeg"
+                  alt="TreeCondo Logo"
+                  width={64}
+                  height={64}
+                  className="rounded-2xl border-2 border-white/20"
+                />
+                <div>
+                  <div className="text-sm tracking-widest text-white/80">TREETECH AUTOMATION</div>
+                  <div className="mt-1 text-3xl font-semibold">TreeCondo</div>
+                </div>
+              </div>
               <p className="mt-4 text-white/90 leading-relaxed">
                 Gestão inteligente para condomínios. Centralize moradores, síndicos e operação
                 com uma experiência premium.
