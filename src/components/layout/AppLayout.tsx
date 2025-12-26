@@ -162,7 +162,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
             {/* Painel 100% glass */}
             <div className="relative h-full flex flex-col p-3">
               <div 
-                className="flex-1 rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-hidden"
+                className="flex-1 rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-hidden flex flex-col"
               >
                 {/* brilho interno */}
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_circle_at_-20%_-20%,rgba(255,255,255,.18),transparent_45%),radial-gradient(900px_circle_at_120%_20%,rgba(255,255,255,.10),transparent_40%)]" />
@@ -194,7 +194,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
                 </div>
 
                 {/* Nav */}
-                <nav className="relative p-3 space-y-2">
+                <nav className="relative p-3 space-y-2 overflow-y-auto">
                   {filteredNav.map((item) => (
                     <NavItem key={item.href} href={item.href} label={item.label} />
                   ))}
@@ -239,3 +239,5 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
 }
 
 export default AppLayout;
+
+    
