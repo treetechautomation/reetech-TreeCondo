@@ -152,7 +152,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
     <div className="tc-bg">
       <div className="flex min-h-screen">
         {!hideSidebar && (
-          <aside className="w-[350px] text-white relative overflow-hidden">
+          <aside className="w-[325px] text-white relative overflow-hidden">
             {/* Fundo “aurora” */}
             <div className="absolute inset-0 bg-slate-900" />
             <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -183,7 +183,8 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
 
                     <div className="leading-tight">
                       <div className="text-xl font-semibold tracking-tight">
-                        Tree<span className="text-emerald-300">Condo</span>
+                        <span style={{ color: '#00D0E6' }}>Tree</span>
+                        <span style={{ color: '#D3EA00' }}>Condo</span>
                       </div>
                       <div className="text-xs text-white/55 mt-1">
                         Gestão inteligente de condomínios
@@ -201,24 +202,16 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
 
                 {/* Footer */}
                 <div className="relative mt-auto p-3 border-t border-white/10">
-                  <UserBadge variant="sidebar" className="mb-3" />
-
-                  <div className="mb-3 text-[11px] text-white/55">
-                    Perfil: <span className="text-white/80">{role}</span>
-                    {condominioId ? (
-                      <span className="ml-2 text-white/40">• Condo: {condominioId.slice(0, 6)}…</span>
-                    ) : (
-                      <span className="ml-2 text-white/40">• (Sem condomínio)</span>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <UserBadge variant="sidebar" className="flex-1" />
+                    <Button
+                      variant="secondary"
+                      className="h-auto px-3 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/15"
+                      onClick={handleLogout}
+                    >
+                      Sair
+                    </Button>
                   </div>
-
-                  <Button
-                    variant="secondary"
-                    className="w-full rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/15"
-                    onClick={handleLogout}
-                  >
-                    Sair
-                  </Button>
                 </div>
               </div>
             </div>
