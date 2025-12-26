@@ -1,3 +1,4 @@
+
 "use client";
 
 import UserBadge from "@/components/layout/UserBadge";
@@ -153,7 +154,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
               <div className="flex items-center gap-3">
                 <div className="h-11 w-11 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center shadow-[inset_0_0_0_1px_rgba(255,255,255,.12)] border border-white/10">
                   <img
-                    src="/logo-treecondo.webp"
+                    src="/logo-treecondo.jpeg"
                     alt="TreeCondo"
                     className="h-8 w-8 object-contain"
                     loading="eager"
