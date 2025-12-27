@@ -1,21 +1,20 @@
 "use client";
 
 import * as React from "react";
-import AppLayout from "@/components/layout/AppLayout";
+import AppLayout from "@/components/app-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Camera } from "lucide-react";
 
 import { initializeFirebase } from "@/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useSession } from "@/hooks/useSession";
-import BlocoSelect from "@/components/condominios/BlocoSelect";
 
 type CondoPublico = { id: string; nome: string };
 
 export default function CadastroMoradorPage() {
-  const [blocoId, setBlocoId] = React.useState<string>("");
   const { session, isSessionLoading } = useSession();
   const [condos, setCondos] = React.useState<CondoPublico[]>([]);
   const [loadingCondo, setLoadingCondo] = React.useState(true);
@@ -146,9 +145,14 @@ export default function CadastroMoradorPage() {
                   <Label>Apartamento</Label>
                   <Input className="tc-input" value={apartamento} onChange={(e) => setApartamento(e.target.value)} placeholder="Ex: 302" />
                 </div>
-                
-                <BlocoSelect condominioId={condominioId ?? null} value={blocoId} onChange={setBlocoId} />
 
+                <div className="space-y-1">
+                  <Label>Foto</Label>
+                  <Button variant="outline" type="button" className="w-full tc-btn-soft">
+                    <Camera className="mr-2" />
+                    Anexar foto
+                  </Button>
+                </div>
               </div>
 
               {msg && <p className="text-sm text-emerald-700">{msg}</p>}
