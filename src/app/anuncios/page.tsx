@@ -1,183 +1,228 @@
 "use client";
 
-import {
-  Image as ImageIcon,
-  PlusCircle,
-  Send,
-} from "lucide-react";
+import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
+import CondominioSelect from "@/components/condominios/CondominioSelect";
+import { useSession } from "@/hooks/useSession";
+import { initializeFirebase } from "@/firebase";
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Image from "next/image";
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { PlusCircle } from "lucide-react";
+
+type Anuncio = {
+  id: string;
+  titulo: string;
+  mensagem: string;
+  createdAt?: any;
+};
+
+function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
+  return (
+    <Card
+      className={cn(
+        "border-white/10 bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)] backdrop-blur rounded-3xl",
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
 export default function AnunciosPage() {
-  const [destination, setDestination] = useState("all");
+  const { session, isSessionLoading, setActiveCondominioId } = useSession();
+  const [condominioId, setCondominioId] = React.useState<string | null>(null);
 
-  const HeaderActions = () => (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <PlusCircle />
-          <span className="hidden sm:inline-block">Novo Anúncio</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Criar Novo Anúncio</DialogTitle>
-          <DialogDescription>
-            Envie comunicados para os moradores. O disparo será feito em tempo real.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="title" className="text-right">
-              Título
-            </Label>
-            <Input id="title" placeholder="Ex: Manutenção da Piscina" className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="message" className="text-right">
-              Mensagem
-            </Label>
-            <Textarea id="message" placeholder="Detalhe o seu anúncio aqui." className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Foto</Label>
-            <div className="col-span-3">
-              <Button variant="outline">
-                <ImageIcon className="mr-2" />
-                Adicionar Foto
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Destino</Label>
-            <RadioGroup
-              defaultValue="all"
-              className="col-span-3 flex flex-col gap-2"
-              onValueChange={setDestination}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="all" id="r1" />
-                <Label htmlFor="r1">Todo o Condomínio</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="tower" id="r2" />
-                <Label htmlFor="r2">Bloco ou Torre Específica</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="unit" id="r3" />
-                <Label htmlFor="r3">Unidade ou Pessoa Específica</Label>
-              </div>
-            </RadioGroup>
-          </div>
-          {destination === "tower" && (
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="tower-select" className="text-right">
-                Bloco/Torre
-              </Label>
-              <Input id="tower-select" placeholder="Ex: Bloco A" className="col-span-3" />
-            </div>
-          )}
-          {destination === "unit" && (
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="unit-select" className="text-right">
-                Unidade/Pessoa
-              </Label>
-              <Input
-                id="unit-select"
-                placeholder="Ex: Apto 101 ou João Silva"
-                className="col-span-3"
-              />
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button type="submit">
-            <Send className="mr-2" />
-            Enviar Notificação
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+  const [anuncios, setAnuncios] = React.useState<Anuncio[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const [titulo, setTitulo] = React.useState("");
+  const [mensagem, setMensagem] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  // resolve condomínio ativo (session -> localStorage fallback)
+  React.useEffect(() => {
+    if (isSessionLoading) return;
+
+    const fromSession = session?.activeCondominioId ?? null;
+    const fromLocal = typeof window !== "undefined" ? window.localStorage.getItem("treecondo_condominioId") : null;
+
+    const resolved = fromSession ?? fromLocal;
+    setCondominioId(resolved);
+
+    if (!fromSession && resolved) {
+      // se veio do localStorage, sincroniza sessão também
+      setActiveCondominioId(resolved);
+    }
+  }, [isSessionLoading, session?.activeCondominioId, setActiveCondominioId]);
+
+  // listener anuncios por condomínio
+  React.useEffect(() => {
+    if (!condominioId) {
+      setAnuncios([]);
+      return;
+    }
+
+    const { firestore } = initializeFirebase();
+    setLoading(true);
+
+    const colRef = collection(firestore, "condominios", condominioId, "anuncios");
+    const q = query(colRef, orderBy("createdAt", "desc"));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: Anuncio[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+        setAnuncios(list);
+        setLoading(false);
+      },
+      (e) => {
+        console.error(e);
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [condominioId]);
+
+  function onPickCondo(id: string) {
+    setCondominioId(id);
+    setActiveCondominioId(id);
+    if (typeof window !== "undefined") window.localStorage.setItem("treecondo_condominioId", id);
+  }
+
+  async function createAnuncio() {
+    if (!condominioId) return;
+    setErr(null);
+
+    const t = titulo.trim();
+    const m = mensagem.trim();
+    if (!t || !m) {
+      setErr("Preencha título e mensagem.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { firestore } = initializeFirebase();
+      await addDoc(collection(firestore, "condominios", condominioId, "anuncios"), {
+        titulo: t,
+        mensagem: m,
+        createdAt: serverTimestamp(),
+        createdByUid: session?.user?.uid ?? null,
+      });
+      setTitulo("");
+      setMensagem("");
+    } catch (e: any) {
+      setErr(e?.message ?? "Falha ao criar anúncio.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <AppLayout pageTitle="Anúncios" headerActions={<HeaderActions />}>
-      <div className="space-y-4">
-        <Card>
-          <CardHeader className="flex flex-row items-start gap-4">
-            <Avatar className="h-10 w-10 border">
-              <AvatarImage
-                src="https://picsum.photos/seed/admin-1/40/40"
-                alt="Avatar"
-                data-ai-hint="person face"
-              />
-              <AvatarFallback>S</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle>Manutenção da Piscina Agendada</CardTitle>
-              <CardDescription>
-                Enviado por Síndico Admin - há 2 dias para Todo o Condomínio
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4">
-              Prezados moradores, informamos que a piscina será fechada para manutenção anual no
-              dia 28 de Julho. Agradecemos a compreensão.
-            </p>
-            <Image
-              src="https://picsum.photos/seed/pool/600/400"
-              alt="Piscina em manutenção"
-              width={600}
-              height={400}
-              className="rounded-md object-cover"
-              data-ai-hint="swimming pool"
-            />
-          </CardContent>
-        </Card>
+    <AppLayout pageTitle="Anúncios">
+      {/* Fundo premium da página (glass vibe) */}
+      <div className="relative">
+        <div className="absolute inset-0 -z-10">
+          <div className="h-[260px] rounded-[36px] bg-gradient-to-r from-[#0b1220] via-[#050a14] to-[#070b12]" />
+          <div className="absolute -top-16 left-10 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
+          <div className="absolute top-10 right-10 h-72 w-72 rounded-full bg-cyan-500/12 blur-3xl" />
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-start gap-4">
-            <Avatar className="h-10 w-10 border">
-              <AvatarImage
-                src="https://picsum.photos/seed/admin-1/40/40"
-                alt="Avatar"
-                data-ai-hint="person face"
-              />
-              <AvatarFallback>S</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle>Controle de Pragas Trimestral</CardTitle>
-              <CardDescription>
-                Enviado por Síndico Admin - há 5 dias para Todo o Condomínio
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Coluna esquerda: criar anúncio */}
+          <GlassCard className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-white">Criar anúncio</CardTitle>
+              <CardDescription className="text-white/60">
+                Publique avisos para os moradores do condomínio selecionado.
               </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p>
-              O controle de pragas trimestral está agendado para 1º de Agosto. Por favor,
-              garantam que as áreas comuns e, se necessário, suas unidades, estejam acessíveis
-              para a equipe.
-            </p>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <CondominioSelect value={condominioId} onChange={onPickCondo} />
+
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-white/70">Título</div>
+                <Input
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  className="h-11 rounded-2xl border-white/15 bg-white/10 text-white placeholder:text-white/35 backdrop-blur"
+                  placeholder="Ex: Manutenção no elevador"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-white/70">Mensagem</div>
+                <textarea
+                  value={mensagem}
+                  onChange={(e) => setMensagem(e.target.value)}
+                  className="min-h-[120px] w-full rounded-2xl border border-white/15 bg-white/10 p-3 text-sm text-white placeholder:text-white/35 backdrop-blur outline-none"
+                  placeholder="Escreva o aviso completo..."
+                />
+              </div>
+
+              {err && <div className="text-sm text-red-300">{err}</div>}
+
+              <Button
+                onClick={createAnuncio}
+                disabled={saving || !condominioId}
+                className="w-full rounded-2xl bg-emerald-500/80 hover:bg-emerald-500 text-white"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                {saving ? "Publicando..." : "Publicar anúncio"}
+              </Button>
+
+              {!condominioId && (
+                <div className="text-xs text-white/45">
+                  Selecione um condomínio para habilitar o cadastro de anúncios.
+                </div>
+              )}
+            </CardContent>
+          </GlassCard>
+
+          {/* Coluna direita: lista */}
+          <GlassCard className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-white">Últimos anúncios</CardTitle>
+              <CardDescription className="text-white/60">
+                {condominioId ? "Filtrado pelo condomínio ativo." : "Selecione um condomínio para ver os anúncios."}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-3">
+              {loading && <div className="text-sm text-white/60">Carregando...</div>}
+
+              {!loading && !condominioId && (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+                  Escolha um condomínio no painel ao lado.
+                </div>
+              )}
+
+              {!loading && condominioId && anuncios.length === 0 && (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+                  Nenhum anúncio ainda. Publique o primeiro.
+                </div>
+              )}
+
+              {!loading && anuncios.map((a) => (
+                <div
+                  key={a.id}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur"
+                >
+                  <div className="text-base font-semibold text-white">{a.titulo}</div>
+                  <div className="mt-1 text-sm text-white/70 whitespace-pre-wrap">{a.mensagem}</div>
+                </div>
+              ))}
+            </CardContent>
+          </GlassCard>
+        </div>
       </div>
     </AppLayout>
   );
