@@ -2,11 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { updatePassword } from "firebase/auth";
+import { onAuthStateChanged, updatePassword, type User } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 
 export default function DefinirSenhaPage() {
   const router = useRouter();
+
+  const [user, setUser] = React.useState<User | null>(null);
+  const [checkingAuth, setCheckingAuth] = React.useState(true);
+
   const [senha, setSenha] = React.useState("");
   const [senha2, setSenha2] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -15,9 +19,16 @@ export default function DefinirSenhaPage() {
 
   React.useEffect(() => {
     const { auth } = initializeFirebase();
-    if (!auth.currentUser) {
-      router.replace("/login");
-    }
+
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u ?? null);
+      setCheckingAuth(false);
+
+      // Só redireciona DEPOIS que o Firebase confirmar que não tem usuário
+      if (!u) router.replace("/login?tab=primeiro");
+    });
+
+    return () => unsub();
   }, [router]);
 
   const handleSave = async () => {
@@ -36,32 +47,44 @@ export default function DefinirSenhaPage() {
     setLoading(true);
     try {
       const { auth } = initializeFirebase();
-      const user = auth.currentUser;
-      if (!user) {
-        router.replace("/login");
+      const u = auth.currentUser;
+
+      if (!u) {
+        setErr("Sua sessão expirou. Faça o primeiro acesso novamente.");
+        router.replace("/login?tab=primeiro");
         return;
       }
 
-      // define senha para a conta (permite login com email/senha depois)
-      await updatePassword(user, senha);
+      await updatePassword(u, senha);
 
-      setMsg("Senha criada com sucesso! Você já pode entrar com e-mail e senha.");
-      setTimeout(() => router.replace("/"), 800);
+      setMsg("✅ Senha criada com sucesso! Agora você já pode entrar com e-mail e senha.");
+      setTimeout(() => router.replace("/login"), 900);
     } catch (e: any) {
-      // casos comuns:
-      // auth/requires-recent-login -> aqui normalmente não ocorre porque acabou de logar no link
       setErr(e?.message || "Não foi possível definir a senha.");
     } finally {
       setLoading(false);
     }
   };
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="rounded-2xl border bg-white/80 dark:bg-slate-900/60 backdrop-blur p-6 shadow">
+          Carregando sua sessão...
+        </div>
+      </div>
+    );
+  }
+
+  // Se não tem user, o redirect já acontece no effect
+  if (!user) return null;
+
   return (
-    <div className="min-h-[calc(100vh-0px)] flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl border bg-white/80 dark:bg-slate-900/60 backdrop-blur p-6 shadow">
         <h1 className="text-2xl font-semibold">Criar senha</h1>
         <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Primeiro acesso confirmado por link mágico. Agora crie sua senha para os próximos logins.
+          Primeiro acesso validado. Agora crie sua senha para os próximos logins.
         </p>
 
         <div className="mt-5 space-y-3">
@@ -87,13 +110,8 @@ export default function DefinirSenhaPage() {
             />
           </div>
 
-          {err ? (
-            <p className="text-sm text-red-600">{err}</p>
-          ) : null}
-
-          {msg ? (
-            <p className="text-sm text-emerald-700">{msg}</p>
-          ) : null}
+          {err ? <p className="text-sm text-red-600">{err}</p> : null}
+          {msg ? <p className="text-sm text-emerald-700">{msg}</p> : null}
 
           <button
             onClick={handleSave}

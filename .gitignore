@@ -44,3 +44,7 @@ next-env.d.ts
 
 # Firebase
 serviceAccountKey.json
+
+# secrets
+serviceAccountKey.json
+.env.local

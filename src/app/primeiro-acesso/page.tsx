@@ -1,89 +1,141 @@
 "use client";
 
-import React from "react";
-import { useRouter } from "next/navigation";
-import { updatePassword } from "firebase/auth";
-import { initializeFirebase } from "@/firebase";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+type ValidarRespOk = {
+  ok: true;
+  conviteId: string;
+  condominioId: string | null;
+  nome: string;
+  email: string;
+  role: string;
+  blocoId: string | null;
+  unidadeId: string | null;
+  uidGerado: string | null;
+  status: string;
+  expiresAt: string | null;
+};
+
+type ValidarRespErr = { ok: false; error: string };
+
+function normalizeCode(v: string) {
+  return (v || "").trim().toUpperCase();
+}
+
+function isValidCode(v: string) {
+  return /^TC-[A-Z0-9]{8}$/.test(v);
+}
+
 export default function PrimeiroAcessoPage() {
   const router = useRouter();
-  const { auth } = initializeFirebase();
+  const sp = useSearchParams();
 
-  const [senha, setSenha] = React.useState("");
-  const [senha2, setSenha2] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [msg, setMsg] = React.useState<string | null>(null);
+  // Se você quiser permitir preencher por URL futuramente (ex: ?code=TC-XXXX)
+  const initialCode = useMemo(() => normalizeCode(sp.get("code") || ""), [sp]);
 
-  const user = auth.currentUser;
+  const [code, setCode] = useState(initialCode);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ValidarRespOk | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (!user) {
-      router.replace("/login");
-    }
-  }, [user, router]);
+  async function handleValidate() {
+    const v = normalizeCode(code);
+    setCode(v);
+    setError(null);
+    setResult(null);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
-
-    if (senha.length < 6) {
-      setMsg("A senha precisa ter pelo menos 6 caracteres.");
-      return;
-    }
-    if (senha !== senha2) {
-      setMsg("As senhas não conferem.");
-      return;
-    }
-
-    if (!auth.currentUser) {
-      setMsg("Sessão expirada. Faça login novamente.");
-      router.replace("/login");
+    if (!isValidCode(v)) {
+      setError("Código inválido. Use o formato TC-XXXXXXXX (8 caracteres).");
       return;
     }
 
     setLoading(true);
     try {
-      await updatePassword(auth.currentUser, senha);
-      setMsg("Senha criada com sucesso! Agora você já pode entrar com e-mail e senha.");
-      setTimeout(() => router.replace("/"), 800);
-    } catch (err: any) {
-      setMsg(err?.message || "Não foi possível definir a senha.");
+      const r = await fetch("/api/convites/validar-codigo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: v }),
+      });
+
+      const data = (await r.json().catch(() => null)) as (ValidarRespOk | ValidarRespErr | null);
+
+      if (!data) {
+        setError("Resposta inválida do servidor.");
+        return;
+      }
+
+      if (!("ok" in data) || data.ok !== true) {
+        setError((data as any)?.error || "Não foi possível validar o código.");
+        return;
+      }
+
+      setResult(data);
+
+      // Guarda pra UX (opcional)
+      try {
+        localStorage.setItem("tc_invite_code", v);
+        localStorage.setItem("tc_invite_id", data.conviteId);
+      } catch {}
+
+      // Próximo passo: definir senha
+      router.push(`/definir-senha?conviteId=${encodeURIComponent(data.conviteId)}`);
+    } catch (e: any) {
+      setError(e?.message || "Erro ao validar o código.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f6f1ea] p-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader>
-          <CardTitle>Criar senha</CardTitle>
-          <CardDescription>
-            Esse é seu primeiro acesso via link mágico. Crie uma senha para entrar normalmente depois.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Nova senha</label>
-              <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Confirmar senha</label>
-              <Input type="password" value={senha2} onChange={(e) => setSenha2(e.target.value)} placeholder="Repita a senha" />
-            </div>
+    <AppLayout pageTitle="Primeiro acesso" headerActions={null}>
+      <div className="mx-auto w-full max-w-xl space-y-6">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm">
+          <h1 className="text-2xl font-semibold">Validar código</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Digite o código que chegou no e-mail para continuar e definir sua senha.
+          </p>
 
-            {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
+          <div className="mt-6 space-y-3">
+            <Input
+              placeholder="TC-9F3K2P1A"
+              value={code}
+              onChange={(e) => setCode(normalizeCode(e.target.value))}
+              maxLength={11}
+            />
 
-            <Button className="w-full" type="submit" disabled={loading}>
-              {loading ? "Salvando..." : "Salvar senha"}
+            {error && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleValidate}
+              disabled={loading || !normalizeCode(code)}
+            >
+              {loading ? "Validando..." : "Validar e continuar"}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+
+            {result && (
+              <div className="rounded-xl border bg-muted/30 p-4 text-sm">
+                <div className="font-medium">Convite validado ✅</div>
+                <div className="mt-2 text-muted-foreground">
+                  {result.nome} • {result.email}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-card/50 p-5 text-xs text-muted-foreground">
+          Dica: se você colar o código com espaços, eu normalizo automaticamente.
+        </div>
+      </div>
+    </AppLayout>
   );
 }

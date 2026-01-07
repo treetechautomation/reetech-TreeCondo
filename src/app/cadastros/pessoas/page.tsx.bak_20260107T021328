@@ -1,12 +1,8 @@
-
 "use client";
 
-
-import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -61,48 +57,11 @@ export default function PessoasPage() {
 
   const [loading, setLoading] = useState(false);
   const [membros, setMembros] = useState<Membro[]>([]);
-  const [form, setForm] = useState<{
-    nome: string;
-    email: string;
-    role: MembroRole;
-    blocoId: string;
-    unidadeId: string;
-  }>({
+  const [form, setForm] = useState({
     nome: "",
     email: "",
     role: "MORADOR" as MembroRole,
-    blocoId: "",
-    unidadeId: ""
   });
-  const [abaConvite, setAbaConvite] = React.useState<"dados"|"local">("dados");
-
-  const [blocos, setBlocos] = React.useState<{ id: string; nome: string }[]>([]);
-  const [loadingBlocos, setLoadingBlocos] = React.useState(false);
-
-  // Carrega blocos do condomínio ativo
-  React.useEffect(() => {
-    (async () => {
-      try {
-        if (!condominioAtivoId) {
-          setBlocos([]);
-          setForm(f => ({ ...f, blocoId: "", unidadeId: "" }));
-          return;
-        }
-        setLoadingBlocos(true);
-        const r = await fetch(`/api/condominios/${condominioAtivoId}/blocos`);
-        const data = await r.json().catch(() => ({}));
-        if (r.ok && data?.ok && Array.isArray(data?.blocos)) {
-          setBlocos(data.blocos.map((b: any) => ({ id: String(b.id), nome: String(b.nome || b.id) })));
-        } else {
-          setBlocos([]);
-        }
-      } catch {
-        setBlocos([]);
-      } finally {
-        setLoadingBlocos(false);
-      }
-    })();
-  }, [condominioAtivoId]);
 
   // --- Condomínios públicos (picker) ---
   const [condos, setCondos] = useState<CondoPublico[]>([]);
@@ -113,6 +72,7 @@ export default function PessoasPage() {
 
     setIsLoadingCondos(true);
 
+    // coleção pública: condominiosPublicos
     const colRef = collection(firestore, "condominiosPublicos");
     const q = query(colRef, orderBy("nome"));
 
@@ -121,6 +81,7 @@ export default function PessoasPage() {
       (snap) => {
         const list: CondoPublico[] = snap.docs.map((d) => {
           const data = d.data() as any;
+          // fallback: se não existir condominioId no doc, usa o próprio doc.id
           const cid = (data.condominioId ?? d.id) as string;
           return {
             id: d.id,
@@ -130,6 +91,7 @@ export default function PessoasPage() {
           };
         });
 
+        // se quiser filtrar só ativos:
         const onlyActive = list.filter((c) => c.ativo !== false);
 
         setCondos(onlyActive);
@@ -228,15 +190,15 @@ export default function PessoasPage() {
           nome: form.nome.trim(),
           email: form.email.trim().toLowerCase(),
           role: form.role,
-          blocoId: form.blocoId || null,
-          unidadeId: form.unidadeId || null,
+          blocoId: null,
+          unidadeId: null,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao criar convite.");
 
-      setForm({ nome: "", email: "", role: "MORADOR" , blocoId: "", unidadeId: "" });
+      setForm({ nome: "", email: "", role: "MORADOR" });
 
       toast({
         title: "Convite criado!",
@@ -324,15 +286,7 @@ export default function PessoasPage() {
             Cadastrar pessoa e enviar convite
           </h2>
 
-          
-<Tabs value={abaConvite} onValueChange={(v) => setAbaConvite(v as any)} className="w-full">
-  <TabsList className="grid grid-cols-2 w-full rounded-2xl bg-white/40 border border-black/5 p-1">
-    <TabsTrigger className="rounded-xl" value="dados">Dados</TabsTrigger>
-    <TabsTrigger className="rounded-xl" value="local">Local</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="dados" className="mt-4">
-    <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <Input
               placeholder="Nome completo"
               value={form.nome}
@@ -355,63 +309,11 @@ export default function PessoasPage() {
               <option value="FUNCIONARIO">Funcionário</option>
             </select>
 
-            </div>
-    <div className="mt-3 flex justify-end">
-      <Button type="button" variant="outline" onClick={() => setAbaConvite("local")}>
-        Próximo: Local
-      </Button>
-    </div>
-  </TabsContent>
-
-  <TabsContent value="local" className="mt-4">
-    <div className="grid gap-4 md:grid-cols-2">
-      {/* BLOCO */}
-      <div className="space-y-1.5">
-        <label className="text-sm text-slate-700">Bloco</label>
-        <select
-          className="h-11 w-full rounded-xl border bg-white/60 px-3 text-sm"
-          value={form.blocoId}
-          onChange={(e) => setForm((f) => ({ ...f, blocoId: e.target.value, unidadeId: "" }))}
-          disabled={!condominioAtivoId || loadingBlocos}
-        >
-          <option value="">{loadingBlocos ? "Carregando..." : "Selecione o bloco"}</option>
-          {blocos.map((b) => (
-            <option key={b.id} value={b.id}>{b.nome}</option>
-          ))}
-        </select>
-        {form.role === "MORADOR" ? (
-          <div className="text-xs text-slate-600">Obrigatório para morador.</div>
-        ) : (
-          <div className="text-xs text-slate-600">Opcional para síndico/porteiro/funcionário.</div>
-        )}
-      </div>
-
-      {/* UNIDADE/APTO (somente MORADOR) */}
-      {form.role === "MORADOR" && (
-        <div className="space-y-1.5">
-          <label className="text-sm text-slate-700">Unidade / Apto</label>
-          <input
-            value={form.unidadeId}
-            onChange={(e) => setForm((f) => ({ ...f, unidadeId: e.target.value }))}
-            className="h-11 w-full rounded-xl border bg-white/60 px-3 text-sm"
-            placeholder="Ex: 101, 12B, Casa 3..."
-          />
-          <div className="text-xs text-slate-600">Obrigatório para morador.</div>
-        </div>
-      )}
-    </div>
-
-    <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-      <Button type="button" variant="outline" onClick={() => setAbaConvite("dados")}>
-        Voltar
-      </Button>
-      <Button onClick={handleSaveAndInvite} disabled={!condominioAtivoId || loading}>
+            <Button onClick={handleSaveAndInvite} disabled={!condominioAtivoId || loading}>
               {loading ? "Enviando..." : "Salvar e enviar"}
             </Button>
-    </div>
-  </TabsContent>
-</Tabs>
-</div>
+          </div>
+        </div>
 
         <div className="rounded-2xl border border-black/5 bg-white/55 p-6 shadow-sm backdrop-blur-xl">
           <h2 className="mb-4 text-lg font-semibold text-slate-900">Pessoas cadastradas</h2>

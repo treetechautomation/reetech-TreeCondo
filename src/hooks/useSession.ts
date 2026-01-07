@@ -1,77 +1,171 @@
 "use client";
 
-import * as React from "react";
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
-import { useUser, useClaims } from "@/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { useUser, useClaims, useFirestore } from "@/firebase";
 
 export type RoleKey = "SUPER_ADMIN" | "SINDICO" | "ADMIN" | "PORTEIRO" | "MORADOR";
+export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ADMIN";
 
-/** SUPER ADMIN resolver (prioriza claim/email bootstrap) */
+export type Vinculo = {
+  condominioId: string;
+  role: VinculoRole;
+  blocoId?: string | null;
+  unidadeId?: string | null;
+  status: "ATIVO" | "INATIVO";
+};
+
+type UserDoc = {
+  displayName?: string;
+  email?: string;
+  vinculos?: Vinculo[];
+};
+
 function isSuperAdminUser(user: User | null, claims: Record<string, any> | null) {
   const email = (user?.email || "").toLowerCase();
   return claims?.super_admin === true || email === "treecommunity@treetechautomation.com";
 }
 
-/**
- * Estado de sessão que o resto do app usa
- */
+function resolveRole(superAdmin: boolean, vinculoAtivo: Vinculo | null): RoleKey {
+  if (superAdmin) return "SUPER_ADMIN";
+  if (!vinculoAtivo) return "MORADOR";
+  if (vinculoAtivo.role === "SINDICO") return "SINDICO";
+  if (vinculoAtivo.role === "PORTEIRO") return "PORTEIRO";
+  if (vinculoAtivo.role === "ADMIN") return "ADMIN";
+  return "MORADOR";
+}
+
+const LS_CONDO = "treecondo_condominioId";
+const LS_ROLE = "treecondo_role";
+
 export type Session = {
   user: User;
-
-  // Condomínio selecionado no app (quando aplicável)
   activeCondominioId: string | null;
-
-  // Claims do Firebase Auth (ID token)
   claims: Record<string, any> | null;
-
-  // Flag super admin já resolvida no front
   superAdmin: boolean;
-
-  // Role efetivo do app (para menu/rotas)
   role: RoleKey;
+  vinculos: Vinculo[];
 };
 
 export function useSessionBase() {
   const { user, isUserLoading } = useUser();
   const { claims, isClaimsLoading } = useClaims();
+  const firestore = useFirestore();
 
   const [activeCondominioId, setActiveCondominioId] = useState<string | null>(null);
+  const [vinculos, setVinculos] = useState<Vinculo[]>([]);
+  const [isVinculosLoading, setIsVinculosLoading] = useState(true);
 
-  const session: Session | null = useMemo(() => {
+  // Carrega users/{uid}.vinculos[]
+  useEffect(() => {
+    if (!user) {
+      setVinculos([]);
+      setIsVinculosLoading(false);
+      return;
+    }
+
+    setIsVinculosLoading(true);
+    const ref = doc(firestore, "users", user.uid);
+
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const data = (snap.data() || {}) as UserDoc;
+        const list = (data.vinculos || []).filter((v) => v.status === "ATIVO");
+        setVinculos(list);
+        setIsVinculosLoading(false);
+      },
+      (err) => {
+        console.error("[useSession] erro ao carregar users/{uid}:", err);
+        setVinculos([]);
+        setIsVinculosLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [user?.uid, firestore]);
+
+  // Resolve condomínio ativo: mantém se válido, senão LS, senão único, senão primeiro
+  useEffect(() => {
+  if (!user) {
+    setActiveCondominioId(null);
+    return;
+  }
+  if (typeof window === "undefined") return;
+
+  const isSuper = isSuperAdminUser(user, claims ?? null);
+
+  // ✅ SUPER_ADMIN: escolhe condomínio via UI (condominiosPublicos)
+  // Não força vínculo, não zera seleção
+  if (isSuper) {
+    if (activeCondominioId) return;
+
+    const saved = window.localStorage.getItem(LS_CONDO);
+    if (saved) {
+      setActiveCondominioId(saved);
+    }
+    return;
+  }
+
+  // 👇 Demais perfis (SÍNDICO, MORADOR, etc.)
+  if (
+    activeCondominioId &&
+    vinculos.some((v) => v.condominioId === activeCondominioId)
+  ) {
+    return;
+  }
+
+  const saved = window.localStorage.getItem(LS_CONDO);
+  if (saved && vinculos.some((v) => v.condominioId === saved)) {
+    setActiveCondominioId(saved);
+    return;
+  }
+
+  if (vinculos.length >= 1) {
+    setActiveCondominioId(vinculos[0].condominioId);
+    return;
+  }
+
+  setActiveCondominioId(null);
+}, [user?.uid, vinculos, activeCondominioId, claims]);
+const session: Session | null = useMemo(() => {
     if (!user) return null;
 
-    const superAdmin = isSuperAdminUser(user, (claims ?? null) as any);
-    const role: RoleKey = superAdmin ? "SUPER_ADMIN" : "MORADOR";
+    const superAdmin = isSuperAdminUser(user, claims ?? null);
+    const vinculoAtivo = activeCondominioId
+      ? vinculos.find((v) => v.condominioId === activeCondominioId) ?? null
+      : null;
 
     return {
       user,
       activeCondominioId,
       claims: (claims ?? null) as any,
       superAdmin,
-      role,
+      role: resolveRole(superAdmin, vinculoAtivo),
+      vinculos,
     };
-  }, [user, activeCondominioId, claims]);
+  }, [user, claims, activeCondominioId, vinculos]);
 
-  // Compat: mantém localStorage alinhado pro layout antigo / outros pontos
+  // Sync LS (compat)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     if (!session) {
-      window.localStorage.removeItem("treecondo_role");
-      window.localStorage.removeItem("treecondo_condominioId");
+      window.localStorage.removeItem(LS_ROLE);
+      window.localStorage.removeItem(LS_CONDO);
       return;
     }
 
-    window.localStorage.setItem("treecondo_role", session.role);
+    window.localStorage.setItem(LS_ROLE, session.role);
     if (session.activeCondominioId) {
-      window.localStorage.setItem("treecondo_condominioId", session.activeCondominioId);
+      window.localStorage.setItem(LS_CONDO, session.activeCondominioId);
     } else {
-      window.localStorage.removeItem("treecondo_condominioId");
+      window.localStorage.removeItem(LS_CONDO);
     }
   }, [session?.role, session?.activeCondominioId, !!session]);
 
-  const isSessionLoading = isUserLoading || isClaimsLoading;
+  const isSessionLoading = isUserLoading || isClaimsLoading || isVinculosLoading;
   const isAuthenticated = !!user;
 
   return {

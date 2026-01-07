@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { initializeFirebase } from "@/firebase";
+import { useRouter } from "next/navigation";
 import {
-  completeMagicLinkIfPresent,
-  sendMagicLink,
-  setPasswordAfterMagicLink,
-} from "@/lib/magicLink";
+  signInWithEmailAndPassword,
+  signInWithCustomToken,
+  updatePassword,
+} from "firebase/auth";
+import { initializeFirebase } from "@/firebase";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +21,7 @@ function isStrongEnough(pw: string) {
 
 export default function LoginPage() {
   const router = useRouter();
-  const params = useSearchParams();
+  const { auth } = initializeFirebase();
 
   const [tab, setTab] = React.useState<"login" | "primeiro">("login");
 
@@ -32,50 +31,26 @@ export default function LoginPage() {
   const [loadingLogin, setLoadingLogin] = React.useState(false);
   const [errorLogin, setErrorLogin] = React.useState<string | null>(null);
 
-  // Primeiro acesso (link mágico)
-  const [primeiroEmail, setPrimeiroEmail] = React.useState("");
-  const [loadingMagic, setLoadingMagic] = React.useState(false);
-  const [magicMsg, setMagicMsg] = React.useState<string | null>(null);
-  const [magicErr, setMagicErr] = React.useState<string | null>(null);
+  // Primeiro acesso (código)
+  const [codigo, setCodigo] = React.useState("");
+  const [loadingCodigo, setLoadingCodigo] = React.useState(false);
+  const [codigoMsg, setCodigoMsg] = React.useState<string | null>(null);
+  const [codigoErr, setCodigoErr] = React.useState<string | null>(null);
 
-  // Completar link mágico
-  const [needEmailToComplete, setNeedEmailToComplete] = React.useState(false);
-
-  // Criar senha após link mágico
+  // Criar senha após validar código
   const [pw1, setPw1] = React.useState("");
   const [pw2, setPw2] = React.useState("");
   const [loadingSetPw, setLoadingSetPw] = React.useState(false);
   const [pwMsg, setPwMsg] = React.useState<string | null>(null);
   const [pwErr, setPwErr] = React.useState<string | null>(null);
 
-  // Se vier com link mágico na URL, tenta completar
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await completeMagicLinkIfPresent();
-        if (res.needEmail) {
-          setTab("primeiro");
-          setNeedEmailToComplete(true);
-          setMagicMsg("Confirme seu e-mail para finalizar o primeiro acesso.");
-        }
-        if (res.completed) {
-          setTab("primeiro");
-          setNeedEmailToComplete(false);
-          setMagicMsg("✅ Primeiro acesso autenticado. Agora crie sua senha.");
-        }
-      } catch (e: any) {
-        setTab("primeiro");
-        setMagicErr(e?.message || "Falha ao completar o link mágico.");
-      }
-    })();
-  }, []);
+  const [codigoValidado, setCodigoValidado] = React.useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setErrorLogin(null);
     setLoadingLogin(true);
     try {
-      const { auth } = initializeFirebase();
       await signInWithEmailAndPassword(auth, email.trim(), senha);
       router.push("/");
     } catch (e: any) {
@@ -85,38 +60,43 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSendMagic(e: React.FormEvent) {
+  async function handleValidarCodigo(e: React.FormEvent) {
     e.preventDefault();
-    setMagicErr(null);
-    setMagicMsg(null);
-    setLoadingMagic(true);
-    try {
-      await sendMagicLink(primeiroEmail.trim());
-      setMagicMsg("✅ Link enviado! Verifique seu e-mail e clique para autenticar.");
-      setNeedEmailToComplete(false);
-    } catch (e: any) {
-      setMagicErr(e?.message || "Falha ao enviar link mágico.");
-    } finally {
-      setLoadingMagic(false);
-    }
-  }
+    setCodigoErr(null);
+    setCodigoMsg(null);
+    setPwErr(null);
+    setPwMsg(null);
 
-  async function handleCompleteMagicWithEmail() {
-    setMagicErr(null);
-    setMagicMsg(null);
-    setLoadingMagic(true);
+    if (!email.trim()) {
+      setCodigoErr("Informe o e-mail.");
+      return;
+    }
+    if (!codigo.trim()) {
+      setCodigoErr("Informe o código (TC-XXXXXXXX).");
+      return;
+    }
+
+    setLoadingCodigo(true);
     try {
-      const res = await completeMagicLinkIfPresent(primeiroEmail.trim());
-      if (res.completed) {
-        setNeedEmailToComplete(false);
-        setMagicMsg("✅ Primeiro acesso autenticado. Agora crie sua senha.");
-      } else {
-        setMagicErr("Não encontrei link válido na URL.");
-      }
+      const r = await fetch("/api/convites/validar-codigo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), code: codigo.trim() }),
+      });
+
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error || "Código inválido.");
+
+      // login automático para permitir updatePassword
+      await signInWithCustomToken(auth, data.customToken);
+
+      setCodigoValidado(true);
+      setCodigoMsg("✅ Código validado. Agora crie sua senha abaixo.");
     } catch (e: any) {
-      setMagicErr(e?.message || "Falha ao completar o link mágico.");
+      setCodigoValidado(false);
+      setCodigoErr(e?.message || "Falha ao validar código.");
     } finally {
-      setLoadingMagic(false);
+      setLoadingCodigo(false);
     }
   }
 
@@ -124,6 +104,11 @@ export default function LoginPage() {
     e.preventDefault();
     setPwErr(null);
     setPwMsg(null);
+
+    if (!codigoValidado) {
+      setPwErr("Valide o código acima para liberar a criação de senha.");
+      return;
+    }
 
     if (!isStrongEnough(pw1)) {
       setPwErr("A senha precisa ter pelo menos 8 caracteres.");
@@ -136,10 +121,11 @@ export default function LoginPage() {
 
     setLoadingSetPw(true);
     try {
-      await setPasswordAfterMagicLink(pw1);
-      setPwMsg("✅ Senha criada! Agora entre com e-mail e senha.");
-      setTab("login");
-      setSenha("");
+      if (!auth.currentUser) throw new Error("Usuário não autenticado.");
+      await updatePassword(auth.currentUser, pw1);
+
+      setPwMsg("✅ Senha criada! Agora você já pode entrar normalmente.");
+      setTimeout(() => router.push("/"), 800);
     } catch (e: any) {
       setPwErr(e?.message || "Falha ao criar senha.");
     } finally {
@@ -166,8 +152,10 @@ export default function LoginPage() {
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-[980px] grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LADO BRAND */}
-          <div className="hidden lg:flex flex-col justify-center rounded-3xl p-10 text-white overflow-hidden relative"
-               style={{ background: "linear-gradient(135deg, rgba(13,148,136,0.95), rgba(34,197,94,0.85))" }}>
+          <div
+            className="hidden lg:flex flex-col justify-center rounded-3xl p-10 text-white overflow-hidden relative"
+            style={{ background: "linear-gradient(135deg, rgba(13,148,136,0.95), rgba(34,197,94,0.85))" }}
+          >
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-white/15 blur-2xl" />
               <div className="absolute bottom-[-80px] -left-24 h-72 w-72 rounded-full bg-black/10 blur-2xl" />
@@ -186,13 +174,14 @@ export default function LoginPage() {
                   <div className="text-base tracking-[0.2em] text-white/80">TREETECH AUTOMATION</div>
                 </div>
               </div>
+
               <p className="mt-4 text-white/90 leading-relaxed">
                 Gestão inteligente para condomínios. Centralize moradores, síndicos e operação
                 com uma experiência premium.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Link mágico no primeiro acesso</span>
+                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Código no primeiro acesso</span>
                 <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Senha criada pelo morador</span>
                 <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Acesso seguro</span>
               </div>
@@ -202,8 +191,8 @@ export default function LoginPage() {
           <Card className="rounded-3xl border-black/5 bg-white/35 backdrop-blur-xl shadow-[0_20px_70px_rgba(2,6,23,0.18)]">
             <CardHeader className="pb-2">
               <CardTitle className="text-2xl">
-                <span style={{ color: '#00D0E6' }}>Tree</span>
-                <span style={{ color: '#D3EA00' }}>Condo</span>
+                <span style={{ color: "#00D0E6" }}>Tree</span>
+                <span style={{ color: "#D3EA00" }}>Condo</span>
               </CardTitle>
               <CardDescription className="text-slate-700">
                 Acesse sua conta ou finalize o primeiro acesso.
@@ -229,6 +218,7 @@ export default function LoginPage() {
                         className="h-11 rounded-xl bg-white/60"
                       />
                     </div>
+
                     <div className="space-y-1.5">
                       <label className="text-sm text-slate-700">Senha</label>
                       <Input
@@ -259,60 +249,57 @@ export default function LoginPage() {
 
                 <TabsContent value="primeiro" className="mt-5">
                   <div className="space-y-5">
-                    {/* enviar link */}
-                    <form onSubmit={handleSendMagic} className="space-y-3">
+                    {/* validar código */}
+                    <form onSubmit={handleValidarCodigo} className="space-y-3">
                       <div className="space-y-1.5">
                         <label className="text-sm text-slate-700">E-mail</label>
                         <Input
-                          value={primeiroEmail}
-                          onChange={(e) => setPrimeiroEmail(e.target.value)}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
                           type="email"
                           placeholder="e-mail cadastrado pelo condomínio"
                           className="h-11 rounded-xl bg-white/60"
                         />
                       </div>
 
-                      {magicMsg && (
+                      <div className="space-y-1.5">
+                        <label className="text-sm text-slate-700">Código de primeiro acesso</label>
+                        <Input
+                          value={codigo}
+                          onChange={(e) => setCodigo(e.target.value)}
+                          placeholder="TC-XXXXXXXX"
+                          className="h-11 rounded-xl bg-white/60"
+                        />
+                        <div className="text-xs text-slate-600">Exemplo: <b>TC-9F3K2P1A</b></div>
+                      </div>
+
+                      {codigoMsg && (
                         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800">
-                          {magicMsg}
+                          {codigoMsg}
                         </div>
                       )}
-                      {magicErr && (
+                      {codigoErr && (
                         <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-700">
-                          {magicErr}
+                          {codigoErr}
                         </div>
                       )}
 
                       <Button
-                        disabled={loadingMagic}
+                        disabled={loadingCodigo}
                         className="w-full h-11 rounded-xl text-white shadow-lg"
                         style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
                         type="submit"
                       >
-                        {loadingMagic ? "Enviando..." : "Enviar link de primeiro acesso"}
+                        {loadingCodigo ? "Validando..." : "Validar código"}
                       </Button>
-
-                      {needEmailToComplete && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={loadingMagic || !primeiroEmail.trim()}
-                          className="w-full h-11 rounded-xl bg-white/40"
-                          onClick={handleCompleteMagicWithEmail}
-                        >
-                          {loadingMagic ? "Finalizando..." : "Finalizar com este e-mail"}
-                        </Button>
-                      )}
                     </form>
 
                     {/* criar senha */}
                     <div className="rounded-2xl border border-black/5 bg-white/40 p-4">
                       <div className="mb-3">
-                        <div className="text-base font-semibold text-slate-900">
-                          Criar senha (após autenticar no link)
-                        </div>
+                        <div className="text-base font-semibold text-slate-900">Criar senha</div>
                         <div className="text-sm text-slate-700">
-                          Clique no link do e-mail e depois defina sua senha aqui.
+                          Depois de validar o código, crie sua senha para os próximos logins.
                         </div>
                       </div>
 
@@ -324,6 +311,7 @@ export default function LoginPage() {
                             onChange={(e) => setPw1(e.target.value)}
                             type="password"
                             className="h-11 rounded-xl bg-white/60"
+                            disabled={!codigoValidado}
                           />
                         </div>
 
@@ -334,8 +322,15 @@ export default function LoginPage() {
                             onChange={(e) => setPw2(e.target.value)}
                             type="password"
                             className="h-11 rounded-xl bg-white/60"
+                            disabled={!codigoValidado}
                           />
                         </div>
+
+                        {!codigoValidado && (
+                          <div className="rounded-xl border border-black/5 bg-white/50 px-3 py-2 text-sm text-slate-700">
+                            Valide o código acima para liberar a criação de senha.
+                          </div>
+                        )}
 
                         {pwMsg && (
                           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800">
@@ -349,7 +344,7 @@ export default function LoginPage() {
                         )}
 
                         <Button
-                          disabled={loadingSetPw}
+                          disabled={loadingSetPw || !codigoValidado}
                           className="w-full h-11 rounded-xl text-white shadow-lg"
                           style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
                           type="submit"
