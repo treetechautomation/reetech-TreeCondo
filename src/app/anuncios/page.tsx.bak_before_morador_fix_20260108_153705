@@ -52,21 +52,6 @@ export default function AnunciosPage() {
   const lastSeenKey = condominioAtivoId ? `treecondo_lastSeen_anuncios_${condominioAtivoId}` : null;
   const [hasNew, setHasNew] = React.useState(false);
 
-  // ✅ MORADOR (ou perfis sem seletor): define automaticamente o condomínio ativo pelo vínculo da sessão
-  React.useEffect(() => {
-    if (isSessionLoading) return;
-    if (condominioAtivoId) return;
-
-    const autoId =
-      (session as any)?.activeCondominioId ||
-      (session as any)?.activeCondominio?.id ||
-      (session as any)?.condominioId ||
-      null;
-
-    if (autoId) setCondominioAtivoId(autoId);
-  }, [isSessionLoading, session, condominioAtivoId, setCondominioAtivoId]);
-
-
   React.useEffect(() => {
     if (!lastSeenKey) return;
     const newest = anuncios?.[0]?.createdAt;
@@ -106,11 +91,7 @@ export default function AnunciosPage() {
         setAnuncios(list);
         setLoading(false);
       },
-      (error) => {
-        console.error("[anuncios] onSnapshot error:", error);
-        setErr(error?.code ? `${error.code}: ${error.message}` : "Erro ao carregar anúncios.");
-        setLoading(false);
-      }
+      () => setLoading(false)
     );
 
     return () => unsub();

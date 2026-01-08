@@ -2,13 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Lista pública de condomínios (para selects e telas de descoberta)
-    match /condominiosPublicos/{condId} {
-      allow read: if request.auth != null;   // usuário logado pode listar/ler
-      allow write: if false;                 // ajuste depois (ex: somente super admin)
-    }
-
-
     function signedIn() {
       return request.auth != null;
     }

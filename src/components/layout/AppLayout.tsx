@@ -15,6 +15,7 @@ import { initializeFirebase } from "@/firebase";
 import UserBadge from "./UserBadge";
 import { CondominioSelector } from "../condominio-selector";
 import { BlocoUnidadeSelector } from "../bloco-unidade-selector";
+import { LogOut } from "lucide-react";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -199,7 +200,7 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
                 {/* Seletores */}
                 <div className="relative p-4 space-y-4 border-b border-white/10">
                   <CondominioSelector />
-                  <BlocoUnidadeSelector />
+                  {/* <BlocoUnidadeSelector /> */}
                 </div>
 
                 {/* Nav */}
@@ -218,10 +219,11 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
                     <Button
                       onClick={handleLogout}
                       variant="ghost"
-                      size="sm"
+                      size="icon"
                       className="rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                      title="Sair"
                     >
-                      Sair
+                      <LogOut className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
