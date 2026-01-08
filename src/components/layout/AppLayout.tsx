@@ -11,10 +11,7 @@ import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
-import { UserNav } from "@/components/user-nav";
-import { CondominioSwitcher } from "../condominio/CondominioSwitcher";
-import { BlocoUnidadeSelector } from "../bloco-unidade-selector";
-import { Separator } from "../ui/separator";
+import UserBadge from "./UserBadge";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -198,23 +195,26 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
 
                 {/* Nav */}
                 <div className="relative p-3 flex-1 flex flex-col overflow-hidden">
-                    <div className="space-y-2 p-2">
-                        <CondominioSwitcher />
-                        <BlocoUnidadeSelector />
-                    </div>
-
-                    <Separator className="my-3 bg-white/10"/>
-
-                    <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
-                        {filteredNav.map((item) => (
-                            <NavItem key={item.href} href={item.href} label={item.label} />
-                        ))}
-                    </nav>
+                  <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
+                    {filteredNav.map((item) => (
+                      <NavItem key={item.href} href={item.href} label={item.label} />
+                    ))}
+                  </nav>
                 </div>
 
                 {/* Footer */}
                 <div className="relative mt-auto p-3 border-t border-white/10">
-                  <UserNav variant="sidebar" />
+                  <div className="flex items-center gap-2">
+                    <UserBadge variant="sidebar" className="flex-1" />
+                    <Button
+                      onClick={handleLogout}
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                    >
+                      Sair
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
