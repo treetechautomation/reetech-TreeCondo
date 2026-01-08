@@ -59,11 +59,11 @@ export default function CondominioSelect({ value, onChange, className, label = "
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="text-xs font-medium text-white/70">{label}</div>
+      <div className="text-xs font-medium text-slate-800">{label}</div>
       <Select value={value ?? ""} onValueChange={(v) => onChange(v)}>
         <SelectTrigger
           className={cn(
-            "h-11 rounded-2xl border-white/15 bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)] backdrop-blur",
+            "h-11 rounded-2xl border-white/15 bg-white/10 text-slate-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)] backdrop-blur",
             "focus:ring-0 focus:ring-offset-0"
           )}
         >
@@ -84,7 +84,7 @@ export default function CondominioSelect({ value, onChange, className, label = "
         </SelectContent>
       </Select>
 
-      <div className="text-[11px] text-white/40">
+      <div className="text-[11px] text-slate-700/80">
         Dica: este seletor salva o condomínio ativo para filtrar Anúncios, Encomendas, etc.
       </div>
     </div>
