@@ -13,14 +13,39 @@ service cloud.firestore {
       );
     }
 
-    function isMember(condId) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    function memberDoc(condId) {
+      return get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
     }
 
-    // Condomínios
+    function isMember(condId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    }
+
+    function isActiveMember(condId) {
+      return isMember(condId) && memberDoc(condId).data.status == "ATIVO";
+    }
+
+    function memberRole(condId) {
+      return isMember(condId) ? (memberDoc(condId).data.role) : null;
+    }
+
+    function hasMenu(condId, key) {
+      return isMember(condId)
+        && (memberDoc(condId).data.menuPermissions[key] == true);
+    }
+// Condomínios
     match /condominios/{condId} {
-      // super admin lê tudo
+      
+      match /anuncios/{anuncioId} {
+        allow read: if isSuperAdmin() || isActiveMember(condId);
+        allow create, update, delete: if isSuperAdmin()
+          || (isActiveMember(condId)
+              && memberRole(condId) != "MORADOR"
+              && hasMenu(condId, "anuncios"));
+      }
+
+// super admin lê tudo
       allow read: if isSuperAdmin() || isMember(condId);
 
       // criar/editar condomínio: só super admin

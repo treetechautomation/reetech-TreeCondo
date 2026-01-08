@@ -3,7 +3,7 @@
 import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import CondominioSelect from "@/components/condominios/CondominioSelect";
-import { useSessionCtx } from "@/contexts/SessionContext";
+import { useSession } from "@/hooks/useSession";
 import { initializeFirebase } from "@/firebase";
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,11 +32,11 @@ function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
 }
 
 export default function AnunciosPage() {
-  const { session, setActiveCondominioId } = useSessionCtx();
+  const { session, isSessionLoading, setActiveCondominioId } = useSession();
 
   const role = session?.role ?? null;
   const isMorador = role === "MORADOR";
-  const canManageAnuncios = role === "ADMIN" || role === "SINDICO" || role === "SUPER_ADMIN";
+  const canManageAnuncios = role === "ADMIN" || role === "SINDICO";
 
   const condominioId = session?.activeCondominioId ?? null;
 

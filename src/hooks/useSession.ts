@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import { useUser, useClaims, useFirestore } from "@/firebase";
 
 export type RoleKey = "SUPER_ADMIN" | "SINDICO" | "ADMIN" | "PORTEIRO" | "MORADOR";
@@ -57,27 +57,29 @@ export function useSessionBase() {
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [isVinculosLoading, setIsVinculosLoading] = useState(true);
 
-  // Carrega users/{uid}.vinculos[]
+  // Carrega userCondominios/{uid}/vinculos[]
   useEffect(() => {
-    if (!user) {
+    if (!user || !firestore) {
       setVinculos([]);
       setIsVinculosLoading(false);
       return;
     }
 
     setIsVinculosLoading(true);
-    const ref = doc(firestore, "users", user.uid);
+    const vinculosRef = collection(firestore, "userCondominios", user.uid, "vinculos");
+    const q = query(vinculosRef);
 
     const unsub = onSnapshot(
-      ref,
+      q,
       (snap) => {
-        const data = (snap.data() || {}) as UserDoc;
-        const list = (data.vinculos || []).filter((v) => v.status === "ATIVO");
+        const list = snap.docs
+          .map((d) => d.data() as Vinculo)
+          .filter((v) => v.status === "ATIVO");
         setVinculos(list);
         setIsVinculosLoading(false);
       },
       (err) => {
-        console.error("[useSession] erro ao carregar users/{uid}:", err);
+        console.error("[useSession] erro ao carregar userCondominios/{uid}/vinculos:", err);
         setVinculos([]);
         setIsVinculosLoading(false);
       }

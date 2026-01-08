@@ -41,7 +41,6 @@ type Membro = {
   blocoId?: string | null;
   unidadeId?: string | null;
   status?: "ATIVO" | "INATIVO" | "PENDENTE";
-  isSuperAdmin?: boolean;
 };
 
 type CondoPublico = {
@@ -447,9 +446,7 @@ export default function PessoasPage() {
                     <TableCell className="font-medium">{m.nome}</TableCell>
                     <TableCell>{m.email}</TableCell>
                     <TableCell>
-                      {m.isSuperAdmin
-                        ? "Super Admin"
-                        : m.role === "MORADOR"
+                      {m.role === "MORADOR"
                         ? "Morador"
                         : m.role === "SINDICO"
                         ? "Síndico"

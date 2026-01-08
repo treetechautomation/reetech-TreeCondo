@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && (
+        request.auth.token.superAdmin == true ||
+        request.auth.token.email == "treecommunity@treetechautomation.com"
+      );
+    }
+
+    function isMember(condId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    }
+
+    // Condomínios
+    match /condominios/{condId} {
+      // super admin lê tudo
+      allow read: if isSuperAdmin() || isMember(condId);
+
+      // criar/editar condomínio: só super admin
+      allow create, update, delete: if isSuperAdmin();
+
+      // Subcoleções do condomínio
+      match /{sub=**} {
+        allow read: if isSuperAdmin() || isMember(condId);
+        allow write: if isSuperAdmin(); // ajuste depois por role (síndico/admin)
+      }
+    }
+
+    // fallback: nega tudo
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
