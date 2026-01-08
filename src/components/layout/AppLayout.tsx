@@ -1,6 +1,5 @@
 "use client";
 
-import UserBadge from "@/components/layout/UserBadge";
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,6 +12,9 @@ import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 import { UserNav } from "@/components/user-nav";
+import { CondominioSwitcher } from "../condominio/CondominioSwitcher";
+import { BlocoUnidadeSelector } from "../bloco-unidade-selector";
+import { Separator } from "../ui/separator";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -195,11 +197,20 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
                 </div>
 
                 {/* Nav */}
-                <nav className="relative p-3 space-y-2 overflow-y-auto">
-                  {filteredNav.map((item) => (
-                    <NavItem key={item.href} href={item.href} label={item.label} />
-                  ))}
-                </nav>
+                <div className="relative p-3 flex-1 flex flex-col overflow-hidden">
+                    <div className="space-y-2 p-2">
+                        <CondominioSwitcher />
+                        <BlocoUnidadeSelector />
+                    </div>
+
+                    <Separator className="my-3 bg-white/10"/>
+
+                    <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
+                        {filteredNav.map((item) => (
+                            <NavItem key={item.href} href={item.href} label={item.label} />
+                        ))}
+                    </nav>
+                </div>
 
                 {/* Footer */}
                 <div className="relative mt-auto p-3 border-t border-white/10">
@@ -216,7 +227,6 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="text-xl font-semibold text-slate-900">{pageTitle ?? ""}</div>
                 <div className="flex items-center gap-4">
-                  <UserNav variant="header" />
                   {headerActions ?? null}
                 </div>
               </div>

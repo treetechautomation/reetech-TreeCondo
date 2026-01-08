@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
-import CondominioSelect from "@/components/condominios/CondominioSelect";
+import { useCondominio } from "@/contexts/CondominioContext";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { initializeFirebase } from "@/firebase";
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
@@ -32,12 +32,11 @@ function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
 }
 
 export default function AnunciosPage() {
-  const { session, setActiveCondominioId } = useSessionCtx();
+  const { session } = useSessionCtx();
+  const { condominioAtivoId } = useCondominio();
 
   const role = session?.role ?? null;
   const canManageAnuncios = role === "ADMIN" || role === "SINDICO" || role === "SUPER_ADMIN";
-
-  const condominioId = session?.activeCondominioId ?? null;
 
   const [anuncios, setAnuncios] = React.useState<Anuncio[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -48,7 +47,7 @@ export default function AnunciosPage() {
   const [err, setErr] = React.useState<string | null>(null);
 
   // 🔔 Aviso novo para morador
-  const lastSeenKey = condominioId ? `treecondo_lastSeen_anuncios_${condominioId}` : null;
+  const lastSeenKey = condominioAtivoId ? `treecondo_lastSeen_anuncios_${condominioAtivoId}` : null;
   const [hasNew, setHasNew] = React.useState(false);
 
   React.useEffect(() => {
@@ -68,15 +67,16 @@ export default function AnunciosPage() {
   }
 
   React.useEffect(() => {
-    if (!condominioId) {
+    if (!condominioAtivoId) {
       setAnuncios([]);
+      setLoading(false);
       return;
     }
 
     const { firestore } = initializeFirebase();
     setLoading(true);
 
-    const colRef = collection(firestore, "condominios", condominioId, "anuncios");
+    const colRef = collection(firestore, "condominios", condominioAtivoId, "anuncios");
     const q = query(colRef, orderBy("createdAt", "desc"));
 
     const unsub = onSnapshot(
@@ -93,14 +93,10 @@ export default function AnunciosPage() {
     );
 
     return () => unsub();
-  }, [condominioId]);
-
-  function onPickCondo(id: string) {
-    setActiveCondominioId(id);
-  }
+  }, [condominioAtivoId]);
 
   async function createAnuncio() {
-    if (!condominioId) return;
+    if (!condominioAtivoId) return;
     if (!canManageAnuncios) {
       setErr("Sem permissão para criar anúncios.");
       return;
@@ -116,7 +112,7 @@ export default function AnunciosPage() {
     setSaving(true);
     try {
       const { firestore } = initializeFirebase();
-      await addDoc(collection(firestore, "condominios", condominioId, "anuncios"), {
+      await addDoc(collection(firestore, "condominios", condominioAtivoId, "anuncios"), {
         titulo: t,
         mensagem: m,
         createdAt: serverTimestamp(),
@@ -133,6 +129,13 @@ export default function AnunciosPage() {
     <GlassCard className={cn(canManageAnuncios ? "lg:col-span-2" : "lg:col-span-3")}>
         <CardHeader>
             <CardTitle>Últimos anúncios</CardTitle>
+            <CardDescription>
+                {loading 
+                    ? "Carregando anúncios..." 
+                    : !condominioAtivoId
+                    ? "Selecione um condomínio para ver os anúncios."
+                    : "Avisos importantes para todos os moradores."}
+            </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
             {hasNew && (
@@ -146,7 +149,7 @@ export default function AnunciosPage() {
 
             {loading && <div>Carregando...</div>}
 
-            {!loading &&
+            {!loading && anuncios.length > 0 &&
             anuncios.map((a) => (
                 <div key={a.id} className="rounded-xl border p-4">
                 <div className="font-semibold">{a.titulo}</div>
@@ -154,7 +157,7 @@ export default function AnunciosPage() {
                 </div>
             ))}
 
-            {!loading && anuncios.length === 0 && <div>Nenhum anúncio.</div>}
+            {!loading && anuncios.length === 0 && condominioAtivoId && <div>Nenhum anúncio.</div>}
         </CardContent>
     </GlassCard>
   );
@@ -170,24 +173,27 @@ export default function AnunciosPage() {
                     <CardDescription>Publicar avisos para os moradores.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                    <CondominioSelect value={condominioId} onChange={onPickCondo} />
+                    
+                    {!condominioAtivoId && <p className="text-sm text-amber-700">Selecione um condomínio na barra lateral para criar um anúncio.</p>}
 
                     <Input
                         value={titulo}
                         onChange={(e) => setTitulo(e.target.value)}
                         placeholder="Título do anúncio"
+                        disabled={!condominioAtivoId}
                     />
 
                     <textarea
                         value={mensagem}
                         onChange={(e) => setMensagem(e.target.value)}
-                        className="min-h-[120px] w-full rounded-xl border p-3"
+                        className="min-h-[120px] w-full rounded-xl border p-3 disabled:opacity-50"
                         placeholder="Mensagem"
+                        disabled={!condominioAtivoId}
                     />
 
                     {err && <div className="text-red-600 text-sm">{err}</div>}
 
-                    <Button onClick={createAnuncio} disabled={saving || !condominioId}>
+                    <Button onClick={createAnuncio} disabled={saving || !condominioAtivoId}>
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Publicar
                     </Button>
