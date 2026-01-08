@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -12,6 +13,8 @@ import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 import UserBadge from "./UserBadge";
+import { CondominioSelector } from "../condominio-selector";
+import { BlocoUnidadeSelector } from "../bloco-unidade-selector";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -191,6 +194,12 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Seletores */}
+                <div className="relative p-4 space-y-4 border-b border-white/10">
+                  <CondominioSelector />
+                  <BlocoUnidadeSelector />
                 </div>
 
                 {/* Nav */}
