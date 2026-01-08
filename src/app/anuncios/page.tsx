@@ -35,7 +35,6 @@ export default function AnunciosPage() {
   const { session, setActiveCondominioId } = useSessionCtx();
 
   const role = session?.role ?? null;
-  const isMorador = role === "MORADOR";
   const canManageAnuncios = role === "ADMIN" || role === "SINDICO" || role === "SUPER_ADMIN";
 
   const condominioId = session?.activeCondominioId ?? null;
@@ -130,79 +129,76 @@ export default function AnunciosPage() {
     }
   }
 
-  return (
-    <AppLayout pageTitle="Anúncios">
-      <div className="grid gap-6 lg:grid-cols-3">
-        {canManageAnuncios ? (
-          <GlassCard className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle>Criar anúncio</CardTitle>
-              <CardDescription>Publicar avisos para os moradores.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <CondominioSelect value={condominioId} onChange={onPickCondo} />
-
-              <Input
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                placeholder="Título do anúncio"
-              />
-
-              <textarea
-                value={mensagem}
-                onChange={(e) => setMensagem(e.target.value)}
-                className="min-h-[120px] w-full rounded-xl border p-3"
-                placeholder="Mensagem"
-              />
-
-              {err && <div className="text-red-600 text-sm">{err}</div>}
-
-              <Button onClick={createAnuncio} disabled={saving || !condominioId}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Publicar
-              </Button>
-            </CardContent>
-          </GlassCard>
-        ) : (
-          <GlassCard className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle>Avisos</CardTitle>
-              <CardDescription>Você apenas visualiza os anúncios.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CondominioSelect value={condominioId} onChange={onPickCondo} />
-            </CardContent>
-          </GlassCard>
-        )}
-
-        <GlassCard className="lg:col-span-2">
-          <CardHeader>
+  const AnnouncementsList = () => (
+    <GlassCard className={cn(canManageAnuncios ? "lg:col-span-2" : "lg:col-span-3")}>
+        <CardHeader>
             <CardTitle>Últimos anúncios</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isMorador && hasNew && (
-              <div className="rounded-xl bg-emerald-100 p-3 flex justify-between items-center">
+        </CardHeader>
+        <CardContent className="space-y-3">
+            {hasNew && (
+            <div className="rounded-xl bg-emerald-100 p-3 flex justify-between items-center">
                 <b>📢 Tem aviso novo pra você</b>
                 <button onClick={markSeen} className="text-sm underline">
-                  Marcar como visto
+                Marcar como visto
                 </button>
-              </div>
+            </div>
             )}
 
             {loading && <div>Carregando...</div>}
 
             {!loading &&
-              anuncios.map((a) => (
+            anuncios.map((a) => (
                 <div key={a.id} className="rounded-xl border p-4">
-                  <div className="font-semibold">{a.titulo}</div>
-                  <div className="text-sm mt-1 whitespace-pre-wrap">{a.mensagem}</div>
+                <div className="font-semibold">{a.titulo}</div>
+                <div className="text-sm mt-1 whitespace-pre-wrap">{a.mensagem}</div>
                 </div>
-              ))}
+            ))}
 
             {!loading && anuncios.length === 0 && <div>Nenhum anúncio.</div>}
-          </CardContent>
-        </GlassCard>
-      </div>
+        </CardContent>
+    </GlassCard>
+  );
+
+  return (
+    <AppLayout pageTitle="Anúncios">
+        <div className="grid gap-6 lg:grid-cols-3">
+            {canManageAnuncios ? (
+                <>
+                <GlassCard className="lg:col-span-1">
+                    <CardHeader>
+                    <CardTitle>Criar anúncio</CardTitle>
+                    <CardDescription>Publicar avisos para os moradores.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                    <CondominioSelect value={condominioId} onChange={onPickCondo} />
+
+                    <Input
+                        value={titulo}
+                        onChange={(e) => setTitulo(e.target.value)}
+                        placeholder="Título do anúncio"
+                    />
+
+                    <textarea
+                        value={mensagem}
+                        onChange={(e) => setMensagem(e.target.value)}
+                        className="min-h-[120px] w-full rounded-xl border p-3"
+                        placeholder="Mensagem"
+                    />
+
+                    {err && <div className="text-red-600 text-sm">{err}</div>}
+
+                    <Button onClick={createAnuncio} disabled={saving || !condominioId}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Publicar
+                    </Button>
+                    </CardContent>
+                </GlassCard>
+                <AnnouncementsList />
+                </>
+            ) : (
+                <AnnouncementsList />
+            )}
+        </div>
     </AppLayout>
   );
 }
