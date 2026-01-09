@@ -136,7 +136,7 @@ React.useEffect(() => {
 
     const { firestore } = initializeFirebase();
     setLoading(true);
-    setErr(null);
+
     const colRef = collection(firestore, "condominios", condominioAtivoId, "anuncios");
     const q = query(colRef, orderBy("createdAt", "desc"));
 
@@ -198,12 +198,11 @@ React.useEffect(() => {
                 {loading 
                     ? "Carregando anúncios..." 
                     : !condominioAtivoId
-                    ? (canSelectCondo ? "Selecione um condomínio para ver os anúncios." : "Não foi possível identificar seu condomínio (vínculo).")
+                    ? (canSelectCondo ? (canSelectCondo ? "Selecione um condomínio para ver os anúncios." : "Não foi possível identificar seu condomínio (vínculo).") : "Não foi possível identificar seu condomínio (vínculo).")
                     : "Avisos importantes para todos os moradores."}
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-            {err && (<div className="text-red-600 text-sm">{err}</div>)}
             {hasNew && (
             <div className="rounded-xl bg-emerald-100 p-3 flex justify-between items-center">
                 <b>📢 Tem aviso novo pra você</b>

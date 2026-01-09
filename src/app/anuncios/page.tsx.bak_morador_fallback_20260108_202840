@@ -4,7 +4,7 @@ import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import CondominioSelect from "@/components/condominios/CondominioSelect";
 import { initializeFirebase } from "@/firebase";
-import { addDoc, collection, collectionGroup, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { useSession } from "@/hooks/useSession";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,63 +52,19 @@ export default function AnunciosPage() {
   const lastSeenKey = condominioAtivoId ? `treecondo_lastSeen_anuncios_${condominioAtivoId}` : null;
   const [hasNew, setHasNew] = React.useState(false);
 
-// ✅ MORADOR (ou perfis sem seletor): define automaticamente o condomínio ativo
-// 1) tenta via sessão (activeCondominioId / activeCondominio.id / condominioId)
-// 2) fallback: descobre pelo UID em condominios/*/membros (collectionGroup)
-React.useEffect(() => {
-  if (isSessionLoading) return;
-  if (condominioAtivoId) return;
+  // ✅ MORADOR (ou perfis sem seletor): define automaticamente o condomínio ativo pelo vínculo da sessão
+  React.useEffect(() => {
+    if (isSessionLoading) return;
+    if (condominioAtivoId) return;
 
-  const uid = (session as any)?.user?.uid || (session as any)?.uid || null;
+    const autoId =
+      (session as any)?.activeCondominioId ||
+      (session as any)?.activeCondominio?.id ||
+      (session as any)?.condominioId ||
+      null;
 
-  const autoId =
-    (session as any)?.activeCondominioId ||
-    (session as any)?.activeCondominio?.id ||
-    (session as any)?.condominioId ||
-    null;
-
-  if (autoId) {
-    setCondominioAtivoId(autoId);
-    return;
-  }
-
-  if (!uid) return;
-
-  let cancelled = false;
-
-  (async () => {
-    try {
-      const { firestore } = initializeFirebase();
-
-      // No seu banco, em muitos casos o docId de membros != UID.
-      // Então buscamos pelo campo membros.uid == UID.
-      const q = query(
-        collectionGroup(firestore, "membros"),
-        where("uid", "==", uid),
-        limit(1)
-      );
-
-      const snap = await getDocs(q);
-      if (cancelled) return;
-
-      const doc = snap.docs[0];
-      if (!doc) return;
-
-      // path: condominios/{condId}/membros/{docId}
-      const condRef = doc.ref.parent.parent;
-      const foundCondId = condRef?.id || null;
-
-      if (foundCondId) setCondominioAtivoId(foundCondId);
-    } catch (e) {
-      console.error("[anuncios] fallback membros->condominioAtivoId error:", e);
-    }
-  })();
-
-  return () => {
-    cancelled = true;
-  };
-}, [isSessionLoading, session, condominioAtivoId, setCondominioAtivoId]);
-
+    if (autoId) setCondominioAtivoId(autoId);
+  }, [isSessionLoading, session, condominioAtivoId, setCondominioAtivoId]);
 
 
   React.useEffect(() => {
@@ -136,7 +92,7 @@ React.useEffect(() => {
 
     const { firestore } = initializeFirebase();
     setLoading(true);
-    setErr(null);
+
     const colRef = collection(firestore, "condominios", condominioAtivoId, "anuncios");
     const q = query(colRef, orderBy("createdAt", "desc"));
 
@@ -198,12 +154,11 @@ React.useEffect(() => {
                 {loading 
                     ? "Carregando anúncios..." 
                     : !condominioAtivoId
-                    ? (canSelectCondo ? "Selecione um condomínio para ver os anúncios." : "Não foi possível identificar seu condomínio (vínculo).")
+                    ? (canSelectCondo ? (canSelectCondo ? "Selecione um condomínio para ver os anúncios." : "Não foi possível identificar seu condomínio (vínculo).") : "Não foi possível identificar seu condomínio (vínculo).")
                     : "Avisos importantes para todos os moradores."}
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-            {err && (<div className="text-red-600 text-sm">{err}</div>)}
             {hasNew && (
             <div className="rounded-xl bg-emerald-100 p-3 flex justify-between items-center">
                 <b>📢 Tem aviso novo pra você</b>

@@ -136,7 +136,8 @@ React.useEffect(() => {
 
     const { firestore } = initializeFirebase();
     setLoading(true);
-    setErr(null);
+s*setErr(null);
+
     const colRef = collection(firestore, "condominios", condominioAtivoId, "anuncios");
     const q = query(colRef, orderBy("createdAt", "desc"));
 
