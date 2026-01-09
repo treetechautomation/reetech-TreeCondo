@@ -164,68 +164,60 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
             <div className="absolute bottom-0 left-10 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
 
             {/* Painel 100% glass */}
-            <div className="relative h-full flex flex-col p-3">
-              <div 
-                className="flex-1 rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-hidden flex flex-col"
-              >
-                {/* brilho interno */}
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_circle_at_-20%_-20%,rgba(255,255,255,.18),transparent_45%),radial-gradient(900px_circle_at_120%_20%,rgba(255,255,255,.10),transparent_40%)]" />
+            <div 
+              className="flex-1 rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-hidden flex flex-col m-3"
+            >
+              {/* brilho interno */}
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_circle_at_-20%_-20%,rgba(255,255,255,.18),transparent_45%),radial-gradient(900px_circle_at_120%_20%,rgba(255,255,255,.10),transparent_40%)]" />
 
-                {/* Header */}
-                <div className="relative px-5 py-6 border-b border-white/10">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-2xl bg-white/[0.08] backdrop-blur flex items-center justify-center border border-white/15 shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]">
-                      <Image
-                        src="/logo-treecondo.jpeg"
-                        alt="TreeCondo"
-                        width={48}
-                        height={48}
-                        className="rounded-lg object-contain"
-                        loading="eager"
-                      />
+              {/* Header */}
+              <div className="relative px-5 py-6 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-2xl bg-white/[0.08] backdrop-blur flex items-center justify-center border border-white/15 shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]">
+                    <Image
+                      src="/logo-treecondo.jpeg"
+                      alt="TreeCondo"
+                      width={48}
+                      height={48}
+                      className="rounded-lg object-contain"
+                      loading="eager"
+                    />
+                  </div>
+
+                  <div className="leading-tight">
+                    <div className="text-xl font-semibold tracking-tight">
+                      <span style={{ color: '#00D0E6' }}>Tree</span>
+                      <span style={{ color: '#D3EA00' }}>Condo</span>
                     </div>
-
-                    <div className="leading-tight">
-                      <div className="text-xl font-semibold tracking-tight">
-                        <span style={{ color: '#00D0E6' }}>Tree</span>
-                        <span style={{ color: '#D3EA00' }}>Condo</span>
-                      </div>
-                      <div className="text-xs text-white/55 mt-1">
-                        Gestão inteligente de condomínios
-                      </div>
+                    <div className="text-xs text-white/55 mt-1">
+                      Gestão inteligente de condomínios
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Seletores */}
-                <div className="relative p-4 space-y-4 border-b border-white/10">
-                  <CondominioSelector />
-                  {/* <BlocoUnidadeSelector /> */}
-                </div>
+              {/* Nav */}
+              <div className="relative p-3 flex-1 flex flex-col overflow-hidden">
+                <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
+                  {filteredNav.map((item) => (
+                    <NavItem key={item.href} href={item.href} label={item.label} />
+                  ))}
+                </nav>
+              </div>
 
-                {/* Nav */}
-                <div className="relative p-3 flex-1 flex flex-col overflow-hidden">
-                  <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
-                    {filteredNav.map((item) => (
-                      <NavItem key={item.href} href={item.href} label={item.label} />
-                    ))}
-                  </nav>
-                </div>
-
-                {/* Footer */}
-                <div className="relative mt-auto p-3 border-t border-white/10">
-                  <div className="flex items-center gap-2">
-                    <UserBadge variant="sidebar" className="flex-1" />
-                    <Button
-                      onClick={handleLogout}
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
-                      title="Sair"
-                    >
-                      <LogOut className="h-5 w-5" />
-                    </Button>
-                  </div>
+              {/* Footer */}
+              <div className="relative mt-auto p-3 border-t border-white/10">
+                <div className="flex items-center gap-2">
+                  <UserBadge variant="sidebar" className="flex-1" />
+                  <Button
+                    onClick={handleLogout}
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                    title="Sair"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
             </div>
