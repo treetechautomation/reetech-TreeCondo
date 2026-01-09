@@ -1,23 +1,31 @@
 "use client";
 
 import * as React from "react";
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { PlusCircle } from "lucide-react";
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
 import AppLayout from "@/components/layout/AppLayout";
 import CondominioSelect from "@/components/condominios/CondominioSelect";
-import { initializeFirebase } from "@/firebase";
-import { addDoc, collection, collectionGroup, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
-import { useSession } from "@/hooks/useSession";
+import { useCondominio } from "@/contexts/CondominioContext";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { PlusCircle } from "lucide-react";
-import { useCondominio } from "@/contexts/CondominioContext";
+import { hasRole } from "@/lib/acl";
 
 type Anuncio = {
   id: string;
   titulo: string;
   mensagem: string;
-  createdAt?: any;
+  createdAt?: {
+    toDate: () => Date;
+  };
+  createdByUid?: string;
 };
 
 function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
@@ -32,138 +40,20 @@ function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
   );
 }
 
-export default function AnunciosPage() {
-  const { session, isSessionLoading } = useSession();
-  const { condominioAtivoId, setCondominioAtivoId } = useCondominio();
-
-  const role = session?.role ?? null;
-  const canManageAnuncios = role === "ADMIN" || role === "SINDICO" || role === "SUPER_ADMIN";
-  const canSelectCondo = role === "ADMIN" || role === "SINDICO" || role === "SUPER_ADMIN";
-
-  const [anuncios, setAnuncios] = React.useState<Anuncio[]>([]);
-  const [loading, setLoading] = React.useState(false);
+// Componente para criar anúncios, visível apenas para admins.
+function CreateAnuncioForm() {
+  const { session } = useSessionCtx();
+  const firestore = useFirestore();
+  const { condominioAtivoId } = useCondominio();
 
   const [titulo, setTitulo] = React.useState("");
   const [mensagem, setMensagem] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  // 🔔 Aviso novo para morador
-  const lastSeenKey = condominioAtivoId ? `treecondo_lastSeen_anuncios_${condominioAtivoId}` : null;
-  const [hasNew, setHasNew] = React.useState(false);
-
-// ✅ MORADOR (ou perfis sem seletor): define automaticamente o condomínio ativo
-// 1) tenta via sessão (activeCondominioId / activeCondominio.id / condominioId)
-// 2) fallback: descobre pelo UID em condominios/*/membros (collectionGroup)
-React.useEffect(() => {
-  if (isSessionLoading) return;
-  if (condominioAtivoId) return;
-
-  const uid = (session as any)?.user?.uid || (session as any)?.uid || null;
-
-  const autoId =
-    (session as any)?.activeCondominioId ||
-    (session as any)?.activeCondominio?.id ||
-    (session as any)?.condominioId ||
-    null;
-
-  if (autoId) {
-    setCondominioAtivoId(autoId);
-    return;
-  }
-
-  if (!uid) return;
-
-  let cancelled = false;
-
-  (async () => {
-    try {
-      const { firestore } = initializeFirebase();
-
-      // No seu banco, em muitos casos o docId de membros != UID.
-      // Então buscamos pelo campo membros.uid == UID.
-      const q = query(
-        collectionGroup(firestore, "membros"),
-        where("uid", "==", uid),
-        limit(1)
-      );
-
-      const snap = await getDocs(q);
-      if (cancelled) return;
-
-      const doc = snap.docs[0];
-      if (!doc) return;
-
-      // path: condominios/{condId}/membros/{docId}
-      const condRef = doc.ref.parent.parent;
-      const foundCondId = condRef?.id || null;
-
-      if (foundCondId) setCondominioAtivoId(foundCondId);
-    } catch (e) {
-      console.error("[anuncios] fallback membros->condominioAtivoId error:", e);
-    }
-  })();
-
-  return () => {
-    cancelled = true;
-  };
-}, [isSessionLoading, session, condominioAtivoId, setCondominioAtivoId]);
-
-
-
-  React.useEffect(() => {
-    if (!lastSeenKey) return;
-    const newest = anuncios?.[0]?.createdAt;
-    const newestMs = newest?.toDate?.()?.getTime?.() ?? 0;
-    const lastSeenMs = Number(window.localStorage.getItem(lastSeenKey) || 0);
-    setHasNew(!!newestMs && newestMs > lastSeenMs);
-  }, [anuncios, lastSeenKey]);
-
-  function markSeen() {
-    if (!lastSeenKey) return;
-    const newest = anuncios?.[0]?.createdAt;
-    const newestMs = newest?.toDate?.()?.getTime?.() ?? Date.now();
-    window.localStorage.setItem(lastSeenKey, String(newestMs));
-    setHasNew(false);
-  }
-
-  React.useEffect(() => {
-    if (!condominioAtivoId) {
-      setAnuncios([]);
-      setLoading(false);
-      return;
-    }
-
-    const { firestore } = initializeFirebase();
-    setLoading(true);
-    setErr(null);
-    const colRef = collection(firestore, "condominios", condominioAtivoId, "anuncios");
-    const q = query(colRef, orderBy("createdAt", "desc"));
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list: Anuncio[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }));
-        setAnuncios(list);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("[anuncios] onSnapshot error:", error);
-        setErr(error?.code ? `${error.code}: ${error.message}` : "Erro ao carregar anúncios.");
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
-  }, [condominioAtivoId]);
-
   async function createAnuncio() {
-    if (!condominioAtivoId) return;
-    if (!canManageAnuncios) {
-      setErr("Sem permissão para criar anúncios.");
+    if (!condominioAtivoId) {
+      setErr("Selecione um condomínio para criar um anúncio.");
       return;
     }
 
@@ -175,8 +65,9 @@ React.useEffect(() => {
     }
 
     setSaving(true);
+    setErr(null);
+
     try {
-      const { firestore } = initializeFirebase();
       await addDoc(collection(firestore, "condominios", condominioAtivoId, "anuncios"), {
         titulo: t,
         mensagem: m,
@@ -185,52 +76,88 @@ React.useEffect(() => {
       });
       setTitulo("");
       setMensagem("");
+    } catch(e: any) {
+        setErr(e?.message || "Ocorreu um erro ao publicar.")
     } finally {
       setSaving(false);
     }
   }
 
-  const AnnouncementsList = () => (
-    <GlassCard className={cn(canManageAnuncios ? "lg:col-span-2" : "lg:col-span-3")}>
-        <CardHeader>
-            <CardTitle>Últimos anúncios</CardTitle>
-            <CardDescription>
-                {loading 
-                    ? "Carregando anúncios..." 
-                    : !condominioAtivoId
-                    ? (canSelectCondo ? "Selecione um condomínio para ver os anúncios." : "Não foi possível identificar seu condomínio (vínculo).")
-                    : "Avisos importantes para todos os moradores."}
-            </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-            {err && (<div className="text-red-600 text-sm">{err}</div>)}
-            {hasNew && (
-            <div className="rounded-xl bg-emerald-100 p-3 flex justify-between items-center">
-                <b>📢 Tem aviso novo pra você</b>
-                <button onClick={markSeen} className="text-sm underline">
-                Marcar como visto
-                </button>
-            </div>
-            )}
-
-            {loading && <div>Carregando...</div>}
-
-            {!loading && anuncios.length > 0 &&
-            anuncios.map((a) => (
-                <div key={a.id} className="rounded-xl border p-4">
-                <div className="font-semibold">{a.titulo}</div>
-                <div className="text-sm mt-1 whitespace-pre-wrap">{a.mensagem}</div>
-                </div>
-            ))}
-
-            {!loading && anuncios.length === 0 && condominioAtivoId && <div>Nenhum anúncio.</div>}
-        </CardContent>
+  return (
+    <GlassCard className="lg:col-span-1">
+      <CardHeader>
+        <CardTitle>Criar anúncio</CardTitle>
+        <CardDescription>Publicar avisos para os moradores.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!condominioAtivoId && <p className="text-sm text-amber-700">Selecione um condomínio para criar um anúncio.</p>}
+        <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título do anúncio" disabled={!condominioAtivoId} />
+        <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="min-h-[120px] w-full rounded-xl border p-3 disabled:opacity-50" placeholder="Mensagem" disabled={!condominioAtivoId} />
+        {err && <div className="text-red-600 text-sm">{err}</div>}
+        <Button onClick={createAnuncio} disabled={saving || !condominioAtivoId}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          {saving ? 'Publicando...' : 'Publicar'}
+        </Button>
+      </CardContent>
     </GlassCard>
   );
+}
+
+// Componente para listar anúncios, visível para todos.
+function AnnouncementsList() {
+  const { condominioAtivoId } = useCondominio();
+  const firestore = useFirestore();
+
+  const anunciosQuery = useMemoFirebase(() => {
+    if (!firestore || !condominioAtivoId) return null;
+    return query(collection(firestore, "condominios", condominioAtivoId, "anuncios"), orderBy("createdAt", "desc"));
+  }, [firestore, condominioAtivoId]);
+
+  const { data: anuncios, isLoading, error } = useCollection<Anuncio>(anunciosQuery);
+
+  return (
+    <GlassCard className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle>Últimos anúncios</CardTitle>
+        <CardDescription>Avisos importantes para todos os moradores.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading && <div>Carregando anúncios...</div>}
+        {error && <div className="text-red-600 text-sm">{error.message}</div>}
+        {!isLoading && !condominioAtivoId && (
+            <div className="text-sm text-slate-600">Selecione um condomínio para ver os anúncios.</div>
+        )}
+        {!isLoading && condominioAtivoId && anuncios && anuncios.length === 0 && (
+          <div className="text-sm text-slate-600">Nenhum anúncio encontrado para este condomínio.</div>
+        )}
+        {!isLoading && anuncios && anuncios.map((a) => (
+          <div key={a.id} className="rounded-xl border p-4">
+            <div className="flex justify-between items-baseline">
+                <div className="font-semibold">{a.titulo}</div>
+                {a.createdAt && (
+                    <div className="text-xs text-slate-500">
+                        {formatDistanceToNow(a.createdAt.toDate(), { addSuffix: true, locale: ptBR })}
+                    </div>
+                )}
+            </div>
+            <div className="text-sm mt-1 whitespace-pre-wrap">{a.mensagem}</div>
+          </div>
+        ))}
+      </CardContent>
+    </GlassCard>
+  );
+}
+
+
+export default function AnunciosPage() {
+  const { session } = useSessionCtx();
+  const { condominioAtivoId, setCondominioAtivoId } = useCondominio();
+  
+  const canManage = hasRole(session, ["SUPER_ADMIN", "ADMIN", "SINDICO"]);
 
   return (
     <AppLayout pageTitle="Anúncios">
-      {canSelectCondo && (
+      {canManage && (
         <div
           className="mb-8 p-4 rounded-3xl"
           style={{
@@ -239,47 +166,16 @@ React.useEffect(() => {
         >
           <CondominioSelect
             value={condominioAtivoId}
-            onChange={setCondominioAtivoId}
+            onChange={(id) => setCondominioAtivoId(id)}
             label="Condomínio ativo"
           />
         </div>
       )}
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {canManageAnuncios ? (
+      
+      <div className={cn("grid gap-6", canManage ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
+        {canManage ? (
           <>
-            <GlassCard className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle>Criar anúncio</CardTitle>
-                <CardDescription>Publicar avisos para os moradores.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                
-                {!condominioAtivoId && <p className="text-sm text-amber-700">Selecione um condomínio para criar um anúncio.</p>}
-
-                <Input
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Título do anúncio"
-                  disabled={!condominioAtivoId}
-                />
-
-                <textarea
-                  value={mensagem}
-                  onChange={(e) => setMensagem(e.target.value)}
-                  className="min-h-[120px] w-full rounded-xl border p-3 disabled:opacity-50"
-                  placeholder="Mensagem"
-                  disabled={!condominioAtivoId}
-                />
-
-                {err && <div className="text-red-600 text-sm">{err}</div>}
-
-                <Button onClick={createAnuncio} disabled={saving || !condominioAtivoId}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Publicar
-                </Button>
-              </CardContent>
-            </GlassCard>
+            <CreateAnuncioForm />
             <AnnouncementsList />
           </>
         ) : (
