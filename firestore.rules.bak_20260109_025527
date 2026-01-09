@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.email == "treecommunity@treetechautomation.com"
+      );
+    }
+    
+    function isMember(condId) {
+      return signedIn() && exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    }
+    
+    function memberDoc(condId) {
+      return get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    }
+
+    function isActiveMember(condId) {
+      return isMember(condId) && memberDoc(condId).data.status == "ATIVO";
+    }
+
+    function memberRole(condId) {
+      let role = memberDoc(condId).data.role;
+      return role;
+    }
+
+    function getCondoMenuPermissions(condId) {
+      return get(/databases/$(database)/documents/condominios/$(condId)/config/menuPermissions).data;
+    }
+
+    function hasMenu(condId, menuKey) {
+      if (!isActiveMember(condId)) {
+        return false;
+      }
+      let role = memberRole(condId);
+      // As permissões de Super Admin são tratadas separadamente
+      if (role == "SUPER_ADMIN") {
+        return true;
+      }
+      let menuConfig = getCondoMenuPermissions(condId);
+      
+      // Checa a permissão para a role específica. Ex: menuConfig.SINDICO.anuncios
+      return menuConfig[role][menuKey] == true;
+    }
+
+    match /condominios/{condId} {
+      allow read: if isSuperAdmin() || isMember(condId);
+      allow create, update, delete: if isSuperAdmin();
+
+      match /anuncios/{anuncioId} {
+        allow read: if isSuperAdmin() || isActiveMember(condId);
+        allow create, update, delete: if isSuperAdmin() || (hasMenu(condId, 'anuncios'));
+      }
+
+      match /membros/{uid} {
+        allow read: if isSuperAdmin() || isMember(condId);
+        // Permitir que Super Admin ou um Síndico do mesmo condomínio crie/edite membros.
+        // Usuário só pode editar o próprio perfil (a ser definido em outra regra).
+        allow write: if isSuperAdmin() || (memberRole(condId) == 'SINDICO');
+      }
+
+      // Subcoleções genéricas
+      match /{subcollection}/{docId} {
+        allow read: if isSuperAdmin() || isActiveMember(condId);
+        allow write: if isSuperAdmin() || (memberRole(condId) == 'SINDICO');
+      }
+    }
+
+    // fallback: nega tudo
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

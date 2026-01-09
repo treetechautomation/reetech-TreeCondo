@@ -1,78 +1,82 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
+    // --- Funções de Ajuda ---
+    
+    function isSignedIn() {
       return request.auth != null;
     }
 
     function isSuperAdmin() {
-      return signedIn() && (
+      // Checa tanto a custom claim quanto o e-mail hard-coded como fallback.
+      return isSignedIn() && (
         request.auth.token.super_admin == true ||
         request.auth.token.email == "treecommunity@treetechautomation.com"
       );
     }
-    
-    function isMember(condId) {
-      return signedIn() && exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+
+    function getMemberDoc(condId) {
+      // Caminho direto para o documento do membro, usando o UID do usuário autenticado.
+      // Este é o padrão mais performático e seguro.
+      return get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
     }
     
-    function memberDoc(condId) {
-      return get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    function isMember(condId) {
+      // Verifica se o documento do membro existe no caminho correto.
+      return isSignedIn() && exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
     }
 
     function isActiveMember(condId) {
-      return isMember(condId) && memberDoc(condId).data.status == "ATIVO";
+      // Garante que o membro existe e tem o status "ATIVO".
+      return isMember(condId) && getMemberDoc(condId).data.status == "ATIVO";
     }
 
-    function memberRole(condId) {
-      let role = memberDoc(condId).data.role;
-      return role;
+    function getMemberRole(condId) {
+      // Retorna a "role" (papel) do membro.
+      return getMemberDoc(condId).data.role;
     }
-
-    function getCondoMenuPermissions(condId) {
-      return get(/databases/$(database)/documents/condominios/$(condId)/config/menuPermissions).data;
-    }
-
-    function hasMenu(condId, menuKey) {
-      if (!isActiveMember(condId)) {
-        return false;
-      }
-      let role = memberRole(condId);
-      // As permissões de Super Admin são tratadas separadamente
-      if (role == "SUPER_ADMIN") {
-        return true;
-      }
-      let menuConfig = getCondoMenuPermissions(condId);
-      
-      // Checa a permissão para a role específica. Ex: menuConfig.SINDICO.anuncios
-      return menuConfig[role][menuKey] == true;
-    }
+    
+    // --- Regras por Coleção ---
 
     match /condominios/{condId} {
+      // O documento principal do condomínio pode ser lido por qualquer membro ou Super Admin.
+      // Apenas Super Admin pode criar, editar ou apagar o condomínio em si.
       allow read: if isSuperAdmin() || isMember(condId);
       allow create, update, delete: if isSuperAdmin();
 
+      // Regra para a subcoleção de anúncios
       match /anuncios/{anuncioId} {
-        allow read: if isSuperAdmin() || isActiveMember(condId);
-        allow create, update, delete: if isSuperAdmin() || (hasMenu(condId, 'anuncios'));
+        // Moradores ativos (e outros papéis) podem ler anúncios.
+        allow read: if isActiveMember(condId);
+        // Apenas Super Admins ou Síndicos/Admins ativos do condomínio podem escrever.
+        allow write: if isSuperAdmin() || (isActiveMember(condId) && getMemberRole(condId) in ['SINDICO', 'ADMIN']);
       }
-
+      
+      // Regra para a subcoleção de membros
       match /membros/{uid} {
-        allow read: if isSuperAdmin() || isMember(condId);
-        // Permitir que Super Admin ou um Síndico do mesmo condomínio crie/edite membros.
-        // Usuário só pode editar o próprio perfil (a ser definido em outra regra).
-        allow write: if isSuperAdmin() || (memberRole(condId) == 'SINDICO');
+        // Qualquer membro pode ler os dados de outros membros (para listas, etc.).
+        allow read: if isMember(condId);
+        // Apenas Super Admin ou Síndico podem criar, editar ou apagar membros.
+        allow write: if isSuperAdmin() || (isActiveMember(condId) && getMemberRole(condId) == 'SINDICO');
       }
 
-      // Subcoleções genéricas
+      // Regra genérica para outras subcoleções (restringe a escrita a admins/síndicos)
       match /{subcollection}/{docId} {
         allow read: if isSuperAdmin() || isActiveMember(condId);
-        allow write: if isSuperAdmin() || (memberRole(condId) == 'SINDICO');
+        allow write: if isSuperAdmin() || (isActiveMember(condId) && getMemberRole(condId) in ['SINDICO', 'ADMIN']);
       }
     }
+    
+    // Regra para a coleção de vínculos de usuário
+    match /userCondominios/{uid}/{document=**} {
+      // Um usuário só pode ler e escrever seus próprios documentos de vínculo.
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
 
-    // fallback: nega tudo
+    // Nega acesso a qualquer outro caminho por padrão.
     match /{path=**} {
       allow read, write: if false;
     }
