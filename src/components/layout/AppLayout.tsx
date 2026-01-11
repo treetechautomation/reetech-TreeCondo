@@ -6,9 +6,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/firebase/hooks/useAuth";
-import { useSession, type RoleKey } from "@/hooks/useSession";
-import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions } from "@/lib/menuPermissions";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { hasRole } from "@/lib/acl";
+import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions, MENU_LABELS } from "@/lib/menuPermissions";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
@@ -76,81 +76,63 @@ export type AppLayoutProps = {
   children: React.ReactNode;
 };
 
-// fallback
-function getLocalRoleFallback(): RoleKey {
-  if (typeof window === "undefined") return "MORADOR";
-  const raw = window.localStorage.getItem("treecondo_role");
-  if (raw === "SINDICO" || raw === "MORADOR" || raw === "PORTEIRO" || raw === "ADMIN" || raw === "SUPER_ADMIN") return raw;
-  return "MORADOR";
-}
-function getLocalCondoFallback(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("treecondo_condominioId");
-}
-
 export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { logout } = useAuth();
-  const { session, isSessionLoading } = useSession();
+  const { session, isSessionLoading } = useSessionCtx();
 
   const hideSidebar = pathname?.startsWith("/login");
 
-  const [role, setRole] = React.useState<RoleKey>("MORADOR");
-  const [condominioId, setCondominioId] = React.useState<string | null>(null);
   const [perms, setPerms] = React.useState<MenuPermissions | null>(null);
 
   React.useEffect(() => {
-    if (isSessionLoading) return;
-
-    const resolvedRole: RoleKey = (session as any)?.role ?? getLocalRoleFallback();
-    const resolvedCondo: string | null = session?.activeCondominioId ?? getLocalCondoFallback();
-
-    setRole(resolvedRole);
-    setCondominioId(resolvedCondo);
-
+    if (isSessionLoading || !session?.activeCondominioId) {
+        setPerms(null);
+        return;
+    };
+    
     (async () => {
       try {
-        if (!resolvedCondo) {
-          setPerms(null);
-          return;
-        }
-        const p = await fetchMenuPermissions(resolvedCondo);
+        const p = await fetchMenuPermissions(session.activeCondominioId);
         setPerms(p);
       } catch {
         setPerms(null);
       }
     })();
-  }, [isSessionLoading, session?.activeCondominioId, pathname]);
+  }, [isSessionLoading, session?.activeCondominioId]);
 
   function isAllowed(menuKey: MenuKey) {
-    if (role === "SUPER_ADMIN") return true;
-    if (menuKey === "administrador_global") return false;
+    if (!session) return false;
+    if (session.superAdmin) {
+      // Super admin vê tudo, exceto o menu global que é tratado separadamente
+      return menuKey !== "administrador_global" || session.user.email === "treecommunity@treetechautomation.com";
+    }
+
+    // A role da session já é a role do vínculo ativo
+    const role = session.role;
+    if (!role || role === 'SUPER_ADMIN') return false; // Já tratado acima
 
     const docPerms = perms?.[role]?.[menuKey];
-    if (typeof docPerms === "boolean") return docPerms;
+    if (typeof docPerms === "boolean") {
+      return docPerms;
+    }
 
     const fallback = DEFAULT_PERMS?.[role]?.[menuKey];
-    return Boolean(fallback);
+    return !!fallback;
   }
 
   const filteredNav = NAV_ITEMS.filter((i) => isAllowed(i.key));
 
   const handleLogout = async () => {
-  try {
-    // Se existir logout no hook/context, usa. Senão, faz signOut direto.
-    if (typeof (logout as any) === "function") {
-      await (logout as any)();
-    } else {
+    try {
       const { auth } = initializeFirebase() as any;
       await signOut(auth);
+    } catch (e) {
+      console.error("[AppLayout] erro ao deslogar:", e);
+    } finally {
+      router.push("/login");
     }
-  } catch (e) {
-    console.error("[AppLayout] erro ao deslogar:", e);
-  } finally {
-    router.push("/login");
-  }
-};
+  };
 
   return (
     <div className="tc-bg">

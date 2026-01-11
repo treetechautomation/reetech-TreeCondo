@@ -35,13 +35,7 @@ service cloud.firestore {
       return memberDoc(condId).data.role;
     }
 
-    // ✅ Quem pode gerenciar (criar/editar) recursos do condomínio
-    function canManageCondo(condId) {
-      return isActiveMember(condId) && (
-        memberRole(condId) in ['SINDICO', 'ADMIN', 'ADMIN_CONDOMINIO']
-      );
-    }
-// NOVA FUNÇÃO: Verifica se o usuário tem um vínculo de acesso ao condomínio
+    // NOVA FUNÇÃO: Verifica se o usuário tem um vínculo de acesso ao condomínio
     function isLinkedToCondo(condId) {
       return signedIn() && exists(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condId));
     }
@@ -55,26 +49,26 @@ service cloud.firestore {
 
       // Regra para a subcoleção de anúncios
       match /anuncios/{anuncioId} {
-        // Permite leitura para Super Admin, staff ativo OU usuário com vínculo no condomínio
+        // PERMISSÃO DE LEITURA CORRIGIDA
+        // Permite a leitura para Super Admin, staff ativo OU qualquer usuário com vínculo ativo no condomínio.
         allow read: if isSuperAdmin() || isActiveMember(condId) || isLinkedToCondo(condId);
-
-        // ✅ Escrita: Super Admin OU síndico/admin do condomínio
-        allow write: if isSuperAdmin() || canManageCondo(condId);
+        
+        // Permissão de escrita para Super Admin ou Síndico
+        allow write: if isSuperAdmin() || (isActiveMember(condId) && memberRole(condId) in ['SINDICO', 'ADMIN_CONDOMINIO']);
       }
       
       // Regra para a subcoleção de membros
       match /membros/{uid} {
         // Qualquer membro do staff ou com vínculo pode ler a lista de membros
         allow read: if isSuperAdmin() || isMember(condId) || isLinkedToCondo(condId);
-
-        // ✅ Escrita: Super Admin OU síndico/admin do condomínio
-        allow write: if isSuperAdmin() || canManageCondo(condId);
+        // Apenas Super Admin ou Síndico podem criar, editar ou apagar membros.
+        allow write: if isSuperAdmin() || (isActiveMember(condId) && memberRole(condId) in ['SINDICO', 'ADMIN_CONDOMINIO']);
       }
 
       // Regra genérica para outras subcoleções
       match /{subcollection}/{docId} {
         allow read: if isSuperAdmin() || isMember(condId) || isLinkedToCondo(condId);
-        allow write: if isSuperAdmin() || canManageCondo(condId);
+        allow write: if isSuperAdmin() || (isActiveMember(condId) && memberRole(condId) in ['SINDICO', 'ADMIN_CONDOMINIO']);
       }
     }
     

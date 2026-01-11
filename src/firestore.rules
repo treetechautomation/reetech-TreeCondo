@@ -1,0 +1,114 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Funções de Ajuda ---
+    
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      // Checa tanto a custom claim quanto o e-mail hard-coded como fallback.
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.email == "treecommunity@treetechautomation.com"
+      );
+    }
+    
+    // Verifica se o usuário é um membro do staff (Síndico, Porteiro, etc) PELO SEU UID
+    function isMember(condId) {
+      return signedIn() && exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    }
+    
+    function memberDoc(condId) {
+      return get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
+    }
+
+    function isActiveMember(condId) {
+      return isMember(condId) && memberDoc(condId).data.status == "ATIVO";
+    }
+
+    function memberRole(condId) {
+      return memberDoc(condId).data.role;
+    }
+
+    // NOVA FUNÇÃO: Verifica se o usuário tem um vínculo de acesso ao condomínio
+    function isLinkedToCondo(condId) {
+      return signedIn() && exists(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condId));
+    }
+    
+    // ✅ NOVA FUNÇÃO: Pega as permissões de menu do condomínio
+    function getCondoMenuPermissions(condId) {
+        // Acessa /condominios/{condId}/config/menuPermissions
+        return get(/databases/$(database)/documents/condominios/$(condId)/config/menuPermissions).data;
+    }
+
+    // ✅ NOVA FUNÇÃO: Verifica se a role do membro tem acesso a um módulo do menu
+    function hasMenuAccess(condId, menuKey) {
+        if (!isActiveMember(condId)) {
+            return false;
+        }
+        let role = memberRole(condId);
+        // Super Admin não precisa dessa checagem, já tem acesso via isSuperAdmin()
+        if (role == 'SUPER_ADMIN') {
+            return true;
+        }
+        
+        let menuConfig = getCondoMenuPermissions(condId);
+
+        // Acessa a chave da role e a chave do menu. Ex: menuConfig.SINDICO.anuncios == true
+        return role in menuConfig && menuKey in menuConfig[role] && menuConfig[role][menuKey] == true;
+    }
+
+
+    // --- Regras por Coleção ---
+
+    match /condominios/{condId} {
+      // Apenas Super Admin ou membros do staff podem ler o doc principal do condomínio
+      allow read: if isSuperAdmin() || isMember(condId);
+      allow create, update, delete: if isSuperAdmin();
+
+      // Regra para a subcoleção de anúncios
+      match /anuncios/{anuncioId} {
+        // Leitura: Super Admin, staff ativo OU qualquer usuário com vínculo ao condomínio.
+        allow read: if isSuperAdmin() || isActiveMember(condId) || isLinkedToCondo(condId);
+
+        // ✅ Escrita: Super Admin OU um membro ativo com permissão no menu 'anuncios'.
+        allow write: if isSuperAdmin() || hasMenuAccess(condId, 'anuncios');
+      }
+      
+      // Regra para a subcoleção de membros
+      match /membros/{uid} {
+        // Leitura: Super Admin ou qualquer usuário com vínculo.
+        allow read: if isSuperAdmin() || isMember(condId) || isLinkedToCondo(condId);
+
+        // ✅ Escrita: Super Admin OU um membro ativo com permissão no menu 'cadastros' (onde pessoas são gerenciadas).
+        allow write: if isSuperAdmin() || hasMenuAccess(condId, 'cadastros');
+      }
+
+      // Regra para o documento de configuração de menu
+      match /config/menuPermissions {
+         // Leitura para todos os membros para que o front-end possa renderizar o menu.
+         allow read: if isSuperAdmin() || isMember(condId) || isLinkedToCondo(condId);
+         // Apenas Super Admin pode alterar as permissões de menu.
+         allow write: if isSuperAdmin();
+      }
+
+      // Regra genérica para outras subcoleções
+      match /{subcollection}/{docId} {
+        allow read: if isSuperAdmin() || isActiveMember(condId) || isLinkedToCondo(condId);
+        // Escrita genérica para síndicos/admins
+        allow write: if isSuperAdmin() || memberRole(condId) in ['SINDICO', 'ADMIN', 'ADMIN_CONDOMINIO'];
+      }
+    }
+    
+    // Regra para a coleção de vínculos de usuário
+    match /userCondominios/{uid}/{document=**} {
+      // Um usuário só pode ler e escrever seus próprios documentos de vínculo.
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+  }
+}
