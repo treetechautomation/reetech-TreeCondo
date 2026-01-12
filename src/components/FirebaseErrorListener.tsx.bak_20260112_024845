@@ -31,9 +31,6 @@ export function FirebaseErrorListener() {
 
   // On re-render, if an error exists in state, throw it.
   if (error) {
-    // LOG COMPLETO (path + method + auth)
-    console.error("[permission-error]", error?.message);
-    console.error("[permission-error].request", (error as any)?.request);
     throw error;
   }
 

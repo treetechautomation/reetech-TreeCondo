@@ -1,26 +1,15 @@
 /** @type {import('next').NextConfig} */
-import withPWAInit from "next-pwa";
-
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  register: true,
-  skipWaiting: true,
-});
-
 const nextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      },
+  reactStrictMode: true,
+  experimental: {
+    // This is required for Next.js to not throw errors when running on Fleek.
+    // TODO: Remove this when Fleek fixes this.
+    serverComponentsExternalPackages: ['@genkit-ai/google-genai'],
+    allowedDevOrigins: [
+      'http://localhost:9000',
+      `https://*.cluster-zhw3w37rxzgkutusbbhib6qhra.cloudworkstations.dev`,
     ],
   },
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;

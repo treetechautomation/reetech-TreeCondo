@@ -79,7 +79,7 @@ export function useSessionBase() {
         setIsVinculosLoading(false);
       },
       (err) => {
-        console.error("[useSession] erro ao carregar userCondominios/{uid}/vinculos:", { code: (err as any)?.code, message: (err as any)?.message, err });
+        console.error("[useSession] erro ao carregar userCondominios/{uid}/vinculos:", err);
         setVinculos([]);
         setIsVinculosLoading(false);
       }

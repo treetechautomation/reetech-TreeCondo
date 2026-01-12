@@ -93,9 +93,8 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
     
     (async () => {
       try {
-        const condoId = session.activeCondominioId;
-        const p = condoId ? await fetchMenuPermissions(condoId) : null;
-setPerms(p);
+        const p = await fetchMenuPermissions(session.activeCondominioId);
+        setPerms(p);
       } catch {
         setPerms(null);
       }

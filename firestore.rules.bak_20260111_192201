@@ -38,7 +38,7 @@ service cloud.firestore {
     // ✅ Quem pode gerenciar (criar/editar) recursos do condomínio
     function canManageCondo(condId) {
       return isActiveMember(condId) && (
-        memberRole(condId) in ['SINDICO', 'ADMIN', 'ADMIN']
+        memberRole(condId) in ['SINDICO', 'ADMIN', 'ADMIN_CONDOMINIO']
       );
     }
 // NOVA FUNÇÃO: Verifica se o usuário tem um vínculo de acesso ao condomínio
