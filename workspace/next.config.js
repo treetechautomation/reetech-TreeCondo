@@ -5,7 +5,7 @@ const nextConfig = {
     // It enables secure communication with the development server from external tools like Firebase Studio.
     allowedDevOrigins: [
         'https://*.cloudworkstations.dev',
-        'http://localhost:9002',
+        'http://localhost:9000',
     ],
   },
 };
