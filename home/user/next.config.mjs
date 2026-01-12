@@ -1,9 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
   experimental: {
+    // Permite que o servidor de desenvolvimento do Next.js aceite requisições
+    // do proxy do Firebase Studio, resolvendo erros de CORS e problemas com HMR/WebSocket.
     allowedDevOrigins: [
-      "http://localhost:9000",
-      "https://9000-firebase-studio-1765514223122.cluster-zhw3w37rxzgkutusbbhib6qhra.cloudworkstations.dev",
+      "http://localhost:9002",
+      "https://*.cloudworkstations.dev",
     ],
   },
 };
