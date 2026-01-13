@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 
 import { createHash, randomBytes } from "crypto";
@@ -146,55 +145,64 @@ export async function POST(req: Request) {
     if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
 
     const decoded = await aauth.verifyIdToken(token);
-    
-    // Lê o corpo da requisição uma única vez
-    const body = (await req.json().catch(() => ({}))) as any;
-
     const requesterUid = decoded.uid;
     const requesterEmail = (decoded.email || "").toLowerCase();
 
     // Permissão: SUPER_ADMIN global OU gestor (SINDICO/ADMIN) do condomínio ativo
-    const isSuper =
+      const isSuper =
         decoded.super_admin === true ||
         (decoded as any).superAdmin === true ||
         requesterEmail === "treecommunity@treetechautomation.com";
 
-    // Se não for super, valida vínculo ATIVO no condomínio
-    if (!isSuper) {
-        const condominioIdPeek = String(body?.condominioId || "").trim();
+      // Se não for super, valida vínculo ATIVO no condomínio
+      if (!isSuper) {
+        const bodyPeek = (await req.json().catch(() => ({}))) as any;
+        const condominioIdPeek = String(bodyPeek?.condominioId || "").trim();
         if (!condominioIdPeek) return jsonError("condominioId é obrigatório", 400);
 
         const vincRef = db
-            .collection("userCondominios")
-            .doc(requesterUid)
-            .collection("vinculos")
-            .doc(condominioIdPeek);
+          .collection("userCondominios")
+          .doc(requesterUid)
+          .collection("vinculos")
+          .doc(condominioIdPeek);
 
         const vincSnap = await vincRef.get();
         const role = (vincSnap.exists ? (vincSnap.data()?.role as string) : "") || "";
         const status = (vincSnap.exists ? (vincSnap.data()?.status as string) : "") || "";
 
-        const canManage = status === "ATIVO" && (role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO");
+        const canManage = status === "ATIVO" && (role === "SINDICO" || role === "ADMIN");
         if (!canManage) return jsonError("Sem permissão para criar convites.", 403);
-    }
-    
+
+        // Recoloca o body no fluxo normal (vamos reaproveitar depois)
+        // Devolve o body para o restante do handler usando uma variável local:
+        (req as any).__body = bodyPeek;
+      }
+const body = (await req.json().catch(() => ({}))) as {
+      condominioId?: string;
+      nome?: string;
+      email?: string;
+      role?: Role;
+      blocoId?: string | null;
+      unidadeId?: string | null;
+    };
+
     const condominioId = body.condominioId?.trim();
     const nome = (body.nome || "").trim();
     const email = (body.email || "").trim().toLowerCase();
     const role = (body.role || "MORADOR") as Role;
-    const blocoId = (body as any).blocoId ? String((body as any).blocoId).trim()
-        : ((body as any).bloco ? String((body as any).bloco).trim() : null);
+const blocoId = (body as any).blocoId ? String((body as any).blocoId).trim()
+    : ((body as any).bloco ? String((body as any).bloco).trim() : null);
 
-    const unidadeId = (body as any).unidadeId ? String((body as any).unidadeId).trim()
-        : (((body as any).apartamento ?? (body as any).unidade) ? String(((body as any).apartamento ?? (body as any).unidade)).trim() : null);
+  const unidadeId = (body as any).unidadeId ? String((body as any).unidadeId).trim()
+    : (((body as any).apartamento ?? (body as any).unidade) ? String(((body as any).apartamento ?? (body as any).unidade)).trim() : null);
 
-    // Regras por tipo:
-    // - MORADOR: bloco + unidade obrigatórios
-    // - SINDICO / PORTEIRO / FUNCIONARIO: bloco opcional, unidade nula
-    if (role === "MORADOR") {
-        if (!blocoId) return jsonError("blocoId é obrigatório para morador", 400);
-        if (!unidadeId) return jsonError("unidadeId é obrigatório para morador", 400);
-    }
+// Regras por tipo:
+// - MORADOR: bloco + unidade obrigatórios
+// - SINDICO / PORTEIRO / FUNCIONARIO: bloco opcional, unidade nula
+if (role === "MORADOR") {
+  if (!blocoId) return jsonError("blocoId é obrigatório para morador", 400);
+  if (!unidadeId) return jsonError("unidadeId é obrigatório para morador", 400);
+}
 
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);

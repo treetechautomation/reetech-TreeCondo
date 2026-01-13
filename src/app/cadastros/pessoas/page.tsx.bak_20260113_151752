@@ -145,19 +145,17 @@ export default function PessoasPage() {
           if (vinculosAtivos.length > 0) {
             const promises = vinculosAtivos.map(v => getDoc(doc(publicosRef, v.condominioId)));
             const snaps = await Promise.all(promises);
-            list = snaps
-              .map((snap: any) => {
-                const data = (snap.data?.() ?? snap.data ?? {}) as any;
-                const cid = String(data.condominioId ?? snap.id ?? "").trim();
-                return {
-                  id: String(snap.id),
-                  condominioId: cid || String(snap.id),
-                  nome: String(data.nome ?? "(Sem nome)"),
-                  ativo: data.ativo !== false,
-                };
-              })
-              .filter((c: any) => c.ativo !== false);
-list.sort((a, b) => a.nome.localeCompare(b.nome));
+            list = snaps.map(snap => {
+              if (!snap.exists()) return null;
+              const data = snap.data();
+              return {
+                id: snap.id,
+                condominioId: (data as any).condominioId || snap.id,
+                nome: (data as any).nome || "Condomínio sem nome",
+                ativo: (data as any).ativo !== false,
+              };
+            }).filter((c): c is CondoPublico => c !== null && c.ativo);
+            list.sort((a, b) => a.nome.localeCompare(b.nome));
           }
         }
 
@@ -253,11 +251,7 @@ list.sort((a, b) => a.nome.localeCompare(b.nome));
       return;
     }
     if (!form.nome.trim() || !form.email.trim()) {
-        toast({ variant: "destructive", title: "Preencha nome e e-mail." });
-        return;
-      }
-    
-    // ✅ validação correta para MORADOR (sempre)
+      // ✅ validação local para MORADOR
       if (form.role === "MORADOR") {
         if (!form.blocoId?.trim()) {
           toast({ variant: "destructive", title: "Selecione o bloco (obrigatório para morador)." });
@@ -268,20 +262,22 @@ list.sort((a, b) => a.nome.localeCompare(b.nome));
           return;
         }
       }
-setLoading(true);
+
+
+      toast({ variant: "destructive", title: "Preencha nome e e-mail." });
+      return;
+    }
+    
+    if (form.role === "MORADOR" && !form.blocoId) {
+      toast({ variant: "destructive", title: "Campo obrigatório", description: "Selecione o bloco para o morador." });
+      return;
+    }
+
+    setLoading(true);
     try {
       const idToken = await session.user.getIdToken(true);
 
-      console.log("[INVITE payload]", {
-          condominioId: condominioAtivoId,
-          nome: form.nome.trim(),
-          email: form.email.trim().toLowerCase(),
-          role: form.role,
-          blocoId: form.blocoId,
-          unidadeId: form.unidadeId,
-        });
-
-        const res = await fetch("/api/convites/create", {
+      const res = await fetch("/api/convites/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -411,14 +407,7 @@ setLoading(true);
             <select
               className="rounded-md border bg-background px-3 py-2 text-sm"
               value={form.role}
-              onChange={(e) => {
-                  const role = e.target.value as MembroRole;
-                  setForm((f) => ({
-                    ...f,
-                    role,
-                    ...(role === "MORADOR" ? {} : { blocoId: "", unidadeId: "" }),
-                  }));
-                }}
+              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as MembroRole }))}
             >
               <option value="MORADOR">Morador</option>
               <option value="SINDICO">Síndico</option>
