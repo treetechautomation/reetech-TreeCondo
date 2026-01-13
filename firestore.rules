@@ -9,15 +9,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // isSuperAdmin agora checa a claim OU o e-mail específico.
     function isSuperAdmin() {
+      // Checa a custom claim `super_admin` OU o e-mail específico como fallback de segurança.
       return isSignedIn() && (
         request.auth.token.super_admin == true ||
         request.auth.token.email == "treecommunity@treetechautomation.com"
       );
     }
     
-    // Verifica se um usuário tem um vínculo ATIVO com um condomínio.
+    // Verifica se um usuário tem um vínculo ATIVO com um condomínio específico.
     function hasActiveLink(condominioId) {
       return isSignedIn() &&
              exists(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)) &&
@@ -31,15 +31,17 @@ service cloud.firestore {
 
     // --- Regras por Coleção ---
 
-    // Coleção pública, mas apenas para usuários logados. Super Admin pode escrever.
     match /condominiosPublicos/{condominioId} {
-      allow read: if isSignedIn(); // Qualquer usuário logado pode ler
+      // SUPER_ADMIN pode listar a coleção inteira.
+      allow list: if isSuperAdmin();
+      // Qualquer usuário logado pode ler um documento específico (necessário para usuários comuns resolverem nomes).
+      allow get: if isSignedIn();
+      // Apenas SUPER_ADMIN pode escrever.
       allow write: if isSuperAdmin();
     }
 
-    // Coleção principal de condomínios
     match /condominios/{condominioId} {
-      // Leitura permitida para Super Admin ou usuários com vínculo ativo.
+      // Leitura permitida para Super Admin ou usuários com vínculo ativo no condomínio.
       allow read: if isSuperAdmin() || hasActiveLink(condominioId);
       
       // Escrita permitida para Super Admin ou Síndicos do próprio condomínio.
@@ -52,7 +54,6 @@ service cloud.firestore {
       }
     }
     
-    // Regra para a coleção de vínculos de usuário
     match /userCondominios/{uid}/{document=**} {
       // Um usuário só pode ler e escrever seus próprios documentos de vínculo.
       allow read, write: if isSignedIn() && request.auth.uid == uid;

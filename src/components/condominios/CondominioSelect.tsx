@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -11,7 +12,6 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   Select,
   SelectContent,
@@ -45,17 +45,17 @@ export default function CondominioSelect({
   React.useEffect(() => {
     let mounted = true;
 
-    // espera sessão/auth pronta
-    if (isSessionLoading) return () => { mounted = false; };
-    if (!session?.user) return () => { mounted = false; };
+    // Não faz nada até a sessão estar pronta
+    if (isSessionLoading || !session?.user) return;
 
-    const run = async (uid: string) => {
+    const run = async () => {
       setLoading(true);
       try {
         const { firestore } = initializeFirebase();
 
-        // ✅ SUPER_ADMIN: lista condominiosPublicos
+        // Lógica para SUPER_ADMIN: busca todos de `condominiosPublicos`
         if (superAdmin) {
+          console.log("[CondominioSelect] Modo SUPER_ADMIN: buscando condominiosPublicos...");
           const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
           const snap = await getDocs(q);
           const out: CondoItem[] = snap.docs.map((d) => ({
@@ -63,78 +63,51 @@ export default function CondominioSelect({
             nome: (d.data() as any)?.nome ?? d.id,
           }));
           if (mounted) setItems(out);
+          console.log("[CondominioSelect] SUPER_ADMIN carregou", out.length, "condomínios.");
           return;
         }
 
-        // 👇 Demais perfis: resolve via vínculos do usuário
-        let condoIds: string[] = [];
-
-        // 1) tenta users/{uid}.vinculos[]
-        try {
-          const userSnap = await getDoc(doc(firestore, "users", uid));
-          const vinculos = (userSnap.data() as any)?.vinculos;
-          if (Array.isArray(vinculos)) {
-            condoIds = vinculos
-              .map((v: any) => v?.condominioId)
-              .filter(Boolean);
-          }
-        } catch {
-          // ignora
-        }
-
-        // 2) fallback: userCondominios/{uid}/vinculos
-        if (condoIds.length === 0) {
-          const vincRef = collection(firestore, `userCondominios/${uid}/vinculos`);
-          const vincSnap = await getDocs(vincRef);
-          condoIds = vincSnap.docs
-            .map((d) => (d.data() as any)?.condominioId || d.id)
-            .filter(Boolean);
-        }
-
-        if (condoIds.length === 0) {
+        // Lógica para USUÁRIO COMUM: busca nomes a partir dos vínculos
+        const vinculos = session.vinculos || [];
+        console.log("[CondominioSelect] Modo Usuário Comum: resolvendo nomes para", vinculos.length, "vínculos...");
+        if (vinculos.length === 0) {
           if (mounted) setItems([]);
           return;
         }
 
-        // 3) pega nome por getDoc (sem query/list por id)
-        const out: CondoItem[] = [];
-        for (const id of condoIds) {
+        const promises = vinculos.map(async (v) => {
           try {
-            const pubSnap = await getDoc(doc(firestore, "condominiosPublicos", id));
-            out.push({ id, nome: (pubSnap.data() as any)?.nome ?? id });
+            const pubSnap = await getDoc(doc(firestore, "condominiosPublicos", v.condominioId));
+            return {
+              id: v.condominioId,
+              nome: (pubSnap.data() as any)?.nome ?? v.condominioId,
+            };
           } catch {
-            out.push({ id, nome: id });
+            return { id: v.condominioId, nome: v.condominioId }; // Fallback
           }
-        }
-
-        out.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
-        if (mounted) setItems(out);
-      } catch (e: any) {
-        console.error("[CondominioSelect] erro ao carregar condos:", {
-          code: e?.code,
-          message: e?.message,
-          e,
         });
+
+        const out = await Promise.all(promises);
+        out.sort((a, b) => a.nome.localeCompare(b.nome));
+
+        if (mounted) {
+          setItems(out);
+          console.log("[CondominioSelect] Usuário Comum carregou", out.length, "condomínios.");
+        }
+      } catch (e: any) {
+        console.error("[CondominioSelect] erro ao carregar condomínios:", e);
         if (mounted) setItems([]);
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    // garante auth pronto
-    const unsub = onAuthStateChanged(getAuth(), (u) => {
-      if (!u?.uid) {
-        if (mounted) setItems([]);
-        return;
-      }
-      run(u.uid);
-    });
+    run();
 
     return () => {
       mounted = false;
-      unsub();
     };
-  }, [isSessionLoading, session?.user?.uid, superAdmin]);
+  }, [isSessionLoading, session?.user?.uid, superAdmin, session?.vinculos]);
 
   const safeValue = value ?? "";
 
@@ -148,6 +121,7 @@ export default function CondominioSelect({
           if (v === "__empty") return;
           onChange(v);
         }}
+        disabled={loading || items.length === 0}
       >
         <SelectTrigger
           className={cn(
