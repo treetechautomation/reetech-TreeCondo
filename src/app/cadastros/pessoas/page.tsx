@@ -1,4 +1,5 @@
 
+
 "use client";
 
 
@@ -111,13 +112,13 @@ export default function PessoasPage() {
   const [condos, setCondos] = useState<CondoPublico[]>([]);
   const [isLoadingCondos, setIsLoadingCondos] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
     let cancelled = false;
 
     async function fetchCondos() {
       if (!firestore || !session) return;
-
       setIsLoadingCondos(true);
+      console.log('[PessoasPage] Iniciando fetchCondos. superAdmin:', session.superAdmin);
 
       try {
         let list: CondoPublico[] = [];
@@ -136,13 +137,15 @@ useEffect(() => {
               ativo: (data as any).ativo !== false,
             };
           }).filter(c => c.ativo);
+          console.log('[PessoasPage] SuperAdmin carregou condomínios:', list.length);
         } else {
           // USUÁRIO COMUM: Carrega apenas condomínios de seus vínculos ativos
+          console.log('[PessoasPage] Usuário comum, buscando por vínculos:', session.vinculos.length);
           const vinculosAtivos = (session.vinculos || []).filter(v => v.status === "ATIVO");
-          const promises = vinculosAtivos.map(v => getDoc(doc(publicosRef, v.condominioId)));
-          const snaps = await Promise.all(promises);
-          
-          list = snaps.map(snap => {
+          if (vinculosAtivos.length > 0) {
+            const promises = vinculosAtivos.map(v => getDoc(doc(publicosRef, v.condominioId)));
+            const snaps = await Promise.all(promises);
+            list = snaps.map(snap => {
               if (!snap.exists()) return null;
               const data = snap.data();
               return {
@@ -151,12 +154,14 @@ useEffect(() => {
                 nome: (data as any).nome || "Condomínio sem nome",
                 ativo: (data as any).ativo !== false,
               };
-          }).filter((c): c is CondoPublico => c !== null && c.ativo);
-          list.sort((a,b) => a.nome.localeCompare(b.nome));
+            }).filter((c): c is CondoPublico => c !== null && c.ativo);
+            list.sort((a, b) => a.nome.localeCompare(b.nome));
+          }
         }
 
         if (!cancelled) {
           setCondos(list);
+          console.log('[PessoasPage] Condomínios definidos no estado:', list.length);
         }
       } catch (err: any) {
         console.error("[PessoasPage] erro ao carregar condomínios:", err);
@@ -176,6 +181,7 @@ useEffect(() => {
 
     return () => { cancelled = true; }
   }, [firestore, session, toast]);
+
 
   // AUTO_SELECT_CONDO_SINGLE
     useEffect(() => {
@@ -246,6 +252,11 @@ useEffect(() => {
     }
     if (!form.nome.trim() || !form.email.trim()) {
       toast({ variant: "destructive", title: "Preencha nome e e-mail." });
+      return;
+    }
+    
+    if (form.role === "MORADOR" && !form.blocoId) {
+      toast({ variant: "destructive", title: "Campo obrigatório", description: "Selecione o bloco para o morador." });
       return;
     }
 
@@ -510,3 +521,5 @@ useEffect(() => {
     </AppLayout>
   );
 }
+
+    
