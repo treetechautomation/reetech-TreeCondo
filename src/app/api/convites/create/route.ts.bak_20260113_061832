@@ -190,11 +190,8 @@ const body = (await req.json().catch(() => ({}))) as {
     const nome = (body.nome || "").trim();
     const email = (body.email || "").trim().toLowerCase();
     const role = (body.role || "MORADOR") as Role;
-const blocoId = (body as any).blocoId ? String((body as any).blocoId).trim()
-    : ((body as any).bloco ? String((body as any).bloco).trim() : null);
-
-  const unidadeId = (body as any).unidadeId ? String((body as any).unidadeId).trim()
-    : (((body as any).apartamento ?? (body as any).unidade) ? String(((body as any).apartamento ?? (body as any).unidade)).trim() : null);
+const blocoId = body.blocoId ? String(body.blocoId).trim() : null;
+const unidadeId = body.unidadeId ? String(body.unidadeId).trim() : null;
 
 // Regras por tipo:
 // - MORADOR: bloco + unidade obrigatórios
