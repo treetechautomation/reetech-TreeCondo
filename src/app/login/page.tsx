@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -8,12 +9,14 @@ import {
   signInWithCustomToken,
   updatePassword,
 } from "firebase/auth";
+import { Eye, EyeOff } from "lucide-react";
 import { initializeFirebase } from "@/firebase";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function isStrongEnough(pw: string) {
   return pw.length >= 8;
@@ -28,6 +31,7 @@ export default function LoginPage() {
   // Login normal
   const [email, setEmail] = React.useState("");
   const [senha, setSenha] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
   const [loadingLogin, setLoadingLogin] = React.useState(false);
   const [errorLogin, setErrorLogin] = React.useState<string | null>(null);
 
@@ -43,6 +47,8 @@ export default function LoginPage() {
   const [loadingSetPw, setLoadingSetPw] = React.useState(false);
   const [pwMsg, setPwMsg] = React.useState<string | null>(null);
   const [pwErr, setPwErr] = React.useState<string | null>(null);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   const [codigoValidado, setCodigoValidado] = React.useState(false);
 
@@ -221,13 +227,24 @@ export default function LoginPage() {
 
                     <div className="space-y-1.5">
                       <label className="text-sm text-slate-700">Senha</label>
-                      <Input
-                        value={senha}
-                        onChange={(e) => setSenha(e.target.value)}
-                        type="password"
-                        placeholder="••••••••"
-                        className="h-11 rounded-xl bg-white/60"
-                      />
+                       <div className="relative">
+                        <Input
+                          value={senha}
+                          onChange={(e) => setSenha(e.target.value)}
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          className="h-11 rounded-xl bg-white/60 pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute inset-y-0 right-0 h-full w-10 text-slate-600 hover:bg-transparent"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                        >
+                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                        </Button>
+                      </div>
                     </div>
 
                     {errorLogin && (
@@ -306,24 +323,48 @@ export default function LoginPage() {
                       <form onSubmit={handleSetPassword} className="space-y-3">
                         <div className="space-y-1.5">
                           <label className="text-sm text-slate-700">Nova senha</label>
-                          <Input
-                            value={pw1}
-                            onChange={(e) => setPw1(e.target.value)}
-                            type="password"
-                            className="h-11 rounded-xl bg-white/60"
-                            disabled={!codigoValidado}
-                          />
+                           <div className="relative">
+                            <Input
+                              value={pw1}
+                              onChange={(e) => setPw1(e.target.value)}
+                              type={showNewPassword ? "text" : "password"}
+                              className="h-11 rounded-xl bg-white/60 pr-10"
+                              disabled={!codigoValidado}
+                            />
+                             <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute inset-y-0 right-0 h-full w-10 text-slate-600 hover:bg-transparent"
+                              onClick={() => setShowNewPassword((prev) => !prev)}
+                              disabled={!codigoValidado}
+                            >
+                              {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="space-y-1.5">
                           <label className="text-sm text-slate-700">Confirmar senha</label>
-                          <Input
-                            value={pw2}
-                            onChange={(e) => setPw2(e.target.value)}
-                            type="password"
-                            className="h-11 rounded-xl bg-white/60"
-                            disabled={!codigoValidado}
-                          />
+                           <div className="relative">
+                            <Input
+                              value={pw2}
+                              onChange={(e) => setPw2(e.target.value)}
+                              type={showConfirmPassword ? "text" : "password"}
+                              className="h-11 rounded-xl bg-white/60 pr-10"
+                              disabled={!codigoValidado}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute inset-y-0 right-0 h-full w-10 text-slate-600 hover:bg-transparent"
+                              onClick={() => setShowConfirmPassword((prev) => !prev)}
+                              disabled={!codigoValidado}
+                            >
+                              {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </Button>
+                          </div>
                         </div>
 
                         {!codigoValidado && (
