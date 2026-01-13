@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSuper() {
+      return request.auth != null && request.auth.token.super_admin == true;
+    }
+
+    function vinculoDoc(uid, condominioId) {
+      return get(/databases/$(database)/documents/userCondominios/$(uid)/vinculos/$(condominioId));
+    }
+
+    function hasActiveVinculo(condominioId) {
+      return request.auth != null
+        && vinculoDoc(request.auth.uid, condominioId).exists()
+        && vinculoDoc(request.auth.uid, condominioId).data.status == "ATIVO";
+    }
+
+    function canManageCondo(condominioId) {
+      return request.auth != null
+        && hasActiveVinculo(condominioId)
+        && (vinculoDoc(request.auth.uid, condominioId).data.role in ["ADMIN", "SINDICO"]);
+    }
+
+    // ✅ ANÚNCIOS (coleção raiz)
+    match /anuncios/{anuncioId} {
+
+      // Ler: super_admin OU qualquer membro ATIVO do condomínio
+      allow read: if isSuper()
+        || (resource.data.condominioId is string
+            && hasActiveVinculo(resource.data.condominioId));
+
+      // Criar: super_admin OU ADMIN/SINDICO ATIVO do condomínio do anúncio
+      allow create: if isSuper()
+        || (request.resource.data.condominioId is string
+            && canManageCondo(request.resource.data.condominioId));
+
+      // Atualizar/Deletar: super_admin OU ADMIN/SINDICO ATIVO do condomínio
+      allow update, delete: if isSuper()
+        || (resource.data.condominioId is string
+            && canManageCondo(resource.data.condominioId));
+    }
+
+  }
+}
