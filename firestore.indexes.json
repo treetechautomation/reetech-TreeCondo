@@ -1,3 +1,4 @@
+
 {
   "indexes": [
     {
@@ -55,6 +56,13 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "condominiosPublicos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "nome", "order": "ASCENDING" }
       ]
     }
   ],

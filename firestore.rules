@@ -4,70 +4,58 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- Funções de Ajuda ---
-
-    functionisSignedIn() {
+    
+    function isSignedIn() {
       return request.auth != null;
     }
 
+    // isSuperAdmin agora checa a claim OU o e-mail específico.
     function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.super_admin == true;
+      return isSignedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.email == "treecommunity@treetechautomation.com"
+      );
     }
-
-    // Função para checar se um usuário tem um vínculo ATIVO com um condomínio específico.
-    // Esta é a função mais importante para o isolamento dos dados (multi-tenancy).
+    
+    // Verifica se um usuário tem um vínculo ATIVO com um condomínio.
     function hasActiveLink(condominioId) {
       return isSignedIn() &&
              exists(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)) &&
-             get(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)).data.status == 'ATIVO';
+             get(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)).data.status == "ATIVO";
     }
 
-    // Função para obter a role de um usuário dentro de um condomínio específico.
     function getRoleInCondo(condominioId) {
+      // Importante: Sempre use hasActiveLink() antes de chamar esta função.
       return get(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)).data.role;
     }
 
     // --- Regras por Coleção ---
 
-    // A coleção `users` é geralmente para dados de perfil público ou que o próprio usuário gerencia.
-    // Manterei simples por enquanto.
-    match /users/{uid} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == uid;
-    }
-
-    // Coleção de vínculos: um usuário só pode acessar seus próprios vínculos.
-    match /userCondominios/{uid}/{document=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == uid;
-    }
-
-    // Coleção pública: qualquer usuário autenticado pode ler a lista de condomínios.
-    // Isso é útil para seletores de condomínio no frontend.
+    // Coleção pública, mas apenas para usuários logados. Super Admin pode escrever.
     match /condominiosPublicos/{condominioId} {
-      allow read: if isSignedIn();
-      allow write: if isSuperAdmin(); // Apenas Super Admin pode adicionar/remover condomínios da lista pública.
+      allow read: if isSignedIn(); // Qualquer usuário logado pode ler
+      allow write: if isSuperAdmin();
     }
 
-    // Coleção principal e privada dos condomínios.
-    // Aqui aplicamos as regras de isolamento mais importantes.
+    // Coleção principal de condomínios
     match /condominios/{condominioId} {
-      // PERMISSÃO DE LEITURA:
-      // Permitido se for Super Admin OU se o usuário tiver um vínculo ATIVO com este condomínio.
+      // Leitura permitida para Super Admin ou usuários com vínculo ativo.
       allow read: if isSuperAdmin() || hasActiveLink(condominioId);
-
-      // PERMISSÃO DE ESCRITA:
-      // Permitido se for Super Admin OU se o usuário tiver um vínculo ativo E sua role for 'SINDICO'.
+      
+      // Escrita permitida para Super Admin ou Síndicos do próprio condomínio.
       allow write: if isSuperAdmin() || (hasActiveLink(condominioId) && getRoleInCondo(condominioId) == 'SINDICO');
 
-      // REGRAS PARA SUBCOLEÇÕES (Ex: anuncios, reservas, etc.)
-      // Esta regra genérica se aplica a todas as subcoleções dentro de um condomínio.
+      // Regra genérica para subcoleções (anuncios, membros, etc.)
       match /{subcollection}/{docId} {
-        // Leitura: Mesma regra do documento pai.
         allow read: if isSuperAdmin() || hasActiveLink(condominioId);
-
-        // Escrita: Super Admin ou Síndico podem escrever.
-        // Você pode criar regras mais granulares aqui se um MORADOR puder criar um 'incidente', por exemplo.
         allow write: if isSuperAdmin() || (hasActiveLink(condominioId) && getRoleInCondo(condominioId) == 'SINDICO');
       }
+    }
+    
+    // Regra para a coleção de vínculos de usuário
+    match /userCondominios/{uid}/{document=**} {
+      // Um usuário só pode ler e escrever seus próprios documentos de vínculo.
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
   }
 }

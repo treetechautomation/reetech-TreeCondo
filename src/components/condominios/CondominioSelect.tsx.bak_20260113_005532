@@ -8,8 +8,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
-  query,
 } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
@@ -39,37 +37,22 @@ export default function CondominioSelect({
   const [items, setItems] = React.useState<CondoItem[]>([]);
   const [loading, setLoading] = React.useState(false);
 
+
   const { session, isSessionLoading } = useSession();
   const superAdmin = !!session?.superAdmin;
-
   React.useEffect(() => {
     let mounted = true;
 
-    // espera sessão/auth pronta
+    // espera sessão/auth estar pronta antes de consultar Firestore
     if (isSessionLoading) return () => { mounted = false; };
     if (!session?.user) return () => { mounted = false; };
-
     const run = async (uid: string) => {
       setLoading(true);
       try {
         const { firestore } = initializeFirebase();
 
-        // ✅ SUPER_ADMIN: lista condominiosPublicos
-        if (superAdmin) {
-          const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
-          const snap = await getDocs(q);
-          const out: CondoItem[] = snap.docs.map((d) => ({
-            id: d.id,
-            nome: (d.data() as any)?.nome ?? d.id,
-          }));
-          if (mounted) setItems(out);
-          return;
-        }
-
-        // 👇 Demais perfis: resolve via vínculos do usuário
+        // 1) Tenta carregar vínculos do doc users/{uid} (getDoc costuma ser permitido nas rules)
         let condoIds: string[] = [];
-
-        // 1) tenta users/{uid}.vinculos[]
         try {
           const userSnap = await getDoc(doc(firestore, "users", uid));
           const vinculos = (userSnap.data() as any)?.vinculos;
@@ -82,7 +65,7 @@ export default function CondominioSelect({
           // ignora
         }
 
-        // 2) fallback: userCondominios/{uid}/vinculos
+        // 2) Fallback: userCondominios/{uid}/vinculos (pode falhar se rules não permitem LIST)
         if (condoIds.length === 0) {
           const vincRef = collection(firestore, `userCondominios/${uid}/vinculos`);
           const vincSnap = await getDocs(vincRef);
@@ -96,21 +79,27 @@ export default function CondominioSelect({
           return;
         }
 
-        // 3) pega nome por getDoc (sem query/list por id)
+        // 3) Nomes: SEM query/list. Faz getDoc por id em condominiosPublicos/{condoId}
         const out: CondoItem[] = [];
         for (const id of condoIds) {
           try {
             const pubSnap = await getDoc(doc(firestore, "condominiosPublicos", id));
-            out.push({ id, nome: (pubSnap.data() as any)?.nome ?? id });
+            out.push({
+              id,
+              nome: (pubSnap.data() as any)?.nome ?? id,
+            });
           } catch {
+            // se nem o público der, usa o id mesmo
             out.push({ id, nome: id });
           }
         }
 
+        // ordena por nome
         out.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+
         if (mounted) setItems(out);
       } catch (e: any) {
-        console.error("[CondominioSelect] erro ao carregar condos:", {
+        console.error("[CondominioSelect] erro ao carregar condos do usuário:", {
           code: e?.code,
           message: e?.message,
           e,
@@ -121,7 +110,8 @@ export default function CondominioSelect({
       }
     };
 
-    // garante auth pronto
+    // garante que só roda quando o auth estiver pronto (evita uid indefinido / timing)
+    const { auth } = initializeFirebase();
     const unsub = onAuthStateChanged(getAuth(), (u) => {
       if (!u?.uid) {
         if (mounted) setItems([]);
@@ -134,8 +124,7 @@ export default function CondominioSelect({
       mounted = false;
       unsub();
     };
-  }, [isSessionLoading, session?.user?.uid, superAdmin]);
-
+  }, [superAdmin, isSessionLoading, session?.user?.uid]);
   const safeValue = value ?? "";
 
   return (
@@ -155,13 +144,15 @@ export default function CondominioSelect({
             "focus:ring-0 focus:ring-offset-0"
           )}
         >
-          <SelectValue placeholder={loading ? "Carregando..." : "Selecione um condomínio"} />
+          <SelectValue
+            placeholder={loading ? "Carregando..." : "Selecione um condomínio"}
+          />
         </SelectTrigger>
 
         <SelectContent className="rounded-2xl border-white/10 bg-[#0b1220]/90 text-white backdrop-blur">
           {items.length === 0 ? (
             <SelectItem value="__empty" disabled>
-              {loading ? "Carregando..." : "Nenhum condomínio encontrado"}
+              {loading ? "Carregando..." : "Nenhum condomínio vinculado ao seu usuário."}
             </SelectItem>
           ) : (
             items.map((c) => (

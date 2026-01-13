@@ -11,7 +11,6 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   Select,
   SelectContent,
@@ -45,36 +44,41 @@ export default function CondominioSelect({
   React.useEffect(() => {
     let mounted = true;
 
-    // espera sessão/auth pronta
     if (isSessionLoading) return () => { mounted = false; };
     if (!session?.user) return () => { mounted = false; };
 
-    const run = async (uid: string) => {
+    (async () => {
       setLoading(true);
       try {
         const { firestore } = initializeFirebase();
+        const uid = session.user.uid;
 
-        // ✅ SUPER_ADMIN: lista condominiosPublicos
+        // ✅ SUPER_ADMIN: lista TODOS os condomínios reais do "condominiosPublicos"
         if (superAdmin) {
-          const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
+          const col = collection(firestore, "condominiosPublicos");
+          const q = query(col, orderBy("nome"));
           const snap = await getDocs(q);
+
           const out: CondoItem[] = snap.docs.map((d) => ({
             id: d.id,
             nome: (d.data() as any)?.nome ?? d.id,
           }));
+
+          out.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
           if (mounted) setItems(out);
           return;
         }
 
-        // 👇 Demais perfis: resolve via vínculos do usuário
+        // 👇 Outros perfis: carrega vínculos do usuário
         let condoIds: string[] = [];
 
-        // 1) tenta users/{uid}.vinculos[]
+        // 1) tenta users/{uid}.vinculos (mais simples de permitir nas rules)
         try {
           const userSnap = await getDoc(doc(firestore, "users", uid));
           const vinculos = (userSnap.data() as any)?.vinculos;
           if (Array.isArray(vinculos)) {
             condoIds = vinculos
+              .filter((v: any) => v?.status === "ATIVO" || v?.status == null)
               .map((v: any) => v?.condominioId)
               .filter(Boolean);
           }
@@ -82,7 +86,7 @@ export default function CondominioSelect({
           // ignora
         }
 
-        // 2) fallback: userCondominios/{uid}/vinculos
+        // 2) fallback: userCondominios/{uid}/vinculos (pode depender de rules de LIST)
         if (condoIds.length === 0) {
           const vincRef = collection(firestore, `userCondominios/${uid}/vinculos`);
           const vincSnap = await getDocs(vincRef);
@@ -91,12 +95,13 @@ export default function CondominioSelect({
             .filter(Boolean);
         }
 
+        // se não tem nada
         if (condoIds.length === 0) {
           if (mounted) setItems([]);
           return;
         }
 
-        // 3) pega nome por getDoc (sem query/list por id)
+        // 3) resolve nomes por getDoc (sem query)
         const out: CondoItem[] = [];
         for (const id of condoIds) {
           try {
@@ -119,20 +124,10 @@ export default function CondominioSelect({
       } finally {
         if (mounted) setLoading(false);
       }
-    };
-
-    // garante auth pronto
-    const unsub = onAuthStateChanged(getAuth(), (u) => {
-      if (!u?.uid) {
-        if (mounted) setItems([]);
-        return;
-      }
-      run(u.uid);
-    });
+    })();
 
     return () => {
       mounted = false;
-      unsub();
     };
   }, [isSessionLoading, session?.user?.uid, superAdmin]);
 
@@ -161,7 +156,7 @@ export default function CondominioSelect({
         <SelectContent className="rounded-2xl border-white/10 bg-[#0b1220]/90 text-white backdrop-blur">
           {items.length === 0 ? (
             <SelectItem value="__empty" disabled>
-              {loading ? "Carregando..." : "Nenhum condomínio encontrado"}
+              {loading ? "Carregando..." : (superAdmin ? "Nenhum condomínio público encontrado." : "Nenhum condomínio vinculado ao seu usuário.")}
             </SelectItem>
           ) : (
             items.map((c) => (
