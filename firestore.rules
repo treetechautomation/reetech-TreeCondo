@@ -26,9 +26,10 @@ service cloud.firestore {
       return signedIn() && m.exists() && m.data.status == "ATIVO";
     }
 
-    // ✅ NOVA FUNÇÃO: Verifica o VÍNCULO de acesso rápido.
+    // ✅ Verifica se o usuário tem um VÍNCULO de acesso rápido e se está ATIVO.
     function isVinculadoAtivo(condominioId) {
-      return signedIn() && get(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)).data.ativo == true;
+      let vinculoPath = /databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId);
+      return signedIn() && exists(vinculoPath) && get(vinculoPath).data.ativo == true;
     }
 
     // Retorna role do membro (com proteção se doc não existir).
@@ -75,8 +76,8 @@ service cloud.firestore {
     }
 
     match /condominios/{condominioId} {
-      // ✅ ATUALIZADO: Leitura permitida para Super Admin OU membro ativo OU usuário com vínculo ativo.
-      allow read: if isSuper() || isMembroAtivo(condominioId) || isVinculadoAtivo(condominioId);
+      // ✅ ATUALIZADO: Leitura permitida para Super Admin OU usuário com vínculo ativo.
+      allow read: if isSuper() || isVinculadoAtivo(condominioId);
       allow create, update, delete: if isSuper();
 
       match /membros/{uid} {
@@ -87,8 +88,8 @@ service cloud.firestore {
       }
 
       match /anuncios/{anuncioId} {
-        // ✅ ATUALIZADO: Leitura permitida para Super Admin OU membro ativo OU usuário com vínculo ativo.
-        allow read: if isSuper() || isMembroAtivo(condominioId) || isVinculadoAtivo(condominioId);
+        // ✅ ATUALIZADO: Leitura permitida para Super Admin OU usuário com vínculo ativo.
+        allow read: if isSuper() || isVinculadoAtivo(condominioId);
         allow create, update, delete: if canManageCondo(condominioId);
       }
 
@@ -99,8 +100,8 @@ service cloud.firestore {
 
       // Regra genérica para outras subcoleções (blocos, unidades, etc.)
       match /{subcollection}/{docId=**} {
-        // ✅ ATUALIZADO: Leitura permitida para Super Admin OU membro ativo OU usuário com vínculo ativo.
-        allow read: if isSuper() || isMembroAtivo(condominioId) || isVinculadoAtivo(condominioId);
+        // ✅ ATUALIZADO: Leitura permitida para Super Admin OU usuário com vínculo ativo.
+        allow read: if isSuper() || isVinculadoAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
       }
     }
