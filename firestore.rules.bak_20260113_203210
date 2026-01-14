@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Funções de Ajuda ---
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.email == "treecommunity@treetechautomation.com"
+      );
+    }
+    
+    function hasActiveLink(condominioId) {
+        return signedIn() && exists(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId))
+            && get(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)).data.status == "ATIVO";
+    }
+
+    function getRoleInCondo(condominioId) {
+        if (!hasActiveLink(condominioId)) {
+            return "";
+        }
+        return get(/databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId)).data.role;
+    }
+
+    // --- Regras por Coleção ---
+
+    // Coleção pública, lida por todos logados, escrita por super admin
+    match /condominiosPublicos/{condominioId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+    
+    // Coleção principal dos condomínios
+    match /condominios/{condominioId} {
+      allow read: if isSuperAdmin() || hasActiveLink(condominioId);
+      allow write: if isSuperAdmin() || getRoleInCondo(condominioId) == "SINDICO" || getRoleInCondo(condominioId) == "ADMIN" || getRoleInCondo(condominioId) == "ADMIN_CONDOMINIO";
+      
+      // Sub-coleções (anuncios, membros, etc)
+      match /{subcollection}/{docId=**} {
+        allow read: if isSuperAdmin() || hasActiveLink(condominioId);
+        allow write: if isSuperAdmin() || getRoleInCondo(condominioId) == "SINDICO" || getRoleInCondo(condominioId) == "ADMIN" || getRoleInCondo(condominioId) == "ADMIN_CONDOMINIO";
+      }
+    }
+    
+    // Regras para os vínculos de cada usuário
+    match /userCondominios/{uid} {
+       // Permite que o próprio usuário leia e escreva seu documento principal (ex: para criar o doc)
+      allow read, write: if signedIn() && request.auth.uid == uid;
+      
+      // Regra para a subcoleção de vínculos
+      match /vinculos/{condominioId} {
+        // Permite que o próprio usuário leia e escreva seus vínculos
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+  }
+}

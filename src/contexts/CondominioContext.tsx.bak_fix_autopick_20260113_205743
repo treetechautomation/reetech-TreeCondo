@@ -106,49 +106,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     }
   }, [condominioAtivoId, vinculos, setActiveCondominioId]);
 
-  
-
-  // FIX_AUTOPICK_CONDO_FROM_MEMBRO:
-  // Se não vier "vinculos" no session (ex: morador novo), tenta descobrir o condomínio
-  // olhando o doc: condominios/{condId}/membros/{uid} (status ATIVO)
-  React.useEffect(() => {
-    const run = async () => {
-      if (!firestore) return;
-      if (!session?.user) return;
-      if (condominioAtivoId) return;
-
-      // se já tem vínculos, o outro effect cuida
-      if (Array.isArray(vinculos) && vinculos.length > 0) return;
-
-      try {
-        // 1) lista condomínios públicos
-        const pubsQ = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
-        const pubsSnap = await getDocs(pubsQ);
-
-        for (const d of pubsSnap.docs) {
-          const condId = d.id;
-
-          // 2) testa se existe membro ATIVO para este usuário
-          const mref = doc(firestore, "condominios", condId, "membros", session.user.uid);
-          const ms = await getDoc(mref);
-
-          if (ms.exists()) {
-            const data = ms.data() as any;
-            if (data?.status === "ATIVO") {
-              setActiveCondominioId(condId);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.error("[CondominioContext] autopick condo fallback falhou:", e);
-      }
-    };
-
-    run();
-  }, [firestore, session?.user, condominioAtivoId, vinculos, setActiveCondominioId]);
-
-// Restaurar bloco/unidade do localStorage quando trocar de condomínio
+  // Restaurar bloco/unidade do localStorage quando trocar de condomínio
   useEffect(() => {
     if (!condominioAtivoId) {
       setBlocoAtivoIdState(null);

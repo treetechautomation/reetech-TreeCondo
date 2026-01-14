@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function isSuper() {
+      return signedIn()
+        && (request.auth.token.super_admin == true
+            || request.auth.token.superAdmin == true);
+    }
+
+    // --- Paths/helpers corretos (SEM .exists()) ---
+    function membroPath(condominioId) {
+      return /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
+    }
+
+    function membroExists(condominioId) {
+      return signedIn() && exists(membroPath(condominioId));
+    }
+
+    function membroData(condominioId) {
+      return get(membroPath(condominioId)).data;
+    }
+
+    function isMembroAtivo(condominioId) {
+      return membroExists(condominioId)
+        && membroData(condominioId).status == "ATIVO";
+    }
+
+    function roleNoCondo(condominioId) {
+      return membroExists(condominioId) ? membroData(condominioId).role : null;
+    }
+
+    function canManageCondo(condominioId) {
+      return isSuper()
+        || (isMembroAtivo(condominioId)
+            && (roleNoCondo(condominioId) in ["ADMIN","SINDICO"]));
+    }
+
+    // ✅ CONDOMÍNIOS PÚBLICOS (seletor)
+    match /condominiosPublicos/{id} {
+      allow read: if signedIn();
+      allow write: if isSuper();
+    }
+
+    // ✅ CONDOMÍNIOS / SUBCOLEÇÕES
+    match /condominios/{condominioId} {
+
+      allow read: if isSuper() || isMembroAtivo(condominioId);
+
+      match /membros/{uid} {
+        allow read: if isSuper()
+          || request.auth.uid == uid
+          || canManageCondo(condominioId);
+
+        allow create, update, delete: if isSuper() || canManageCondo(condominioId);
+      }
+
+      // ✅ ANÚNCIOS NO PATH REAL
+      match /anuncios/{anuncioId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
+      // ✅ BLOCOS / UNIDADES
+      match /blocos/{blocoId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if isSuper() || canManageCondo(condominioId);
+
+        match /unidades/{unidadeId} {
+          allow read: if isSuper() || isMembroAtivo(condominioId);
+          allow write: if isSuper() || canManageCondo(condominioId);
+        }
+      }
+
+      // ✅ CONFIG
+      match /config/{docId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if isSuper() || canManageCondo(condominioId);
+      }
+    }
+  }
+}

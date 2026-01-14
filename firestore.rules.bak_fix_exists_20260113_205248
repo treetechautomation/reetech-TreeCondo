@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // aceita os 2 formatos de claim
+    function isSuper() {
+      return signedIn()
+        && (request.auth.token.super_admin == true
+            || request.auth.token.superAdmin == true);
+    }
+
+    // --- Fonte de verdade: membro do condomínio ---
+    function membroDoc(condominioId) {
+      return get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid));
+    }
+
+    function isMembroAtivo(condominioId) {
+      return signedIn()
+        && membroDoc(condominioId).exists()
+        && membroDoc(condominioId).data.status == "ATIVO";
+    }
+
+    function roleNoCondo(condominioId) {
+      return membroDoc(condominioId).data.role;
+    }
+
+    function canManageCondo(condominioId) {
+      return isSuper()
+        || (isMembroAtivo(condominioId) && (roleNoCondo(condominioId) in ["ADMIN","SINDICO"]));
+    }
+
+    // =========================
+    // ✅ CONDOMÍNIOS PÚBLICOS (seletor / listagem)
+    // =========================
+    match /condominiosPublicos/{id} {
+      allow read: if signedIn();   // precisa pro seletor aparecer
+      allow write: if isSuper();   // só super cria/edita
+    }
+
+    // =========================
+    // ✅ CONDOMÍNIOS / MEMBROS (usuário ver seu próprio membro)
+    // =========================
+    match /condominios/{condominioId} {
+
+      // (opcional) ler doc do condomínio: membro ativo ou super
+      allow read: if isSuper() || isMembroAtivo(condominioId);
+
+      match /membros/{uid} {
+        // usuário vê o próprio doc; síndico/admin e super podem ver todos
+        allow read: if isSuper()
+          || request.auth.uid == uid
+          || canManageCondo(condominioId);
+
+        // criação/edição normalmente via API/Admin SDK (rules não afetam),
+        // mas se em algum ponto o client escrever: restringe a super/gestor
+        allow create, update, delete: if isSuper() || canManageCondo(condominioId);
+      }
+
+      // =========================
+      // ✅ ANÚNCIOS NO PATH REAL
+      // =========================
+      match /anuncios/{anuncioId} {
+        // Ler: super OU qualquer membro ATIVO do condomínio
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+
+        // Criar/Editar/Deletar: super OU ADMIN/SINDICO ATIVO
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
+      // =========================
+      // ✅ BLOCOS / UNIDADES (se seu app lê pelo client)
+      // =========================
+      match /blocos/{blocoId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if isSuper() || canManageCondo(condominioId);
+
+        match /unidades/{unidadeId} {
+          allow read: if isSuper() || isMembroAtivo(condominioId);
+          allow write: if isSuper() || canManageCondo(condominioId);
+        }
+      }
+
+      // =========================
+      // ✅ CONFIG (menu/permissões) se existir
+      // =========================
+      match /config/{docId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if isSuper() || canManageCondo(condominioId);
+      }
+    }
+
+    // fallback: nada fora disso
+  }
+}
