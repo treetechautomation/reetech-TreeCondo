@@ -5,26 +5,32 @@ import { useFirestore } from "@/firebase";
 import {
   collection,
   onSnapshot,
-  orderBy,
   query,
   where,
+  orderBy,
   Timestamp,
-  type Firestore,
-  type FirestoreError,
 } from "firebase/firestore";
+
+export type AreaOpcao = {
+  id: string;
+  nome: string;
+  preco: number; // centavos
+  bloqueiaAreaId?: string | null;
+};
 
 export type AreaReservavel = {
   id: string;
   nome: string;
   descricao?: string | null;
-  preco?: number;
+  preco: number; // centavos (valor base)
   ativo: boolean;
-  ordem?: number | null;
-  diaInteiro?: boolean;
-  horaFim?: number;
-  horaInicio?: number;
-  moeda?: string;
   tipo?: string | null;
+  diaInteiro?: boolean;
+  horaInicio?: string;
+  horaFim?: string;
+  permiteAte?: number | null; // ex: 24
+  opcoes?: AreaOpcao[] | null;
+  fotoUrl?: string | null; // opcional (pra imagem)
 };
 
 export type Reserva = {
@@ -35,19 +41,12 @@ export type Reserva = {
   condominioId: string;
   data: Timestamp;
   dataFim?: Timestamp;
-  valorCobrado?: number;
+  valorCobrado?: number; // centavos
   criadoEm?: Timestamp;
 };
 
 function startOfDayUTC(dateStr: string) {
-  // espera YYYY-MM-DD. Se vier DD/MM/YYYY, tenta converter.
-  let s = (dateStr || "").trim();
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-    const [dd, mm, yyyy] = s.split("/");
-    s = `${yyyy}-${mm}-${dd}`;
-  }
-
-  const [y, m, d] = s.split("-").map(Number);
+  const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 0, 0, 0, 0));
 }
 
@@ -57,29 +56,34 @@ function nextDayStartUTC(dateStr: string) {
   return dt;
 }
 
-function resolveFirestore(ctx: unknown): Firestore | null {
-  // aceita Firestore direto OU { firestore: Firestore } OU { db: Firestore }
-  const anyCtx = ctx as any;
-  const fs = anyCtx?.firestore ?? anyCtx?.db ?? anyCtx;
-  if (!fs || typeof fs !== "object") return null;
-  return fs as Firestore;
+function toNum(v: any, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function resolveFirestore(maybe: any) {
+  // Alguns projetos retornam { firestore }, outros retornam o firestore direto.
+  return maybe?.firestore ?? maybe;
 }
 
 export function useReservas(condominioId: string | null, dateStr: string) {
-  const firestoreCtx = useFirestore();
-  const firestore = React.useMemo(() => resolveFirestore(firestoreCtx), [firestoreCtx]);
+  const firestoreRaw = useFirestore();
+  const firestore = React.useMemo(() => resolveFirestore(firestoreRaw), [firestoreRaw]);
 
   const [areas, setAreas] = React.useState<AreaReservavel[]>([]);
   const [reservas, setReservas] = React.useState<Reserva[]>([]);
   const [loadingAreas, setLoadingAreas] = React.useState(true);
   const [loadingReservas, setLoadingReservas] = React.useState(true);
-  const [errorAreas, setErrorAreas] = React.useState<string | null>(null);
-  const [errorReservas, setErrorReservas] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setErrorAreas(null);
+    if (!condominioId) {
+      setAreas([]);
+      setLoadingAreas(false);
+      return;
+    }
 
-    if (!firestore || !condominioId) {
+    // Se firestore vier inválido, evita quebrar a tela
+    if (!firestore) {
       setAreas([]);
       setLoadingAreas(false);
       return;
@@ -87,55 +91,49 @@ export function useReservas(condominioId: string | null, dateStr: string) {
 
     setLoadingAreas(true);
 
-    try {
-      const ref = collection(firestore, "condominios", condominioId, "areasReservaveis");
-      const qy = query(ref, orderBy("ordem", "asc"));
+    const ref = collection(firestore, "condominios", condominioId, "areasReservaveis");
+    const qy = query(ref);
 
-      const unsub = onSnapshot(
-        qy,
-        (snap) => {
-          const list: AreaReservavel[] = snap.docs.map((d) => {
-            const data = d.data() as any;
-            return {
-              id: d.id,
-              nome: String(data.nome ?? d.id),
-              descricao: (data.descricao as string) ?? null,
-              preco: Number(data.preco ?? 0),
-              ativo: Boolean(data.ativo ?? true),
-              ordem: (data.ordem as number) ?? null,
-              diaInteiro: (data.diaInteiro as boolean) ?? undefined,
-              horaFim: (data.horaFim as number) ?? undefined,
-              horaInicio: (data.horaInicio as number) ?? undefined,
-              moeda: (data.moeda as string) ?? undefined,
-              tipo: (data.tipo as string) ?? null,
-            };
-          });
+    return onSnapshot(
+      qy,
+      (snap) => {
+        const list: AreaReservavel[] = snap.docs.map((d) => {
+          const data = d.data() as any;
 
-          setAreas(list.filter((a) => a.ativo));
-          setLoadingAreas(false);
-        },
-        (err: FirestoreError) => {
-          console.error("[Reservas] Erro areasReservaveis:", err);
-          setErrorAreas(err.message);
-          setAreas([]);
-          setLoadingAreas(false);
-        },
-      );
+          return {
+            id: d.id,
+            nome: String(data.nome ?? d.id),
+            descricao: data.descricao ?? null,
+            preco: toNum(data.preco ?? data.valorCentavos ?? 0),
+            ativo: Boolean(data.ativo ?? true),
+            tipo: data.tipo ?? null,
+            diaInteiro: data.diaInteiro ?? false,
+            horaInicio: data.horaInicio ?? null,
+            horaFim: data.horaFim ?? null,
+            permiteAte: (data.horaFim ?? data.permiteAte ?? null) as any,
+            opcoes: (data.opcoes ?? null) as any,
+            fotoUrl: (data.fotoUrl ?? null) as any,
+          };
+        });
 
-      return () => unsub();
-    } catch (e: any) {
-      console.error("[Reservas] collection/areasReservaveis explodiu:", e);
-      setErrorAreas(e?.message || "Erro desconhecido ao montar query de áreas.");
-      setAreas([]);
-      setLoadingAreas(false);
-      return;
-    }
+        setAreas(list.filter((a) => a.ativo));
+        setLoadingAreas(false);
+      },
+      () => {
+        setAreas([]);
+        setLoadingAreas(false);
+      },
+    );
   }, [firestore, condominioId]);
 
   React.useEffect(() => {
-    setErrorReservas(null);
+    if (!condominioId) {
+      setReservas([]);
+      setLoadingReservas(false);
+      return;
+    }
 
-    if (!firestore || !condominioId) {
+    if (!firestore) {
       setReservas([]);
       setLoadingReservas(false);
       return;
@@ -143,56 +141,44 @@ export function useReservas(condominioId: string | null, dateStr: string) {
 
     setLoadingReservas(true);
 
-    try {
-      const ini = startOfDayUTC(dateStr);
-      const fim = nextDayStartUTC(dateStr);
+    const ini = startOfDayUTC(dateStr);
+    const fim = nextDayStartUTC(dateStr);
 
-      const ref = collection(firestore, "condominios", condominioId, "reservas");
-      const qy = query(
-        ref,
-        where("data", ">=", Timestamp.fromDate(ini)),
-        where("data", "<", Timestamp.fromDate(fim)),
-        orderBy("data", "asc"),
-      );
+    const ref = collection(firestore, "condominios", condominioId, "reservas");
+    const qy = query(
+      ref,
+      where("data", ">=", Timestamp.fromDate(ini)),
+      where("data", "<", Timestamp.fromDate(fim)),
+      orderBy("data", "asc"),
+    );
 
-      const unsub = onSnapshot(
-        qy,
-        (snap) => {
-          const list: Reserva[] = snap.docs.map((d) => {
-            const data = d.data() as any;
-            return {
-              id: d.id,
-              areaId: String(data.areaId ?? data.areaNome ?? ""),
-              status: String(data.status ?? "PENDENTE"),
-              uid: String(data.uid ?? ""),
-              condominioId: String(data.condominioId ?? condominioId),
-              data: data.data as Timestamp,
-              dataFim: (data.dataFim as Timestamp) ?? undefined,
-              valorCobrado: (data.valorCobrado as number) ?? undefined,
-              criadoEm: (data.criadoEm as Timestamp) ?? undefined,
-            };
-          });
+    return onSnapshot(
+      qy,
+      (snap) => {
+        const list: Reserva[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            areaId: String(data.areaId ?? ""),
+            status: String(data.status ?? "PENDENTE"),
+            uid: String(data.uid ?? ""),
+            condominioId: String(data.condominioId ?? condominioId),
+            data: data.data as Timestamp,
+            dataFim: (data.dataFim as Timestamp) ?? undefined,
+            valorCobrado: (data.valorCobrado as number) ?? undefined,
+            criadoEm: (data.criadoEm as Timestamp) ?? undefined,
+          };
+        });
 
-          setReservas(list);
-          setLoadingReservas(false);
-        },
-        (err: FirestoreError) => {
-          console.error("[Reservas] Erro reservas:", err);
-          setErrorReservas(err.message);
-          setReservas([]);
-          setLoadingReservas(false);
-        },
-      );
-
-      return () => unsub();
-    } catch (e: any) {
-      console.error("[Reservas] collection/reservas explodiu:", e);
-      setErrorReservas(e?.message || "Erro desconhecido ao montar query de reservas.");
-      setReservas([]);
-      setLoadingReservas(false);
-      return;
-    }
+        setReservas(list);
+        setLoadingReservas(false);
+      },
+      () => {
+        setReservas([]);
+        setLoadingReservas(false);
+      },
+    );
   }, [firestore, condominioId, dateStr]);
 
-  return { areas, reservas, loadingAreas, loadingReservas, errorAreas, errorReservas };
+  return { areas, reservas, loadingAreas, loadingReservas };
 }

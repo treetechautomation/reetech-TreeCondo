@@ -2,6 +2,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+
+    // ===========================
+    // VINCULO_HELPERS_V1_BEGIN
+    // ===========================
+    function vinculoRef(condId) {
+      return /databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condId);
+    }
+
+    // Usuário está vinculado ATIVO ao condomínio (baseado no seu vínculo em userCondominios/{uid}/vinculos/{condId})
+    function isVinculadoAtivo(condId) {
+      return request.auth != null
+        && exists(vinculoRef(condId))
+        && get(vinculoRef(condId)).data.ativo == true
+        && (get(vinculoRef(condId)).data.status == "ATIVO" || !("status" in get(vinculoRef(condId)).data));
+    }
+    // ===========================
+    // VINCULO_HELPERS_V1_END
+    // ===========================
+
+
     // -------------------------
     // Helpers
     // -------------------------
@@ -110,4 +130,29 @@ service cloud.firestore {
       }
     }
   }
+
+
+    // ===========================
+    // RESERVAS_V1_BEGIN
+    // ===========================
+
+    // Áreas reserváveis do condomínio
+    match /condominios/{condId}/areasReservaveis/{areaId} {
+      allow read: if isVinculadoAtivo(condId);
+      // writes ficam fechados por enquanto (a gente abre depois com regras por role)
+      allow create, update, delete: if false;
+    }
+
+    // Reservas do condomínio
+    match /condominios/{condId}/reservas/{reservaId} {
+      allow read: if isVinculadoAtivo(condId);
+      // writes ficam fechados por enquanto (a gente abre depois com regras por role)
+      allow create, update, delete: if false;
+    }
+
+    // ===========================
+    // RESERVAS_V1_END
+    // ===========================
+
+
 }
