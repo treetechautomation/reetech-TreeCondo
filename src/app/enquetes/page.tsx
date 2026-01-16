@@ -177,7 +177,7 @@ export default function EnquetesPage() {
     <AppLayout pageTitle="Enquetes e Votações" headerActions={<HeaderActions />}>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {polls.map((poll) => (
-            <Card key={poll.id} className="flex flex-col">
+            <Card key={poll.id} className="flex flex-col border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
