@@ -10,6 +10,7 @@ import {
   orderBy,
   Timestamp,
 } from "firebase/firestore";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export type AreaOpcao = {
   id: string;
@@ -31,6 +32,7 @@ export type AreaReservavel = {
   permiteAte?: number | null; // ex: 24
   opcoes?: AreaOpcao[] | null;
   fotoUrl?: string | null; // opcional (pra imagem)
+  fotoHint?: string | null;
 };
 
 export type Reserva = {
@@ -44,6 +46,14 @@ export type Reserva = {
   valorCobrado?: number; // centavos
   criadoEm?: Timestamp;
 };
+
+const areaImageMap: Record<string, string> = {
+    churrasqueira_1: 'churrasqueira-1',
+    churrasqueira_2: 'churrasqueira-2',
+    'campo_quadra': 'campo-quadra',
+    'salao_de_festas': 'salao-festas',
+};
+
 
 function startOfDayUTC(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -100,6 +110,9 @@ export function useReservas(condominioId: string | null, dateStr: string) {
         const list: AreaReservavel[] = snap.docs.map((d) => {
           const data = d.data() as any;
 
+          const imageId = areaImageMap[d.id];
+          const placeholder = PlaceHolderImages.find(p => p.id === imageId);
+
           return {
             id: d.id,
             nome: String(data.nome ?? d.id),
@@ -112,7 +125,8 @@ export function useReservas(condominioId: string | null, dateStr: string) {
             horaFim: data.horaFim ?? null,
             permiteAte: (data.horaFim ?? data.permiteAte ?? null) as any,
             opcoes: (data.opcoes ?? null) as any,
-            fotoUrl: (data.fotoUrl ?? null) as any,
+            fotoUrl: (data.fotoUrl ?? placeholder?.imageUrl ?? null) as any,
+            fotoHint: (placeholder?.imageHint ?? null) as any,
           };
         });
 

@@ -18,7 +18,6 @@ export type AreaReservavelUI = {
   ativo: boolean;
   tipo?: string | null;
   fotoUrl?: string | null;
-  fotoHint?: string | null;
   opcoes?: AreaOpcao[] | null;
 };
 
@@ -67,9 +66,8 @@ export function AreaCard({
       variant="ghost"
       onClick={onSelect}
       className={cn(
-        "group h-auto w-full justify-start rounded-2xl border bg-background/40 p-3 shadow-sm transition",
-        "hover:bg-background/60 hover:text-foreground",
-        "data-[state=open]:text-foreground",
+        "h-auto w-full justify-start rounded-2xl border bg-background/40 p-3 shadow-sm transition",
+        "hover:bg-background/60",
         selected ? "border-primary ring-2 ring-primary/30" : "border-border/60",
       )}
     >
@@ -83,7 +81,6 @@ export function AreaCard({
               alt={area.nome}
               className="h-full w-full object-cover"
               referrerPolicy="no-referrer"
-              data-ai-hint={area.fotoHint ?? undefined}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-muted-foreground">
@@ -93,15 +90,15 @@ export function AreaCard({
         </div>
 
         {/* TEXTO */}
-        <div className="min-w-0 flex-1 text-foreground">
+        <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0">
-              <div className="truncate text-base font-semibold text-foreground">{area.nome}</div>
-              <div className="mt-1 text-sm text-muted-foreground group-hover:text-muted-foreground">{priceLabel}</div>
+              <div className="truncate text-base font-semibold">{area.nome}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{priceLabel}</div>
             </div>
 
             {hasOptions && (
-              <span className="ml-auto shrink-0 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground group-hover:text-muted-foreground">
+              <span className="ml-auto shrink-0 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
                 opções
               </span>
             )}

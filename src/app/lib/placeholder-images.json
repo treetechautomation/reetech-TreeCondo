@@ -1,0 +1,34 @@
+{
+  "placeholderImages": [
+    {
+      "id": "login-background",
+      "description": "A modern apartment building exterior.",
+      "imageUrl": "https://images.unsplash.com/photo-1594484208280-efa00f96fc21?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxhcGFydG1lbnQlMjBidWlsZGluZ3xlbnwwfHx8fDE3NjU0MzUyMjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "apartment building"
+    },
+    {
+      "id": "churrasqueira-1",
+      "description": "A barbecue grill area ready for use.",
+      "imageUrl": "https://picsum.photos/seed/bbq1/120/120",
+      "imageHint": "barbecue grill"
+    },
+    {
+      "id": "churrasqueira-2",
+      "description": "A different barbecue area.",
+      "imageUrl": "https://picsum.photos/seed/bbq2/120/120",
+      "imageHint": "barbecue area"
+    },
+    {
+      "id": "campo-quadra",
+      "description": "An outdoor sports court.",
+      "imageUrl": "https://picsum.photos/seed/court1/120/120",
+      "imageHint": "sports court"
+    },
+    {
+      "id": "salao-festas",
+      "description": "An empty party room.",
+      "imageUrl": "https://picsum.photos/seed/party1/120/120",
+      "imageHint": "party room"
+    }
+  ]
+}
