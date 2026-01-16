@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ function isValidCode(v: string) {
   return /^TC-[A-Z0-9]{8}$/.test(v);
 }
 
-export default function PrimeiroAcessoPage() {
+function PrimeiroAcessoInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -137,5 +137,14 @@ export default function PrimeiroAcessoPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+
+export default function PrimeiroAcessoPage() {
+  return (
+    <Suspense fallback={null}>
+      <PrimeiroAcessoInner />
+    </Suspense>
   );
 }

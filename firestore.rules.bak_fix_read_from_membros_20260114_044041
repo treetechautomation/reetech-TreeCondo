@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Funções de Ajuda ---
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Aceita os 2 formatos de claim para Super Admin.
+    function isSuper() {
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.superAdmin == true
+      );
+    }
+
+    // --- Fonte da Verdade: /condominios/{condId}/membros/{uid} ---
+    function membroDoc(condominioId) {
+      return get(/databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid));
+    }
+
+    // Verifica se o usuário é membro ATIVO no condomínio.
+    function isMembroAtivo(condominioId) {
+      let m = membroDoc(condominioId);
+      return signedIn() && m.exists() && m.data.status == "ATIVO";
+    }
+
+    // ✅ Verifica se o usuário tem um VÍNCULO de acesso rápido e se está ATIVO.
+    function isVinculadoAtivo(condominioId) {
+      let vinculoPath = /databases/$(database)/documents/userCondominios/$(request.auth.uid)/vinculos/$(condominioId);
+      return signedIn() && exists(vinculoPath) && get(vinculoPath).data.ativo == true;
+    }
+
+    // Retorna role do membro (com proteção se doc não existir).
+    function roleNoCondo(condominioId) {
+      let m = membroDoc(condominioId);
+      return m.exists() ? m.data.role : null;
+    }
+
+    // ADMIN/SINDICO ATIVO gerencia; SUPER gerencia tudo.
+    function canManageCondo(condominioId) {
+      return isSuper() || (isMembroAtivo(condominioId) && (roleNoCondo(condominioId) in ["ADMIN", "SINDICO", "ADMIN_CONDOMINIO"]));
+    }
+
+    // =========================================================
+    // ✅ REGRAS PARA SESSÃO (ESSENCIAL PARA O APP FUNCIONAR)
+    // =========================================================
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if isSuper();
+    }
+
+    match /userCondominios/{uid} {
+      // Permite a leitura do documento pai pelo próprio usuário
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if isSuper();
+
+      match /vinculos/{condominioId} {
+        // Permite a leitura da subcoleção de vínculos pelo próprio usuário
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if isSuper();
+      }
+    }
+
+    // =========================================================
+    // ✅ COLEÇÕES PÚBLICAS E PRINCIPAIS
+    // =========================================================
+
+    // Seletor de condomínio: público (somente leitura para logados).
+    match /condominiosPublicos/{id} {
+      allow read: if signedIn();
+      allow write: if isSuper();
+    }
+
+    match /condominios/{condominioId} {
+      // ✅ ATUALIZADO: Leitura permitida para Super Admin OU usuário com vínculo ativo.
+      allow read: if isSuper() || isVinculadoAtivo(condominioId);
+      allow create, update, delete: if isSuper();
+
+      match /membros/{uid} {
+        allow read: if isSuper()
+                    || (isMembroAtivo(condominioId) && (request.auth.uid == uid || canManageCondo(condominioId)));
+
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
+      match /anuncios/{anuncioId} {
+        // ✅ ATUALIZADO: Leitura permitida para Super Admin OU usuário com vínculo ativo.
+        allow read: if isSuper() || isVinculadoAtivo(condominioId);
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
+      match /config/{docId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+
+      // Regra genérica para outras subcoleções (blocos, unidades, etc.)
+      match /{subcollection}/{docId=**} {
+        // ✅ ATUALIZADO: Leitura permitida para Super Admin OU usuário com vínculo ativo.
+        allow read: if isSuper() || isVinculadoAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+    }
+  }
+}

@@ -10,8 +10,6 @@ export type MenuKey =
   | "acesso"
   | "anuncios"
   | "reservas"
-    | "reservas_agenda"
-    | "reservas_checkin"
   | "incidentes"
   | "encomendas"
   | "documentos"
@@ -35,8 +33,6 @@ export const MENU_LABELS: Record<MenuKey, string> = {
   acesso: "Acesso",
   anuncios: "Anúncios",
   reservas: "Reservas",
-    reservas_agenda: "Agenda de Reservas",
-    reservas_checkin: "Check-in de Reserva",
   incidentes: "Incidentes",
   encomendas: "Encomendas",
   documentos: "Documentos",
@@ -58,8 +54,6 @@ export const DEFAULT_PERMS: MenuPermissions = {
     acesso: true,
     anuncios: true,
     reservas: true,
-      reservas_checkin: true,
-      reservas_agenda: true,
     incidentes: true,
     encomendas: true,
     documentos: true,
@@ -75,8 +69,6 @@ export const DEFAULT_PERMS: MenuPermissions = {
     acesso: true,
     anuncios: true,
     reservas: true,
-      reservas_checkin: true,
-      reservas_agenda: true,
     incidentes: true,
     encomendas: true,
     documentos: true,
@@ -107,8 +99,6 @@ export const DEFAULT_PERMS: MenuPermissions = {
     acesso: true,
     anuncios: false,
     reservas: false,
-      reservas_checkin: true,
-      reservas_agenda: true,
     documentos: false,
     enquetes: false,
     reunioes: false,

@@ -11,14 +11,7 @@ import React, {
 } from "react";
 import { useSessionCtx } from "./SessionContext";
 import { useFirestore } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  QueryDocumentSnapshot,
-  DocumentData,
-} from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, QueryDocumentSnapshot, DocumentData, getDocs, doc, getDoc } from "firebase/firestore";
 
 const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
 const LS_UNIDADE = (condominioId: string) => `tc_bloco_${condominioId}_unidade`;

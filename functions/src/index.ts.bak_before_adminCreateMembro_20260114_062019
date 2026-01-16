@@ -1,4 +1,3 @@
-import {onMembroCreated} from "./triggers/onMembroCreated";
 /* eslint-disable require-jsdoc, max-len */
 import * as admin from "firebase-admin";
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
@@ -92,6 +91,3 @@ export const onConviteCreated = onDocumentCreated(
 export {acceptInvite} from "./callables/acceptInvite";
 
 export {adminCreateMorador} from "./callables/adminCreateMorador";
-export {adminCreateMembro} from "./callables/adminCreateMembro";
-
-export {onMembroCreated};

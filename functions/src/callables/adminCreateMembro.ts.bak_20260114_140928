@@ -1,0 +1,139 @@
+import {onCall} from "firebase-functions/v2/https";
+import * as admin from "firebase-admin";
+
+const db = admin.firestore();
+
+/**
+ * Cria/atualiza um membro (qualquer role) e garante o vínculo em
+ * userCondominios/{uid}/vinculos/{condominioId} com ativo=true,
+ * para cumprir as Firestore Rules (isVinculadoAtivo).
+ */
+export const adminCreateMembro = onCall(async (req) => {
+  const {
+    condominioId,
+    uid,
+    nome,
+    email,
+    blocoId,
+    unidadeId,
+    role,
+  } = req.data;
+
+  if (!condominioId || !uid || !email || !role) {
+    throw new Error("Dados obrigatórios não informados (condominioId, uid, email, role).");
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  const normalizedRole = String(role).toUpperCase();
+
+  // permissões padrão por perfil (ajuste se quiser)
+  const permsByRole: Record<string, Record<string, boolean>> = {
+    MORADOR: {
+      dashboard: true,
+      anuncios: true,
+      reservas: true,
+      incidentes: true,
+      documentos: true,
+      enquetes: true,
+      reunioes: true,
+      encomendas: true,
+    },
+    PORTEIRO: {
+      dashboard: true,
+      acesso: true,
+      encomendas: true,
+      incidentes: true,
+      anuncios: true, // <- se você quer que porteiro veja anúncios
+    },
+    FUNCIONARIO: {
+      dashboard: true,
+      incidentes: true,
+      anuncios: true,
+    },
+    SINDICO: {
+      dashboard: true,
+      condominios: true,
+      cadastros: true,
+      acesso: true,
+      anuncios: true,
+      reservas: true,
+      incidentes: true,
+      encomendas: true,
+      documentos: true,
+      enquetes: true,
+      reunioes: true,
+      configuracoes: true,
+    },
+    ADMIN: {
+      dashboard: true,
+      condominios: true,
+      cadastros: true,
+      acesso: true,
+      anuncios: true,
+      reservas: true,
+      incidentes: true,
+      encomendas: true,
+      documentos: true,
+      enquetes: true,
+      reunioes: true,
+      configuracoes: true,
+    },
+  };
+
+  const menuPermissions = permsByRole[normalizedRole] || {dashboard: true};
+
+  // 1) membro (fonte da verdade)
+  const membroRef = db
+    .collection("condominios")
+    .doc(condominioId)
+    .collection("membros")
+    .doc(uid);
+
+  const membroData = {
+    uid,
+    nome: nome || "",
+    email,
+    role: normalizedRole,
+    status: "ATIVO",
+    blocoId: blocoId || null,
+    unidadeId: unidadeId || null,
+    menuPermissions,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  // 2) vínculo (necessário para suas RULES atuais)
+  const vinculoRef = db
+    .collection("userCondominios")
+    .doc(uid)
+    .collection("vinculos")
+    .doc(condominioId);
+
+  const vinculoData = {
+    uid,
+    nome: nome || null,
+    email,
+    role: normalizedRole,
+    status: "ATIVO",
+    condominioId,
+    blocoId: blocoId || null,
+    unidadeId: unidadeId || null,
+    ativo: true,
+    source: "adminCreateMembro",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.runTransaction(async (tx) => {
+    tx.set(membroRef, membroData, {merge: true});
+    tx.set(vinculoRef, vinculoData, {merge: true});
+  });
+
+  return {
+    success: true,
+    message: "Membro criado com vínculo e permissões.",
+    membroPath: membroRef.path,
+    vinculoPath: vinculoRef.path,
+  };
+});

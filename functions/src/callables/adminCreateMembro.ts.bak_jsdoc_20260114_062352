@@ -3,14 +3,51 @@ import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
-export const adminCreateMorador = onCall(async (req) => {
+function defaultMenuPermissions(role: string) {
+  const r = (role || "").toUpperCase();
+
+  if (r === "PORTEIRO") {
+    return {
+      dashboard: true,
+      acesso: true,
+      encomendas: true,
+      incidentes: true,
+      anuncios: true,
+    };
+  }
+
+  if (r === "FUNCIONARIO" || r === "FUNCIONÁRIO") {
+    return {
+      dashboard: true,
+      incidentes: true,
+      anuncios: true,
+    };
+  }
+
+  // MORADOR (default)
+  return {
+    dashboard: true,
+    anuncios: true,
+    reservas: true,
+    incidentes: true,
+    documentos: true,
+    enquetes: true,
+    reunioes: true,
+    encomendas: true,
+  };
+}
+
+export const adminCreateMembro = onCall(async (req) => {
   const {
     condominioId,
     uid,
     nome,
     email,
+    role,
     blocoId,
     unidadeId,
+    status,
+    menuPermissions,
   } = req.data;
 
   if (!condominioId || !uid || !email) {
@@ -18,39 +55,33 @@ export const adminCreateMorador = onCall(async (req) => {
   }
 
   const now = admin.firestore.FieldValue.serverTimestamp();
+  const finalRole = (role || "MORADOR").toUpperCase();
+  const finalStatus = status || "ATIVO";
 
-  // 1) cria/atualiza membro (fonte da verdade)
   const membroRef = db
     .collection("condominios")
     .doc(condominioId)
     .collection("membros")
     .doc(uid);
 
+  const finalMenu =
+    menuPermissions && typeof menuPermissions === "object" ?
+      menuPermissions :
+      defaultMenuPermissions(finalRole);
+
   const membroData = {
     uid,
     nome: nome || "",
     email,
-    role: "MORADOR",
-    status: "ATIVO",
+    role: finalRole,
+    status: finalStatus,
     blocoId: blocoId || null,
     unidadeId: unidadeId || null,
-
-    menuPermissions: {
-      dashboard: true,
-      anuncios: true,
-      reservas: true,
-      incidentes: true,
-      documentos: true,
-      enquetes: true,
-      reunioes: true,
-      encomendas: true,
-    },
-
+    menuPermissions: finalMenu,
     createdAt: now,
     updatedAt: now,
   };
 
-  // 2) cria/atualiza vínculo (necessário para suas RULES atuais)
   const vinculoRef = db
     .collection("userCondominios")
     .doc(uid)
@@ -61,18 +92,13 @@ export const adminCreateMorador = onCall(async (req) => {
     uid,
     nome: nome || null,
     email,
-    role: "MORADOR",
-    status: "ATIVO",
+    role: finalRole,
+    status: finalStatus,
     condominioId,
     blocoId: blocoId || null,
     unidadeId: unidadeId || null,
-
-    // 🔥 campo exigido pela regra isVinculadoAtivo()
     ativo: true,
-
-    // útil para auditoria
-    source: "adminCreateMorador",
-
+    source: "adminCreateMembro",
     createdAt: now,
     updatedAt: now,
   };
@@ -84,8 +110,10 @@ export const adminCreateMorador = onCall(async (req) => {
 
   return {
     success: true,
-    message: "Morador criado com vínculo e permissões.",
+    message: "Membro criado com vínculo e permissões.",
     membroPath: membroRef.path,
     vinculoPath: vinculoRef.path,
+    role: finalRole,
+    status: finalStatus,
   };
 });
