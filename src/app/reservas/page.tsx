@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { AreaCard } from "@/components/reservas/AreaCard";
+import { AreaOpcaoDialog } from "@/components/reservas/AreaOpcaoDialog";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
@@ -21,6 +22,22 @@ function toISODateLocal(d: Date) {
 
 export default function ReservasPage() {
   const [selectedAreaId, setSelectedAreaId] = React.useState<string>("ALL");
+
+  // Modal de opções (Churrasqueira 2 etc.)
+  const [opcoesOpen, setOpcoesOpen] = React.useState(false);
+  const [areaParaOpcaoId, setAreaParaOpcaoId] = React.useState<string | null>(null);
+
+  // "base" ou id da opção (ex: "com_quadra")
+  const [selectedOpcaoId, setSelectedOpcaoId] = React.useState<string | null>(null);
+
+  // Guarda info completa da opção selecionada (para usar na “próxima etapa”)
+  const [selectedOpcaoMeta, setSelectedOpcaoMeta] = React.useState<{
+    opcaoId: string;
+    opcaoNome: string;
+    precoCentavos: number;
+    bloqueiaAreaId?: string | null;
+  } | null>(null);
+
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
 
@@ -37,10 +54,46 @@ export default function ReservasPage() {
   const podeVer = !isSessionLoading && !!session && !!condId;
   const role = session?.role ?? null;
 
+  function handleSelectAll() {
+    setSelectedAreaId("ALL");
+    setAreaFilter("ALL");
+    setSelectedOpcaoId(null);
+    setSelectedOpcaoMeta(null);
+    setAreaParaOpcaoId(null);
+    setOpcoesOpen(false);
+  }
+
+  function handleSelectArea(area: any) {
+    if (!area?.id) return;
+
+    // seleciona o card + filtra as reservas por área (UX melhor)
+    setSelectedAreaId(area.id);
+    setAreaFilter(area.id);
+
+    const hasOpcoes = Array.isArray(area.opcoes) && area.opcoes.length > 0;
+
+    if (hasOpcoes) {
+      // abre modal para escolher qual opção (ex: churrasqueira 2 + quadra)
+      setAreaParaOpcaoId(area.id);
+      setOpcoesOpen(true);
+      return;
+    }
+
+    // sem opções => é base
+    setAreaParaOpcaoId(null);
+    setSelectedOpcaoId("base");
+    setSelectedOpcaoMeta({
+      opcaoId: "base",
+      opcaoNome: String(area.nome ?? area.id),
+      precoCentavos: Number(area.preco || 0),
+      bloqueiaAreaId: null,
+    });
+  }
+
   return (
     <AppLayout pageTitle="Reservas" headerActions={null}>
       {!podeVer ? (
-        <div className="rounded-2xl border bg-card p-6">
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-6 shadow-sm">
           <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
         </div>
       ) : (
@@ -97,22 +150,26 @@ export default function ReservasPage() {
                 </div>
               </div>
             ) : (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  variant={areaFilter === "ALL" ? "default" : "secondary"}
-                  onClick={() => setAreaFilter("ALL")}
-                >
-                  Todas
-                </Button>
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={areaFilter === "ALL" ? "default" : "secondary"}
+                    onClick={handleSelectAll}
+                  >
+                    Todas
+                  </Button>
+                </div>
 
-                {areas.map((a) => (
-  <AreaCard
-    key={a.id}
-    area={a as any}
-    selected={selectedAreaId === "ALL" ? true : selectedAreaId === a.id}
-    onSelect={() => setSelectedAreaId(a.id)}
-  />
-))}
+                <div className="flex flex-col gap-3">
+                  {areas.map((a) => (
+                    <AreaCard
+                      key={a.id}
+                      area={a as any}
+                      selected={selectedAreaId === a.id}
+                      onSelect={() => handleSelectArea(a as any)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -155,6 +212,47 @@ export default function ReservasPage() {
               </div>
             )}
           </div>
+
+          {/* Modal: opções (Churrasqueira 2 etc.) */}
+          {(() => {
+            const area = areas.find((x: any) => x.id === areaParaOpcaoId);
+            if (!area) return null;
+
+            return (
+              <AreaOpcaoDialog
+                open={opcoesOpen}
+                onOpenChange={setOpcoesOpen}
+                areaNome={String(area.nome ?? area.id)}
+                precoBaseCentavos={Number(area.preco || 0)}
+                opcoes={(area.opcoes || []) as any}
+                selectedOpcaoId={selectedOpcaoId}
+                onConfirm={(p) => {
+                  setSelectedOpcaoId(p.opcaoId);
+                  setSelectedOpcaoMeta(p);
+
+                  // mantém seleção do card e filtro
+                  setSelectedAreaId(area.id);
+                  setAreaFilter(area.id);
+                }}
+              />
+            );
+          })()}
+
+          {/* Debug opcional (pode remover depois) */}
+          {selectedAreaId !== "ALL" && selectedOpcaoMeta ? (
+            <div className="rounded-2xl border bg-card p-4 text-sm text-muted-foreground">
+              Seleção atual: <span className="font-medium text-foreground">{selectedAreaId}</span>{" "}
+              • Opção: <span className="font-medium text-foreground">{selectedOpcaoMeta.opcaoNome}</span>{" "}
+              • Valor: <span className="font-medium text-foreground">{moneyBRLFromCentavos(selectedOpcaoMeta.precoCentavos)}</span>
+              {selectedOpcaoMeta.bloqueiaAreaId ? (
+                <>
+                  {" "}
+                  • Bloqueia:{" "}
+                  <span className="font-medium text-foreground">{selectedOpcaoMeta.bloqueiaAreaId}</span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </AppLayout>
