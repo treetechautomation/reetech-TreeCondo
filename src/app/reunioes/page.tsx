@@ -130,7 +130,7 @@ export default function ReunioesPage() {
   return (
     <AppLayout pageTitle="Reuniões" headerActions={<HeaderActions />}>
         <div className="space-y-4">
-              <Card>
+              <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                   <CardHeader>
                       <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                           <div>
@@ -162,7 +162,7 @@ export default function ReunioesPage() {
                       </ul>
                   </CardContent>
               </Card>
-                <Card>
+                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                   <CardHeader>
                       <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                           <div>
