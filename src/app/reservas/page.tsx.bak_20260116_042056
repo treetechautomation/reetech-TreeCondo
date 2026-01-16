@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { AreaCard } from "@/components/reservas/AreaCard";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
@@ -20,7 +19,6 @@ function toISODateLocal(d: Date) {
 }
 
 export default function ReservasPage() {
-  const [selectedAreaId, setSelectedAreaId] = React.useState<string>("ALL");
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
 
@@ -46,7 +44,7 @@ export default function ReservasPage() {
       ) : (
         <div className="space-y-6">
           {/* Top bar: data */}
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
+          <div className="rounded-2xl border bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
               <div className="text-sm text-muted-foreground">Dia</div>
               <input
@@ -78,7 +76,7 @@ export default function ReservasPage() {
           </div>
 
           {/* Áreas */}
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="rounded-2xl border bg-card p-4">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Áreas reserváveis</div>
               <div className="text-xs text-muted-foreground">
@@ -106,19 +104,21 @@ export default function ReservasPage() {
                 </Button>
 
                 {areas.map((a) => (
-  <AreaCard
-    key={a.id}
-    area={a as any}
-    selected={selectedAreaId === "ALL" ? true : selectedAreaId === a.id}
-    onSelect={() => setSelectedAreaId(a.id)}
-  />
-))}
+                  <Button
+                    key={a.id}
+                    variant={areaFilter === a.id ? "default" : "secondary"}
+                    onClick={() => setAreaFilter(a.id)}
+                    title={a.descricao ?? undefined}
+                  >
+                    {a.nome} · {moneyBRLFromCentavos(a.preco)}
+                  </Button>
+                ))}
               </div>
             )}
           </div>
 
           {/* Reservas do dia */}
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="rounded-2xl border bg-card p-4">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Reservas do dia</div>
               <div className="text-xs text-muted-foreground">

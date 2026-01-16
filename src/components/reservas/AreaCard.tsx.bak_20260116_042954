@@ -1,0 +1,98 @@
+"use client";
+
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+
+type AreaOpcao = {
+  id: string;
+  nome: string;
+  preco: number; // centavos
+  bloqueiaAreaId?: string | null;
+};
+
+export type AreaReservavelUI = {
+  id: string;
+  nome: string;
+  preco: number; // centavos (base)
+  ativo: boolean;
+  tipo?: string | null;
+  fotoUrl?: string | null;
+  opcoes?: AreaOpcao[] | null;
+};
+
+function toNum(v: any, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatBRLFromCentavos(centavos: number) {
+  const v = toNum(centavos, 0) / 100;
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function minOptionPrice(area: AreaReservavelUI) {
+  const ops = area.opcoes ?? [];
+  if (!Array.isArray(ops) || ops.length === 0) return null;
+  let min = Number.POSITIVE_INFINITY;
+  for (const o of ops) {
+    const p = toNum((o as any)?.preco, NaN);
+    if (Number.isFinite(p)) min = Math.min(min, p);
+  }
+  return Number.isFinite(min) ? min : null;
+}
+
+export function AreaCard({
+  area,
+  selected,
+  onSelect,
+}: {
+  area: AreaReservavelUI;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const min = minOptionPrice(area);
+  const hasOptions = min !== null && (area.opcoes?.length ?? 0) > 0;
+
+  // Exibição: se tem opções, mostra "A partir de"
+  const displayPrice = hasOptions ? min! : toNum(area.preco, 0);
+  const priceLabel = hasOptions
+    ? `A partir de ${formatBRLFromCentavos(displayPrice)}`
+    : formatBRLFromCentavos(displayPrice);
+
+  return (
+    <Button
+      type="button"
+      variant={selected ? "default" : "secondary"}
+      className="h-auto justify-start gap-3 rounded-xl px-3 py-2 text-left"
+      onClick={onSelect}
+    >
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted/30">
+        {area.fotoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={area.fotoUrl}
+            alt={area.nome}
+            className="h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+            SEM FOTO
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="truncate font-medium">{area.nome}</div>
+          {hasOptions && (
+            <span className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+              opções
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">{priceLabel}</div>
+      </div>
+    </Button>
+  );
+}
