@@ -95,7 +95,7 @@ export default function IncidentesPage() {
   return (
     <AppLayout pageTitle="Chamados e Incidentes" headerActions={<HeaderActions />}>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
+            <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                 <CardHeader>
                     <div className="flex justify-between items-start">
                         <div>
@@ -119,7 +119,7 @@ export default function IncidentesPage() {
                       <Button variant="outline" size="sm"><MessageSquare className="mr-2" /> Comentar</Button>
                 </CardFooter>
             </Card>
-              <Card>
+              <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                 <CardHeader>
                     <div className="flex justify-between items-start">
                         <div>
@@ -151,7 +151,7 @@ export default function IncidentesPage() {
                     </div>
                 </CardFooter>
             </Card>
-              <Card>
+              <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                 <CardHeader>
                     <div className="flex justify-between items-start">
                         <div>
