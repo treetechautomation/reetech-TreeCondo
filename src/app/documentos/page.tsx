@@ -143,88 +143,90 @@ export default function DocumentosPage() {
 
   return (
     <AppLayout pageTitle="Documentos do Condomínio" headerActions={<HeaderActions />}>
-        <Tabs defaultValue="balancetes">
-            <TabsList>
-            <TabsTrigger value="balancetes">Balancetes</TabsTrigger>
-            <TabsTrigger value="atas">Atas</TabsTrigger>
-            <TabsTrigger value="regimento">Regimento</TabsTrigger>
-            </TabsList>
-            <TabsContent value="balancetes">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Nome do Arquivo</TableHead>
-                        <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
-                        <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
-                        <TableHead className="w-[180px] text-right">Ações</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {balancetes.map((doc) => (
-                            <TableRow key={doc.name}>
-                            <TableCell className="font-medium">{doc.name}</TableCell>
-                            <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
-                            <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
-                            <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon"><Eye /></Button>
-                                <Button variant="secondary" size="icon"><Download /></Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-            </TabsContent>
-            <TabsContent value="atas">
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-6 shadow-sm">
+            <Tabs defaultValue="balancetes">
+                <TabsList>
+                <TabsTrigger value="balancetes">Balancetes</TabsTrigger>
+                <TabsTrigger value="atas">Atas</TabsTrigger>
+                <TabsTrigger value="regimento">Regimento</TabsTrigger>
+                </TabsList>
+                <TabsContent value="balancetes">
                 <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Nome do Arquivo</TableHead>
-                        <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
-                        <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
-                        <TableHead className="w-[180px] text-right">Ações</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {atas.map((doc) => (
-                            <TableRow key={doc.name}>
-                            <TableCell className="font-medium">{doc.name}</TableCell>
-                            <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
-                            <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
-                            <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon"><Eye /></Button>
-                                <Button variant="secondary" size="icon"><Download /></Button>
-                            </TableCell>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome do Arquivo</TableHead>
+                            <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
+                            <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
+                            <TableHead className="w-[180px] text-right">Ações</TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-            </TabsContent>
-            <TabsContent value="regimento">
-                <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Nome do Arquivo</TableHead>
-                        <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
-                        <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
-                        <TableHead className="w-[180px] text-right">Ações</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {regimento.map((doc) => (
-                            <TableRow key={doc.name}>
-                            <TableCell className="font-medium">{doc.name}</TableCell>
-                            <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
-                            <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
-                            <TableCell className="text-right space-x-2">
-                                <Button variant="outline" size="icon"><Eye /></Button>
-                                <Button variant="secondary" size="icon"><Download /></Button>
-                            </TableCell>
+                    </TableHeader>
+                    <TableBody>
+                        {balancetes.map((doc) => (
+                                <TableRow key={doc.name}>
+                                <TableCell className="font-medium">{doc.name}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
+                                <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="icon"><Eye /></Button>
+                                    <Button variant="secondary" size="icon"><Download /></Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                </TabsContent>
+                <TabsContent value="atas">
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome do Arquivo</TableHead>
+                            <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
+                            <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
+                            <TableHead className="w-[180px] text-right">Ações</TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-            </TabsContent>
-        </Tabs>
+                    </TableHeader>
+                    <TableBody>
+                        {atas.map((doc) => (
+                                <TableRow key={doc.name}>
+                                <TableCell className="font-medium">{doc.name}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
+                                <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="icon"><Eye /></Button>
+                                    <Button variant="secondary" size="icon"><Download /></Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                </TabsContent>
+                <TabsContent value="regimento">
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome do Arquivo</TableHead>
+                            <TableHead className="hidden sm:table-cell w-[150px]">Publicação</TableHead>
+                            <TableHead className="hidden md:table-cell w-[120px]">Tamanho</TableHead>
+                            <TableHead className="w-[180px] text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {regimento.map((doc) => (
+                                <TableRow key={doc.name}>
+                                <TableCell className="font-medium">{doc.name}</TableCell>
+                                <TableCell className="hidden sm:table-cell">{doc.date}</TableCell>
+                                <TableCell className="hidden md:table-cell">{doc.size}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                    <Button variant="outline" size="icon"><Eye /></Button>
+                                    <Button variant="secondary" size="icon"><Download /></Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                </TabsContent>
+            </Tabs>
+        </div>
     </AppLayout>
   );
 }
