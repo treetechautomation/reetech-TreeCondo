@@ -8,11 +8,6 @@ import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useReservas } from "@/hooks/useReservas";
 
-// Imports para a funcionalidade de reserva
-import { useFirestore } from "@/firebase";
-import { addDoc, collection, Timestamp, serverTimestamp } from "firebase/firestore";
-import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
-
 function moneyBRLFromCentavos(v?: number) {
   const n = Number(v ?? 0) / 100;
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -45,16 +40,9 @@ export default function ReservasPage() {
 
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
-  const user = session?.user ?? null;
-  const firestore = useFirestore();
-  const role = session?.role ?? null;
-  const podeVer = !isSessionLoading && !!session && !!condId;
 
   const [dateStr, setDateStr] = React.useState(() => toISODateLocal(new Date()));
   const [areaFilter, setAreaFilter] = React.useState<string | "ALL">("ALL");
-
-  const [isChecking, setIsChecking] = React.useState(false);
-  const [isCreating, setIsCreating] = React.useState(false);
 
   const { areas, reservas, loadingAreas, loadingReservas } = useReservas(condId, dateStr);
 
@@ -62,6 +50,9 @@ export default function ReservasPage() {
     if (areaFilter === "ALL") return reservas;
     return reservas.filter((r) => r.areaId === areaFilter);
   }, [reservas, areaFilter]);
+
+  const podeVer = !isSessionLoading && !!session && !!condId;
+  const role = session?.role ?? null;
 
   function handleSelectAll() {
     setSelectedAreaId("ALL");
@@ -75,17 +66,20 @@ export default function ReservasPage() {
   function handleSelectArea(area: any) {
     if (!area?.id) return;
 
+    // seleciona o card + filtra as reservas por área (UX melhor)
     setSelectedAreaId(area.id);
     setAreaFilter(area.id);
 
     const hasOpcoes = Array.isArray(area.opcoes) && area.opcoes.length > 0;
 
     if (hasOpcoes) {
+      // abre modal para escolher qual opção (ex: churrasqueira 2 + quadra)
       setAreaParaOpcaoId(area.id);
       setOpcoesOpen(true);
       return;
     }
 
+    // sem opções => é base
     setAreaParaOpcaoId(null);
     setSelectedOpcaoId("base");
     setSelectedOpcaoMeta({
@@ -96,63 +90,10 @@ export default function ReservasPage() {
     });
   }
 
-  async function handleSolicitarReserva() {
-    if (!podeVer || role !== "MORADOR") return;
-    if (!condId || selectedAreaId === "ALL" || !selectedOpcaoMeta) {
-        alert("Selecione uma área e uma opção para reservar.");
-        return;
-    }
-    if (!firestore || !user?.uid) {
-        alert("Sessão inválida. Por favor, recarregue a página.");
-        return;
-    }
-
-    setIsChecking(true);
-    try {
-      const chk = await isDiaDisponivelPorArea(firestore, condId, selectedAreaId, dateStr);
-      if (!chk.disponivel) {
-        alert("❌ Já existe uma reserva para esta área neste dia.");
-        return;
-      }
-    } catch (e) {
-      console.error("[Reservas] erro ao verificar disponibilidade:", e);
-      alert("❌ Erro ao verificar disponibilidade. Veja o console.");
-      return;
-    } finally {
-      setIsChecking(false);
-    }
-
-    setIsCreating(true);
-    try {
-      const dataIni = startOfDayUTC(dateStr);
-
-      await addDoc(collection(firestore, "condominios", condId, "reservas"), {
-        areaId: selectedAreaId,
-        condominioId: condId,
-        uid: user.uid,
-        status: "PENDENTE",
-        data: Timestamp.fromDate(dataIni),
-        valorCobrado: Number(selectedOpcaoMeta.precoCentavos) || 0,
-        criadoEm: serverTimestamp(),
-        opcaoId: selectedOpcaoMeta.opcaoId,
-        opcaoNome: selectedOpcaoMeta.opcaoNome,
-      });
-
-      alert("✅ Reserva solicitada. Você será notificado sobre a aprovação.");
-    } catch (e) {
-      console.error("[Reservas] erro ao criar reserva:", e);
-      alert("❌ Não foi possível criar a reserva. Veja o console.");
-    } finally {
-      setIsCreating(false);
-    }
-  }
-
-  const podeReservar = role === "MORADOR" && selectedAreaId !== "ALL" && !!selectedOpcaoMeta;
-
   return (
     <AppLayout pageTitle="Reservas" headerActions={null}>
       {!podeVer ? (
-        <div className="rounded-2xl border bg-card p-6">
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-6 shadow-sm">
           <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
         </div>
       ) : (
@@ -170,9 +111,10 @@ export default function ReservasPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Placeholder para próxima etapa (criar reserva / aprovar / check-in) */}
               {role === "MORADOR" && (
-                <Button variant="default" onClick={handleSolicitarReserva} disabled={!podeReservar || isChecking || isCreating}>
-                  {isChecking ? "Verificando..." : isCreating ? "Enviando..." : "Confirmar reserva"}
+                <Button variant="default" disabled>
+                  Nova reserva (próxima etapa)
                 </Button>
               )}
               {(role === "SINDICO" || role === "ADMIN") && (
@@ -295,6 +237,22 @@ export default function ReservasPage() {
               />
             );
           })()}
+
+          {/* Debug opcional (pode remover depois) */}
+          {selectedAreaId !== "ALL" && selectedOpcaoMeta ? (
+            <div className="rounded-2xl border bg-card p-4 text-sm text-muted-foreground">
+              Seleção atual: <span className="font-medium text-foreground">{selectedAreaId}</span>{" "}
+              • Opção: <span className="font-medium text-foreground">{selectedOpcaoMeta.opcaoNome}</span>{" "}
+              • Valor: <span className="font-medium text-foreground">{moneyBRLFromCentavos(selectedOpcaoMeta.precoCentavos)}</span>
+              {selectedOpcaoMeta.bloqueiaAreaId ? (
+                <>
+                  {" "}
+                  • Bloqueia:{" "}
+                  <span className="font-medium text-foreground">{selectedOpcaoMeta.bloqueiaAreaId}</span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </AppLayout>

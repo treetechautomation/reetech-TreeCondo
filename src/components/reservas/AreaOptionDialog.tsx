@@ -1,0 +1,92 @@
+"use client";
+
+import * as React from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+
+export type AreaOpcao = {
+  id: string;
+  nome: string;
+  preco: number; // centavos
+  bloqueiaAreaId?: string | null;
+};
+
+export type AreaReservavelUI = {
+  id: string;
+  nome: string;
+  preco: number; // base (centavos)
+  opcoes?: AreaOpcao[] | null;
+};
+
+function brl(v: number) {
+  return (Number(v || 0) / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+export function AreaOptionDialog({
+  open,
+  onOpenChange,
+  area,
+  selectedOptionId,
+  onSelectOption,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  area: AreaReservavelUI | null;
+  selectedOptionId: string | null;
+  onSelectOption: (opt: AreaOpcao) => void;
+}) {
+  const opcoes = area?.opcoes ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>
+            {area ? `Escolher opção — ${area.nome}` : "Escolher opção"}
+          </DialogTitle>
+        </DialogHeader>
+
+        {!area || opcoes.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            Esta área não possui opções configuradas.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {opcoes.map((o) => {
+              const active = selectedOptionId === o.id;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => onSelectOption(o)}
+                  className={cn(
+                    "w-full text-left rounded-2xl border p-4 transition",
+                    "bg-background/50 hover:bg-background/70",
+                    active ? "border-primary ring-2 ring-primary/25" : "border-border/60"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{o.nome}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {brl(o.preco)}
+                        {o.bloqueiaAreaId ? (
+                          <span className="ml-2 text-xs">
+                            • bloqueia: {o.bloqueiaAreaId}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,0 +1,57 @@
+"use client";
+
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  Timestamp,
+  type Firestore,
+} from "firebase/firestore";
+
+/**
+ * Dia inteiro (UTC) a partir de YYYY-MM-DD
+ * (mantém consistente com o que você já usa no useReservas)
+ */
+export function startOfDayUTC(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 0, 0, 0, 0));
+}
+
+export function nextDayStartUTC(dateStr: string) {
+  const dt = startOfDayUTC(dateStr);
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return dt;
+}
+
+/**
+ * Regra: 1 reserva por DIA (inteiro) por ÁREA.
+ * True = disponível (não existe reserva naquele dia para aquela área)
+ */
+export async function isDiaDisponivelPorArea(
+  firestore: Firestore,
+  condominioId: string,
+  areaId: string,
+  dateStr: string
+): Promise<{ disponivel: boolean; reservaId?: string }> {
+  const ini = startOfDayUTC(dateStr);
+  const fim = nextDayStartUTC(dateStr);
+
+  const ref = collection(firestore, "condominios", condominioId, "reservas");
+
+  // Usa range de data (>= ini e < fim) pra não depender de igualdade exata do Timestamp
+  const qy = query(
+    ref,
+    where("areaId", "==", areaId),
+    where("data", ">=", Timestamp.fromDate(ini)),
+    where("data", "<", Timestamp.fromDate(fim)),
+  );
+
+  const snap = await getDocs(qy);
+
+  if (!snap.empty) {
+    return { disponivel: false, reservaId: snap.docs[0].id };
+  }
+
+  return { disponivel: true };
+}
