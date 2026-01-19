@@ -1,8 +1,6 @@
-
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
@@ -11,7 +9,7 @@ import { AreaCard } from "@/components/reservas/AreaCard";
 import { AreaOpcaoDialog } from "@/components/reservas/AreaOpcaoDialog";
 
 import { useFirestore } from "@/firebase";
-import { addDoc, collection, Timestamp, serverTimestamp, getDoc, doc } from "firebase/firestore";
+import { addDoc, collection, Timestamp, serverTimestamp } from "firebase/firestore";
 import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
 
 function moneyBRLFromCentavos(v?: number) {
@@ -35,19 +33,20 @@ export default function ReservasPage() {
   const firestore = useFirestore();
   const podeVer = !isSessionLoading && !!session && !!condId;
 
-  const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO";
-  const isMoradorLike = role === "MORADOR" || role === "SINDICO";
-
   const [dateStr, setDateStr] = React.useState(() => toISODateLocal(new Date()));
   const [areaFilter, setAreaFilter] = React.useState<string | "ALL">("ALL");
 
+  // seleção
   const [selectedAreaId, setSelectedAreaId] = React.useState<string>("ALL");
 
+  // modal de opções
   const [opcoesOpen, setOpcoesOpen] = React.useState(false);
   const [areaParaOpcaoId, setAreaParaOpcaoId] = React.useState<string | null>(null);
 
+  // "base" ou id da opção
   const [selectedOpcaoId, setSelectedOpcaoId] = React.useState<string | null>(null);
 
+  // meta da opção escolhida (necessário para confirmar)
   const [selectedOpcaoMeta, setSelectedOpcaoMeta] = React.useState<{
     opcaoId: string;
     opcaoNome: string;
@@ -60,55 +59,10 @@ export default function ReservasPage() {
 
   const { areas, reservas, loadingAreas, loadingReservas } = useReservas(condId, dateStr);
 
-  const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
-
   const reservasFiltradas = React.useMemo(() => {
     if (areaFilter === "ALL") return reservas;
     return reservas.filter((r) => r.areaId === areaFilter);
   }, [reservas, areaFilter]);
-
-  const reservasVisiveis = React.useMemo(() => {
-    const base = reservasFiltradas || [];
-    if (isAdminLike) {
-      return base;
-    }
-    return base.filter((r: any) => String(r.status) === "APROVADA");
-  }, [reservasFiltradas, isAdminLike]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    async function fetchMembros() {
-      if (!firestore || !condId || !isAdminLike || reservasVisiveis.length === 0) {
-        return;
-      }
-
-      const uidsToFetch = Array.from(new Set(reservasVisiveis.map(r => r.uid).filter(Boolean)))
-        .filter(uid => !membrosByUid[uid]);
-
-      if (uidsToFetch.length === 0) return;
-
-      const newMembros: Record<string, any> = {};
-      for (const uid of uidsToFetch) {
-        try {
-          const snap = await getDoc(doc(firestore, "condominios", condId, "membros", uid));
-          if (snap.exists()) {
-            newMembros[uid] = snap.data();
-          }
-        } catch (e) {
-          console.error(`Falha ao buscar membro ${uid}:`, e);
-        }
-      }
-
-      if (!cancelled && Object.keys(newMembros).length > 0) {
-        setMembrosByUid(prev => ({ ...prev, ...newMembros }));
-      }
-    }
-
-    fetchMembros();
-
-    return () => { cancelled = true; }
-  }, [firestore, condId, isAdminLike, reservasVisiveis, membrosByUid]);
 
   const areaParaOpcao = React.useMemo(() => {
     if (!areaParaOpcaoId) return null;
@@ -133,6 +87,7 @@ export default function ReservasPage() {
     const hasOpcoes = Array.isArray(area.opcoes) && area.opcoes.length > 0;
 
     if (hasOpcoes) {
+      // precisa escolher opção
       setSelectedOpcaoId(null);
       setSelectedOpcaoMeta(null);
       setAreaParaOpcaoId(area.id);
@@ -140,6 +95,7 @@ export default function ReservasPage() {
       return;
     }
 
+    // taxa única: já seleciona base e libera confirmar
     setAreaParaOpcaoId(null);
     setOpcoesOpen(false);
     setSelectedOpcaoId("base");
@@ -152,10 +108,10 @@ export default function ReservasPage() {
   }
 
   const podeReservar =
-    podeVer && isMoradorLike && selectedAreaId !== "ALL" && !!selectedOpcaoMeta && !isChecking && !isCreating;
+    podeVer && role === "MORADOR" && selectedAreaId !== "ALL" && !!selectedOpcaoMeta && !isChecking && !isCreating;
 
   async function handleSolicitarReserva() {
-    if (!podeVer || !podeReservar) return;
+    if (!podeVer || role !== "MORADOR") return;
 
     if (!condId || selectedAreaId === "ALL" || !selectedOpcaoMeta) {
       alert("Selecione uma área e uma opção para reservar.");
@@ -210,15 +166,15 @@ export default function ReservasPage() {
     <AppLayout
       pageTitle="Reservas"
       headerActions={
-        isMoradorLike ? (
+        role === "MORADOR" ? (
           <Button variant="default" onClick={handleSolicitarReserva} disabled={!podeReservar}>
             {isChecking ? "Verificando..." : isCreating ? "Enviando..." : "Confirmar reserva"}
           </Button>
         ) : (
-          <Button asChild variant="default">
-            <Link href="/reservas/agenda">
-              Aprovar / Bloquear
-            </Link>
+          <Button variant="default" disabled>
+            {role === "SINDICO" || role === "ADMIN"
+              ? "Aprovar / Bloquear (próxima etapa)"
+              : "Ação (próxima etapa)"}
           </Button>
         )
       }
@@ -229,6 +185,7 @@ export default function ReservasPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Top bar: data */}
           <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
             <div className="flex items-center gap-3">
               <div className="text-sm text-muted-foreground">Dia</div>
@@ -239,16 +196,20 @@ export default function ReservasPage() {
                 onChange={(e) => setDateStr(e.target.value)}
               />
             </div>
+
             <div className="text-xs text-muted-foreground">
               {selectedAreaId === "ALL" ? "Selecione uma área para reservar" : "Área selecionada"}
               {selectedOpcaoMeta ? ` • ${moneyBRLFromCentavos(selectedOpcaoMeta.precoCentavos)}` : ""}
             </div>
           </div>
+
+          {/* Áreas */}
           <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Áreas reserváveis</div>
               <div className="text-xs text-muted-foreground">{loadingAreas ? "Carregando..." : `${areas.length} área(s)`}</div>
             </div>
+
             {loadingAreas ? (
               <div className="mt-4 text-sm text-muted-foreground">Buscando áreas...</div>
             ) : areas.length === 0 ? (
@@ -262,81 +223,60 @@ export default function ReservasPage() {
                     Todas
                   </Button>
                 </div>
+
                 <div className="flex flex-col gap-3">
                   {areas.map((a: any) => (
                     <AreaCard
                       key={a.id}
                       area={a as any}
                       selected={selectedAreaId === a.id}
-                      onSelect={() => handleSelectArea(a)}
+                      onSelect={() => {
+                        console.log("[CLICK] AreaCard", a?.id, a?.nome);
+                        handleSelectArea(a);
+                      }}
                     />
                   ))}
                 </div>
               </div>
             )}
           </div>
+
+          {/* Reservas do dia */}
           <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Reservas do dia</div>
               <div className="text-xs text-muted-foreground">
-                {loadingReservas ? "Carregando..." : `${reservasVisiveis.length} reserva(s)`}
+                {loadingReservas ? "Carregando..." : `${reservasFiltradas.length} reserva(s)`}
               </div>
             </div>
+
             {loadingReservas ? (
               <div className="mt-4 text-sm text-muted-foreground">Buscando reservas...</div>
-            ) : reservasVisiveis.length === 0 ? (
+            ) : reservasFiltradas.length === 0 ? (
               <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
                 Nenhuma reserva encontrada para este dia.
               </div>
             ) : (
               <div className="mt-4 space-y-2">
-                {reservasVisiveis.map((r: any) => {
-                  if (isAdminLike) {
-                    const m = membrosByUid[r.uid] || null;
-                    const nome = m?.nome || m?.displayName || m?.name || "";
-                    const bloco = m?.blocoId || m?.bloco || m?.blocoNome || "";
-                    const unidade = m?.unidadeId || m?.unidade || m?.unidadeNome || m?.apto || "";
-
-                    return (
-                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium">
-                            Área: <span className="text-muted-foreground">{r.areaId}</span>
-                          </div>
-                          <div className="text-sm">
-                            Status: <span className="font-semibold">{r.status}</span>
-                          </div>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Morador: <span className="font-medium">{nome || r.uid}</span>
-                          {bloco || unidade ? (
-                            <span className="text-muted-foreground"> • {bloco ? `Bloco ${bloco}` : ""}{bloco && unidade ? " • " : ""}{unidade ? `Unidade ${unidade}` : ""}</span>
-                          ) : null}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Reserva ID: {r.id} • UID: {r.uid}
-                        </div>
+                {reservasFiltradas.map((r: any) => (
+                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium">
+                        Área: <span className="text-muted-foreground">{r.areaId}</span>
                       </div>
-                    );
-                  } else {
-                    return (
-                      <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
-                        <div className="font-medium">
-                          Área: <span className="text-muted-foreground">{r.areaId}</span>
-                        </div>
-                        <div className="text-sm font-semibold text-primary">
-                          Reservado
-                        </div>
+                      <div className="text-sm">
+                        Status: <span className="font-semibold">{r.status}</span>
                       </div>
-                    );
-                  }
-                })}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Valor: {moneyBRLFromCentavos(r.valorCobrado)}</div>
+                    <div className="text-xs text-muted-foreground">Reserva ID: {r.id} • UID: {r.uid}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+
+          {/* Modal de opções */}
           {areaParaOpcao ? (
             <AreaOpcaoDialog
               open={opcoesOpen}
@@ -351,8 +291,11 @@ export default function ReservasPage() {
               onConfirm={(p: any) => {
                 setSelectedOpcaoId(p.opcaoId);
                 setSelectedOpcaoMeta(p);
+
+                // mantém seleção do card/filtro
                 setSelectedAreaId(areaParaOpcao.id);
                 setAreaFilter(areaParaOpcao.id);
+
                 setOpcoesOpen(false);
                 setAreaParaOpcaoId(null);
               }}

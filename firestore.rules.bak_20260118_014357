@@ -103,29 +103,6 @@ service cloud.firestore {
         allow write: if canManageCondo(condominioId);
       }
 
-        // -------------------------
-        // Reservas (MORADOR cria PENDENTE; ADMIN/SINDICO aprovam)
-        // -------------------------
-        match /reservas/{reservaId} {
-          allow read: if isSuper() || isMembroAtivo(condominioId);
-
-          // MORADOR ATIVO cria a própria reserva como PENDENTE
-          allow create: if isMembroAtivo(condominioId)
-            && roleNoCondo(condominioId) == "MORADOR"
-            && request.resource.data.uid == request.auth.uid
-            && request.resource.data.condominioId == condominioId
-            && request.resource.data.areaId is string
-            && request.resource.data.status == "PENDENTE"
-            && request.resource.data.data is timestamp;
-
-          // ADMIN/SINDICO/SUPER podem atualizar (aprovar/rejeitar)
-          allow update: if canManageCondo(condominioId);
-
-          // delete só SUPER (ou você pode liberar admin depois, se quiser)
-          allow delete: if isSuper();
-        }
-
-
       // outras subcoleções: leitura p/ membro ativo; escrita p/ admin/síndico
       match /{subcollection}/{docId=**} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
