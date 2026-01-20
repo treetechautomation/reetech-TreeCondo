@@ -139,10 +139,10 @@ service cloud.firestore {
           // CRIAR, DELETAR: Admins/Super e o dono da reserva podem gerenciar a lista de convidados.
           allow create, delete: if isSuper() || canManageCondo(condominioId) || isReservaOwner();
 
-          // ATUALIZAR: Porteiro pode marcar a entrada, mas não alterar nome/CPF.
-          allow update: if isPorteiro(condominioId)
+          // ATUALIZAR: Porteiro ou Admin podem marcar a entrada, mas não alterar nome/CPF.
+          allow update: if (isPorteiro(condominioId) || canManageCondo(condominioId))
                         && request.resource.data.diff(resource.data).changedKeys()
-                             .hasOnly(['status', 'entrouEm', 'entradaEm', 'porteiroUid'])
+                             .hasOnly(['status', 'entrouEm', 'porteiroUid'])
                         && request.resource.data.status == 'ENTROU';
         }
       }
