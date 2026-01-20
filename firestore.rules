@@ -142,7 +142,7 @@ service cloud.firestore {
           // ATUALIZAR: Porteiro ou Admin podem marcar a entrada, mas não alterar nome/CPF.
           allow update: if (isPorteiro(condominioId) || canManageCondo(condominioId))
                         && request.resource.data.diff(resource.data).changedKeys()
-                             .hasOnly(['status', 'entrouEm', 'porteiroUid'])
+                             .hasOnly(['status', 'entrouEm', 'porteiroUid', 'updatedAt'])
                         && request.resource.data.status == 'ENTROU';
         }
       }
