@@ -184,11 +184,11 @@ export default function AgendaReservasPage() {
                       </div>
 
                       <div className="flex items-center justify-end gap-2">
-                        <Button asChild variant="outline">
-                          <Link href={`/reservas/convidados-checkin/${r.id}`}>Convidados</Link>
-                        </Button>
+                        <Button variant="outline" asChild>
+          <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
+        </Button>
 
-                        <Button
+        <Button
                           variant="default"
                           onClick={() => handleCheckin(r.id)}
                           disabled={entrou || loadingCheckinId === r.id}

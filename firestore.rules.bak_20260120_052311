@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------
+    // Helpers
+    // -------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Super Admin via claims (aceita os 2 formatos)
+    function isSuper() {
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.superAdmin == true
+      );
+    }
+
+    // Fonte da verdade: membros do condomínio
+    function memberPath(condominioId) {
+      return /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
+    }
+
+    function hasMember(condominioId) {
+      return signedIn() && exists(memberPath(condominioId));
+    }
+
+    function memberDoc(condominioId) {
+      return get(memberPath(condominioId));
+    }
+
+    function isMembroAtivo(condominioId) {
+      return hasMember(condominioId) && memberDoc(condominioId).data.status == "ATIVO";
+    }
+
+    function roleNoCondo(condominioId) {
+      return hasMember(condominioId) ? memberDoc(condominioId).data.role : null;
+    }
+
+    function canManageCondo(condominioId) {
+      return isSuper() || (
+        isMembroAtivo(condominioId) &&
+        (roleNoCondo(condominioId) in ["ADMIN", "SINDICO", "ADMIN_CONDOMINIO"])
+      );
+    }
+
+    // -------------------------
+    // Sessão / usuário
+    // -------------------------
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if isSuper();
+    }
+
+    // Mantém compatibilidade: vínculos rápidos (se existirem)
+    match /userCondominios/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if isSuper();
+
+      match /vinculos/{condominioId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if isSuper();
+      }
+    }
+
+    // -------------------------
+    // Seletor público
+    // -------------------------
+    match /condominiosPublicos/{id} {
+      allow read: if signedIn();
+      allow write: if isSuper();
+    }
+
+    // -------------------------
+    // Condomínios
+    // -------------------------
+    match /condominios/{condominioId} {
+      // leitura baseada em membros (fonte de verdade)
+      allow read: if isSuper() || isMembroAtivo(condominioId);
+      allow create, update, delete: if isSuper();
+
+      match /membros/{uid} {
+        // usuário lê o próprio membro; admin/síndico gerenciam; super tudo
+        allow read: if isSuper()
+                    || (signedIn() && request.auth.uid == uid)
+                    || canManageCondo(condominioId);
+
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
+      match /anuncios/{anuncioId} {
+        // ✅ MORADOR ATIVO lê; ADMIN/SINDICO ATIVO lê; SUPER lê
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+
+        // ✅ ADMIN/SINDICO ATIVO cria/edita/deleta; SUPER também
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
+      match /config/{docId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+
+        // -------------------------
+        // Reservas (MORADOR cria PENDENTE; ADMIN/SINDICO aprovam)
+        // -------------------------
+        match /reservas/{reservaId} {
+  function signedIn() { return request.auth != null; }
+
+  function isAdminLike() {
+    return signedIn() && (
+      request.auth.token.superAdmin == true ||
+      request.auth.token.role == "ADMIN" ||
+      request.auth.token.role == "SINDICO" ||
+      request.auth.token.role == "ADMIN_CONDOMINIO"
+    );
+  }
+
+  function isPorteiro() {
+    return signedIn() && (request.auth.token.role == "PORTEIRO");
+  }
+
+  function isOwnerReserva() {
+    return signedIn() && (
+      resource.data.uid == request.auth.uid ||
+      resource.data.userId == request.auth.uid
+    );
+  }
+
+          allow read: if isSuper() || isMembroAtivo(condominioId);
+
+          // MORADOR ATIVO cria a própria reserva como PENDENTE
+          allow create: if isMembroAtivo(condominioId)
+            && roleNoCondo(condominioId) == "MORADOR"
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.condominioId == condominioId
+            && request.resource.data.areaId is string
+            && request.resource.data.status == "PENDENTE"
+            && request.resource.data.data is timestamp;
+
+          // ADMIN/SINDICO/SUPER podem atualizar (aprovar/rejeitar)
+          allow update: if canManageCondo(condominioId);
+
+          // delete só SUPER (ou você pode liberar admin depois, se quiser)
+          allow delete: if isSuper();
+        
+  match /convidados/{convidadoId} {
+    function parentReserva() {
+      return get(/databases/$(database)/documents/condominios/$(condominioId)/reservas/$(reservaId)).data;
+    }
+    function parentIsOwner() {
+      return signedIn() && (
+        parentReserva().uid == request.auth.uid ||
+        parentReserva().userId == request.auth.uid
+      );
+    }
+    function parentIsApproved() { return parentReserva().status == "APROVADA"; }
+
+    // leitura:
+    // - admin/sindico/superadmin vê
+    // - dono vê
+    // - porteiro vê somente se reserva APROVADA
+    allow read: if isAdminLike() || parentIsOwner() || (isPorteiro() && parentIsApproved());
+
+    // dono/admin cria e remove
+    allow create, delete: if isAdminLike() || parentIsOwner();
+
+    // update:
+    // - dono/admin pode
+    // - porteiro só pode marcar ENTROU (sem alterar nome/cpf/createdAt)
+    allow update: if isAdminLike() || parentIsOwner() || (
+      isPorteiro()
+      && parentIsApproved()
+      && request.resource.data.status == "ENTROU"
+      && request.resource.data.nome == resource.data.nome
+      && request.resource.data.cpf == resource.data.cpf
+      && request.resource.data.createdAt == resource.data.createdAt
+    );
+  }
+
+}
+
+
+
+      // outras subcoleções: leitura p/ membro ativo; escrita p/ admin/síndico
+      match /{subcollection}/{docId=**} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+    }
+  }
+}

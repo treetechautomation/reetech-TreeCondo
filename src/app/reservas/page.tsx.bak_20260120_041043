@@ -75,16 +75,14 @@ export default function ReservasPage() {
     // Admin/Síndico vê tudo
     if (isAdminLike) return base;
 
-    // Morador vê somente as próprias reservas (qualquer status)
+    // MORADOR vê SOMENTE as próprias reservas (qualquer status)
     if (role === "MORADOR") {
-      const myUid = user?.uid || "";
-      return base.filter((r: any) => (r?.uid || r?.userId || "") === myUid);
+      return base.filter((r: any) => (r.uid || r.userId) === meuUid);
     }
 
-    // Outros perfis "não admin" (se existirem) vêem só aprovadas
-    return base.filter((r: any) => String(r.status) === "APROVADA");
-  }, [reservasFiltradas, isAdminLike, role, user?.uid]);
-
+    // default seguro p/ outros perfis
+    return [];
+  }, [reservasFiltradas, isAdminLike, role, meuUid]);
 React.useEffect(() => {
     let cancelled = false;
 

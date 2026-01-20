@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
@@ -184,10 +183,6 @@ export default function AgendaReservasPage() {
                       </div>
 
                       <div className="flex items-center justify-end gap-2">
-                        <Button asChild variant="outline">
-                          <Link href={`/reservas/convidados-checkin/${r.id}`}>Convidados</Link>
-                        </Button>
-
                         <Button
                           variant="default"
                           onClick={() => handleCheckin(r.id)}

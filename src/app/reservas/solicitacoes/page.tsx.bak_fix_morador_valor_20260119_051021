@@ -1,0 +1,260 @@
+"use client";
+
+import * as React from "react";
+import AppLayout from "@/components/layout/AppLayout";
+import { useFirestore } from "@/firebase";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { Button } from "@/components/ui/button";
+import { initializeFirebase } from "@/firebase";
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, getDoc } from "firebase/firestore";
+
+type Reserva = {
+  id: string;
+  status?: string;
+  dia?: any; // pode ser string ou timestamp
+  dateStr?: string;
+  areaId?: string;
+  areaNome?: string;
+  areaName?: string;
+
+  moradorNome?: string;
+  moradorName?: string;
+  blocoNome?: string;
+  blocoName?: string;
+  unidadeNome?: string;
+  unidadeLabel?: string;
+
+  valor?: number;
+  price?: number;
+
+  createdAt?: any;
+  uid?: string;
+  userId?: string;
+};
+
+function money(v?: number) {
+  if (typeof v !== "number") return "-";
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function safeStatus(s?: string) {
+  return (s || "PENDENTE").toUpperCase();
+}
+
+function moneyBRLFromCentavos(v?: number) {
+  const n = Number(v ?? 0) / 100;
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export default function ReservasSolicitacoesPage() {
+const { session, isSessionLoading } = useSessionCtx();
+  const firestore = useFirestore();
+  const [loading, setLoading] = React.useState(true);
+  const [itens, setItens] = React.useState<Reserva[]>([]);
+
+  // carregar membros faltantes (nome/bloco/unidade) para cada UID pendente
+  React.useEffect(() => {
+    if (!session?.activeCondominioId) return;
+    const condId = session.activeCondominioId;
+
+    const uids = Array.from(new Set((itens || []).map((r: any) => r?.uid).filter(Boolean)));
+    const faltantes = uids.filter((uid) => !membrosByUid[uid]);
+
+    if (faltantes.length === 0) return;
+
+    (async () => {
+      try {
+        const pairs = await Promise.all(
+          faltantes.map(async (uid) => {
+            const ref = doc(firestore, "condominios", String(condId), "membros", String(uid));
+            const snap = await getDoc(ref);
+            return [uid, snap.exists() ? snap.data() : null];
+          })
+        );
+
+        setMembrosByUid((prev) => {
+          const next = { ...prev };
+          for (const [uid, data] of pairs) next[uid] = data;
+          return next;
+        });
+      } catch (e) {
+        console.error("[solicitacoes] falha ao carregar membros:", e);
+      }
+    })();
+  }, [firestore, session?.activeCondominioId, itens]);
+  const [modoAuditoria, setModoAuditoria] = React.useState(false);
+
+  const canApprove =
+    !!session && (session.superAdmin || session.role === "SINDICO" || session.role === "ADMIN");
+
+  React.useEffect(() => {
+    if (isSessionLoading) return;
+
+    if (!session?.activeCondominioId || !canApprove) {
+      setLoading(false);
+      setItens([]);
+      return;
+    }
+
+    const { firestore } = initializeFirebase() as any;
+    const condId = session.activeCondominioId;
+
+    // Padrão: pendentes
+    const ref = collection(firestore, "condominios", condId, "reservas");
+
+    // Se no seu banco "pendente" for outro status (ex: "SOLICITADA"), você ajusta aqui.
+    const q = query(ref, where("status", "in", ["PENDENTE","SOLICITADA","AGUARDANDO_APROVACAO","AGUARDANDO_APROVACAO_SINDICO"]));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const out: Reserva[] = [];
+        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        out.sort((a,b) => {
+          const ta = (a.createdAt?.toMillis?.() ?? 0);
+          const tb = (b.createdAt?.toMillis?.() ?? 0);
+          return tb - ta;
+        });
+        setItens(out);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("[Solicitacoes] erro snapshot:", err);
+        setItens([]);
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [isSessionLoading, session?.activeCondominioId, canApprove]);
+
+  const aprovar = async (r: Reserva) => {
+    if (!session?.activeCondominioId) return;
+    const ok = window.confirm("Aprovar esta reserva?");
+    if (!ok) return;
+
+    const { firestore } = initializeFirebase() as any;
+    const ref = doc(firestore, "condominios", session.activeCondominioId, "reservas", r.id);
+
+    await updateDoc(ref, {
+      status: "APROVADA",
+      approvedAt: serverTimestamp(),
+      approvedBy: session.user?.uid ?? null,
+      approvedByEmail: session.user?.email ?? null,
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  const bloquear = async (r: Reserva) => {
+    if (!session?.activeCondominioId) return;
+
+    const motivo = window.prompt("Motivo do bloqueio? (opcional)") ?? "";
+    const ok = window.confirm("Bloquear esta reserva?");
+    if (!ok) return;
+
+    const { firestore } = initializeFirebase() as any;
+    const ref = doc(firestore, "condominios", session.activeCondominioId, "reservas", r.id);
+
+    await updateDoc(ref, {
+      status: "BLOQUEADA",
+      blockedAt: serverTimestamp(),
+      blockedBy: session.user?.uid ?? null,
+      blockedByEmail: session.user?.email ?? null,
+      blockedReason: motivo.trim() || null,
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  if (isSessionLoading) {
+    return <AppLayout pageTitle="Solicitações de Reservas">Carregando sessão...</AppLayout>;
+  }
+
+  if (!session) {
+    return <AppLayout pageTitle="Solicitações de Reservas">Sem sessão.</AppLayout>;
+  }
+
+  if (!canApprove) {
+    return <AppLayout pageTitle="Solicitações de Reservas">Acesso negado.</AppLayout>;
+  }
+
+  return (
+    <AppLayout
+      pageTitle="Solicitações de Reservas"
+      headerActions={
+        <div className="flex items-center gap-2">
+          <Button
+            variant={modoAuditoria ? "default" : "outline"}
+            onClick={() => setModoAuditoria((v) => !v)}
+          >
+            {modoAuditoria ? "Modo auditoria: ON" : "Modo auditoria"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-black/10 bg-white p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="font-semibold">Pendentes</div>
+            <div className="text-sm text-muted-foreground">
+              {loading ? "Carregando..." : `${itens.length} solicitação(ões)`}
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="rounded-2xl border border-black/10 bg-white p-4">Carregando...</div>
+        ) : itens.length === 0 ? (
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            Nenhuma solicitação pendente.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {itens.map((r) => {
+              const area = r.areaNome || r.areaName || r.areaId || "Área";
+              const morador = r.moradorNome || r.moradorName || "Morador";
+              const bloco = r.blocoNome || r.blocoName;
+              const un = r.unidadeLabel || r.unidadeNome;
+
+              const valor = money(r.valor ?? r.price);
+              const status = safeStatus(r.status);
+
+              return (
+                <div key={r.id} className="rounded-2xl border border-black/10 bg-white p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="font-semibold">Área: {area}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Morador: {morador}
+                        {bloco ? ` • Bloco ${bloco}` : ""}
+                        {un ? ` • Unidade/Apto ${un}` : ""}
+                      </div>
+                      <div className="text-sm">Valor: {valor}</div>
+
+                      {modoAuditoria && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          <div>Reserva ID: {r.id}</div>
+                          <div>UID: {r.uid || r.userId || "-"}</div>
+                          <div>Status atual: {status}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-sm font-medium">{status}</div>
+                      <div className="flex gap-2">
+                        <Button onClick={() => aprovar(r)}>Aprovar</Button>
+                        <Button variant="outline" onClick={() => bloquear(r)}>
+                          Bloquear
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </AppLayout>
+  );
+}

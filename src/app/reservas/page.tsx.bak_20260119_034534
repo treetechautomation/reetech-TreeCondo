@@ -32,8 +32,6 @@ export default function ReservasPage() {
   const user = session?.user ?? null;
   const role = session?.role ?? null;
 
-
-  const meuUid = user?.uid ?? null;
   const firestore = useFirestore();
   const podeVer = !isSessionLoading && !!session && !!condId;
 
@@ -71,21 +69,13 @@ export default function ReservasPage() {
 
   const reservasVisiveis = React.useMemo(() => {
     const base = reservasFiltradas || [];
-
-    // Admin/Síndico vê tudo
-    if (isAdminLike) return base;
-
-    // Morador vê somente as próprias reservas (qualquer status)
-    if (role === "MORADOR") {
-      const myUid = user?.uid || "";
-      return base.filter((r: any) => (r?.uid || r?.userId || "") === myUid);
+    if (isAdminLike) {
+      return base;
     }
-
-    // Outros perfis "não admin" (se existirem) vêem só aprovadas
     return base.filter((r: any) => String(r.status) === "APROVADA");
-  }, [reservasFiltradas, isAdminLike, role, user?.uid]);
+  }, [reservasFiltradas, isAdminLike]);
 
-React.useEffect(() => {
+  React.useEffect(() => {
     let cancelled = false;
 
     async function fetchMembros() {
@@ -227,7 +217,7 @@ React.useEffect(() => {
         ) : (
           <Button asChild variant="default">
             <Link href="/reservas/agenda">
-              Ver solicitações
+              Aprovar / Bloquear
             </Link>
           </Button>
         )
@@ -301,36 +291,6 @@ React.useEffect(() => {
             ) : (
               <div className="mt-4 space-y-2">
                 {reservasVisiveis.map((r: any) => {
-                  // MORADOR/SINDICO: vê botão de Convidados quando a reserva estiver APROVADA
-                  if (isMoradorLike && String(r.status) === "APROVADA") {
-                    return (
-                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium">
-                            Área: <span className="text-muted-foreground">{r.areaId}</span>
-                          </div>
-                          <div className="text-sm">
-                            Status: <span className="font-semibold">{r.status}</span>
-                          </div>
-                        </div>
-
-                        <div className="text-sm text-muted-foreground">
-                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2">
-                          <Button asChild variant="outline">
-                            <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
-                          </Button>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground">
-                          Reserva ID: {r.id}
-                        </div>
-                      </div>
-                    );
-                  }
-
                   if (isAdminLike) {
                     const m = membrosByUid[r.uid] || null;
                     const nome = m?.nome || m?.displayName || m?.name || "";

@@ -75,7 +75,7 @@ export function AreaCard({
     >
       <div className="flex w-full items-center gap-4">
         {/* FOTO 120x120 */}
-        <div className="h-[120px] w-[120px] shrink-0 overflow-hidden rounded-2xl border bg-muted/30">
+        <div className="h-[150px] w-[150px] shrink-0 overflow-hidden rounded-2xl border bg-muted/30">
           {area.fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

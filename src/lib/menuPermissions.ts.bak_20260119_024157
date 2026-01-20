@@ -12,7 +12,6 @@ export type MenuKey =
   | "reservas"
     | "reservas_agenda"
     | "reservas_checkin"
-    | "reservas_solicitacoes"
   | "incidentes"
   | "encomendas"
   | "documentos"
@@ -20,6 +19,8 @@ export type MenuKey =
   | "reunioes"
   | "configuracoes"
   | "administrador_global"
+  | "agenda_reservas";
+
 export type MenuPermissions = {
   SINDICO?: Partial<Record<MenuKey, boolean>>;
   ADMIN?: Partial<Record<MenuKey, boolean>>;
@@ -37,7 +38,6 @@ export const MENU_LABELS: Record<MenuKey, string> = {
   reservas: "Reservas",
     reservas_agenda: "Agenda de Reservas",
     reservas_checkin: "Check-in de Reserva",
-    reservas_solicitacoes: "Solicitações de Reservas",
   incidentes: "Incidentes",
   encomendas: "Encomendas",
   documentos: "Documentos",
@@ -60,7 +60,6 @@ export const DEFAULT_PERMS: MenuPermissions = {
     anuncios: true,
     reservas: true,
       reservas_checkin: true,
-      reservas_solicitacoes: true,
       reservas_agenda: true,
     incidentes: true,
     encomendas: true,
@@ -78,7 +77,6 @@ export const DEFAULT_PERMS: MenuPermissions = {
     anuncios: true,
     reservas: true,
       reservas_checkin: true,
-      reservas_solicitacoes: true,
       reservas_agenda: true,
     incidentes: true,
     encomendas: true,
