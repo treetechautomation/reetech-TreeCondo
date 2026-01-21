@@ -7,7 +7,26 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
-import { collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Convidado = {
   id: string;
@@ -48,27 +67,34 @@ export default function ConvidadosCheckinPage() {
   const role = session?.role ?? null;
 
   const isPorteiro = role === "PORTEIRO";
-  const isAdminLike = session?.superAdmin || role === "ADMIN" || role === "SINDICO" || role === "ADMIN_CONDOMINIO";
+  const isAdminLike =
+    session?.superAdmin ||
+    role === "ADMIN" ||
+    role === "SINDICO" ||
+    role === "ADMIN_CONDOMINIO";
 
   const canUse = !!session && !!condId && (isPorteiro || isAdminLike);
 
   const [loadingReserva, setLoadingReserva] = React.useState(true);
   const [reserva, setReserva] = React.useState<ReservaDoc | null>(null);
 
-  
   const [moradorInfo, setMoradorInfo] = React.useState<any | null>(null);
-const [loadingLista, setLoadingLista] = React.useState(true);
+  const [loadingLista, setLoadingLista] = React.useState(true);
   const [itens, setItens] = React.useState<Convidado[]>([]);
-    const [loadingMarkId, setLoadingMarkId] = React.useState<string | null>(null);
-const [q, setQ] = React.useState("");
+  const [loadingMarkId, setLoadingMarkId] = React.useState<string | null>(null);
+  const [q, setQ] = React.useState("");
+
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmItem, setConfirmItem] = React.useState<Convidado | null>(null);
 
   const filtrados = React.useMemo(() => {
-      const term = q.trim().toLowerCase();
-      if (!term) return itens;
-      return (itens || []).filter((c) => String(c.nome || "").toLowerCase().includes(term));
-    }, [itens, q]);
-  
-    
+    const term = q.trim().toLowerCase();
+    if (!term) return itens;
+    return (itens || []).filter((c) =>
+      String(c.nome || "").toLowerCase().includes(term)
+    );
+  }, [itens, q]);
+
   const [savingId, setSavingId] = React.useState<string | null>(null);
 
   // carrega a reserva (pra validar status APROVADA)
@@ -78,7 +104,13 @@ const [q, setQ] = React.useState("");
     let alive = true;
     (async () => {
       try {
-        const ref = doc(firestore, "condominios", String(condId), "reservas", String(reservaId));
+        const ref = doc(
+          firestore,
+          "condominios",
+          String(condId),
+          "reservas",
+          String(reservaId)
+        );
         const snap = await getDoc(ref);
         if (!alive) return;
 
@@ -96,20 +128,29 @@ const [q, setQ] = React.useState("");
     };
   }, [firestore, condId, reservaId]);
 
-  
-
   // Carrega o membro (nome/bloco/unidade) do morador dono da reserva
   React.useEffect(() => {
     if (!firestore) return;
     if (!session?.activeCondominioId) return;
-    const uid = String((reserva as any)?.uid || (reserva as any)?.userId || "");
-    if (!uid) { setMoradorInfo(null); return; }
+    const uid = String(
+      (reserva as any)?.uid || (reserva as any)?.userId || ""
+    );
+    if (!uid) {
+      setMoradorInfo(null);
+      return;
+    }
 
     let alive = true;
 
     (async () => {
       try {
-        const ref = doc(firestore, "condominios", String(session.activeCondominioId), "membros", uid);
+        const ref = doc(
+          firestore,
+          "condominios",
+          String(session.activeCondominioId),
+          "membros",
+          uid
+        );
         const snap = await getDoc(ref);
         if (!alive) return;
         setMoradorInfo(snap.exists() ? snap.data() : null);
@@ -119,10 +160,17 @@ const [q, setQ] = React.useState("");
       }
     })();
 
-    return () => { alive = false; };
-  }, [firestore, session?.activeCondominioId, (reserva as any)?.uid, (reserva as any)?.userId]);
+    return () => {
+      alive = false;
+    };
+  }, [
+    firestore,
+    session?.activeCondominioId,
+    (reserva as any)?.uid,
+    (reserva as any)?.userId,
+  ]);
 
-// lista convidados
+  // lista convidados
   React.useEffect(() => {
     if (!firestore || !condId || !reservaId) return;
 
@@ -156,46 +204,63 @@ const [q, setQ] = React.useState("");
   }, [firestore, condId, reservaId]);
 
   if (isSessionLoading) {
-    return <AppLayout pageTitle="Check-in de Convidados">Carregando sessão...</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Carregando sessão...
+      </AppLayout>
+    );
   }
 
   if (!session) {
-    return <AppLayout pageTitle="Check-in de Convidados">Sem sessão.</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">Sem sessão.</AppLayout>
+    );
   }
 
   if (!canUse) {
-    return <AppLayout pageTitle="Check-in de Convidados">Acesso negado.</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">Acesso negado.</AppLayout>
+    );
   }
 
   if (loadingReserva) {
-    return <AppLayout pageTitle="Check-in de Convidados">Carregando reserva...</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Carregando reserva...
+      </AppLayout>
+    );
   }
 
   if (!reserva) {
-    return <AppLayout pageTitle="Check-in de Convidados">Reserva não encontrada.</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Reserva não encontrada.
+      </AppLayout>
+    );
   }
 
   const statusReserva = String(reserva.status || "");
   if (isPorteiro && statusReserva !== "APROVADA") {
     return (
       <AppLayout pageTitle="Check-in de Convidados">
-        Esta reserva não está APROVADA. O porteiro só faz check-in em reservas aprovadas.
+        Esta reserva não está APROVADA. O porteiro só faz check-in em reservas
+        aprovadas.
       </AppLayout>
     );
   }
 
-  const areaLabel = reserva.areaNome || reserva.areaName || reserva.areaId || "Área";
+  const areaLabel =
+    reserva.areaNome || reserva.areaName || reserva.areaId || "Área";
 
   const total = itens.length;
-  const entrou = itens.filter((c) => String(c.status || "") === "ENTROU").length;
+  const entrou = itens.filter(
+    (c) => String(c.status || "") === "ENTROU"
+  ).length;
   const pendente = total - entrou;
 
   async function marcarEntrou(item: Convidado) {
-    if (!firestore || !condId || !reservaId) return;
+    if (!firestore || !condId || !reservaId || !item) return;
     if (!isPorteiro && !isAdminLike) return;
-
-    const ok = window.confirm(`Marcar "${item.nome || "-"}" como ENTROU?`);
-    if (!ok) return;
 
     setSavingId(item.id);
     try {
@@ -213,10 +278,13 @@ const [q, setQ] = React.useState("");
         status: "ENTROU",
         entrouEm: serverTimestamp(),
         porteiroUid: session.user?.uid ?? null,
+        updatedAt: serverTimestamp(),
       });
     } catch (e) {
       console.error("[checkin] erro marcar entrou:", e);
-      alert("❌ Não consegui marcar entrada. Veja o console (provável rules).");
+      alert(
+        "❌ Não consegui marcar entrada. Veja o console (provável rules)."
+      );
     } finally {
       setSavingId(null);
     }
@@ -241,20 +309,46 @@ const [q, setQ] = React.useState("");
               <div className="text-lg font-semibold">{areaLabel}</div>
               <div className="mt-1 text-sm text-muted-foreground">
                 <div className="mt-1 text-sm text-muted-foreground">
-  Morador: <span className="font-medium">
-    {moradorInfo?.nome || moradorInfo?.displayName || moradorInfo?.name || (reserva as any)?.uid || (reserva as any)?.userId || "-"}
-  </span>
-  {(moradorInfo?.blocoId || moradorInfo?.bloco || moradorInfo?.blocoNome || moradorInfo?.blocoName || moradorInfo?.blocoLabel) ? (
-    <span className="text-muted-foreground">
-      {" "}• Bloco {moradorInfo?.blocoId || moradorInfo?.bloco || moradorInfo?.blocoNome || moradorInfo?.blocoName || moradorInfo?.blocoLabel}
-    </span>
-  ) : null}
-  {(moradorInfo?.unidadeId || moradorInfo?.unidade || moradorInfo?.unidadeNome || moradorInfo?.unidadeLabel || moradorInfo?.apto) ? (
-    <span className="text-muted-foreground">
-      {" "}• Unidade/Apto {moradorInfo?.unidadeId || moradorInfo?.unidade || moradorInfo?.unidadeNome || moradorInfo?.unidadeLabel || moradorInfo?.apto}
-    </span>
-  ) : null}
-</div>
+                  Morador:{" "}
+                  <span className="font-medium">
+                    {moradorInfo?.nome ||
+                      moradorInfo?.displayName ||
+                      moradorInfo?.name ||
+                      (reserva as any)?.uid ||
+                      (reserva as any)?.userId ||
+                      "-"}
+                  </span>
+                  {moradorInfo?.blocoId ||
+                  moradorInfo?.bloco ||
+                  moradorInfo?.blocoNome ||
+                  moradorInfo?.blocoName ||
+                  moradorInfo?.blocoLabel ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • Bloco{" "}
+                      {moradorInfo?.blocoId ||
+                        moradorInfo?.bloco ||
+                        moradorInfo?.blocoNome ||
+                        moradorInfo?.blocoName ||
+                        moradorInfo?.blocoLabel}
+                    </span>
+                  ) : null}
+                  {moradorInfo?.unidadeId ||
+                  moradorInfo?.unidade ||
+                  moradorInfo?.unidadeNome ||
+                  moradorInfo?.unidadeLabel ||
+                  moradorInfo?.apto ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • Unidade/Apto{" "}
+                      {moradorInfo?.unidadeId ||
+                        moradorInfo?.unidade ||
+                        moradorInfo?.unidadeNome ||
+                        moradorInfo?.unidadeLabel ||
+                        moradorInfo?.apto}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
 
@@ -292,7 +386,9 @@ const [q, setQ] = React.useState("");
           </div>
 
           {loadingLista ? (
-            <div className="mt-4 text-sm text-muted-foreground">Carregando convidados...</div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              Carregando convidados...
+            </div>
           ) : filtrados.length === 0 ? (
             <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
               Nenhum convidado encontrado.
@@ -304,25 +400,39 @@ const [q, setQ] = React.useState("");
                 const entrou = st === "ENTROU";
 
                 return (
-                  <div key={c.id} className="rounded-xl border p-4 flex items-center justify-between gap-3">
+                  <div
+                    key={c.id}
+                    className="rounded-xl border p-4 flex items-center justify-between gap-3"
+                  >
                     <div className="min-w-0">
                       <div className="font-medium truncate">
                         {String(idx + 1).padStart(2, "0")} - {c.nome || "-"}
                       </div>
 
                       <div className="text-xs text-muted-foreground">
-                        {c.cpf ? `CPF: ${maskCpf(c.cpf)}` : "CPF: (não informado)"}
+                        {c.cpf
+                          ? `CPF: ${maskCpf(c.cpf)}`
+                          : "CPF: (não informado)"}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">{entrou ? "✅ ENTROU" : "🟢 PENDENTE"}</div>
+                      <div className="text-sm font-semibold">
+                        {entrou ? "✅ ENTROU" : "🟢 PENDENTE"}
+                      </div>
 
                       <Button
-                        onClick={() => marcarEntrou(c)}
+                        onClick={() => {
+                          setConfirmItem(c);
+                          setConfirmOpen(true);
+                        }}
                         disabled={entrou || savingId === c.id}
                       >
-                        {savingId === c.id ? "Salvando..." : entrou ? "OK" : "Marcar entrou"}
+                        {savingId === c.id
+                          ? "Salvando..."
+                          : entrou
+                          ? "OK"
+                          : "Marcar entrou"}
                       </Button>
                     </div>
                   </div>
@@ -332,6 +442,31 @@ const [q, setQ] = React.useState("");
           )}
         </div>
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Entrada</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você confirma a entrada do convidado{" "}
+              <strong>{confirmItem?.nome ?? "..."}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (confirmItem) {
+                  await marcarEntrou(confirmItem);
+                }
+              }}
+              disabled={savingId !== null}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
