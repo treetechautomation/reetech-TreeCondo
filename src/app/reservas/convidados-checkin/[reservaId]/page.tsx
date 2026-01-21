@@ -7,6 +7,9 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
 import {
   collection,
   doc,
@@ -17,6 +20,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +56,6 @@ type ReservaDoc = {
 function maskCpf(v?: string | null) {
   const d = (v || "").replace(/\D/g, "");
   if (!d) return "";
-  if (d.length <= 3) return d;
   // mostra só final (opcional)
   return "•••.•••.•••-" + d.slice(-2);
 }
@@ -290,6 +293,34 @@ export default function ConvidadosCheckinPage() {
     }
   }
 
+  function baixarPDF() {
+    const doc = new jsPDF();
+
+    const titulo = `Lista de Convidados - Reserva ${String(reservaId)}`;
+    doc.setFontSize(14);
+    doc.text(titulo, 14, 16);
+
+    doc.setFontSize(10);
+    doc.text(`Área: ${areaLabel}`, 14, 24);
+    doc.text(`Status da Reserva: ${statusReserva}`, 14, 30);
+
+    const body = filtrados.map((c, idx) => [
+      String(idx + 1).padStart(2, "0"),
+      String(c.nome || "-"),
+      String(c.cpf ? maskCpf(c.cpf) : "-"),
+      String(c.status || "PENDENTE"),
+    ]);
+
+    autoTable(doc, {
+      startY: 36,
+      head: [["Nº", "Nome", "CPF", "Status"]],
+      body,
+      styles: { fontSize: 9 },
+      headStyles: { fontSize: 9 },
+    });
+
+    doc.save(`convidados_${String(reservaId)}.pdf`);
+  }
   return (
     <AppLayout
       pageTitle="Check-in de Convidados"
@@ -297,6 +328,10 @@ export default function ConvidadosCheckinPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/reservas/agenda">Voltar</Link>
+          </Button>
+
+          <Button onClick={baixarPDF}>
+            Baixar PDF
           </Button>
         </div>
       }
