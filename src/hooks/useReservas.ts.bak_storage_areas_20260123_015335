@@ -10,7 +10,6 @@ import {
   orderBy,
   Timestamp,
 } from "firebase/firestore";
-import { getStorage, ref as storageRef, listAll, getDownloadURL } from "firebase/storage";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export type AreaOpcao = {
@@ -82,7 +81,6 @@ export function useReservas(condominioId: string | null, dateStr: string) {
   const firestore = React.useMemo(() => resolveFirestore(firestoreRaw), [firestoreRaw]);
 
   const [areas, setAreas] = React.useState<AreaReservavel[]>([]);
-  const [areaStorageUrls, setAreaStorageUrls] = React.useState<Record<string, string>>({});
   const [reservas, setReservas] = React.useState<Reserva[]>([]);
   const [loadingAreas, setLoadingAreas] = React.useState(true);
   const [loadingReservas, setLoadingReservas] = React.useState(true);
@@ -127,7 +125,7 @@ export function useReservas(condominioId: string | null, dateStr: string) {
             horaFim: data.horaFim ?? null,
             permiteAte: (data.horaFim ?? data.permiteAte ?? null) as any,
             opcoes: (data.opcoes ?? null) as any,
-            fotoUrl: (data.fotoUrl ?? areaStorageUrls[d.id] ?? placeholder?.imageUrl ?? null) as any,
+            fotoUrl: (data.fotoUrl ?? placeholder?.imageUrl ?? null) as any,
             fotoHint: (placeholder?.imageHint ?? null) as any,
           };
         });
@@ -140,7 +138,7 @@ export function useReservas(condominioId: string | null, dateStr: string) {
         setLoadingAreas(false);
       },
     );
-  }, [firestore, condominioId, areaStorageUrls]);
+  }, [firestore, condominioId]);
 
   React.useEffect(() => {
     if (!condominioId) {

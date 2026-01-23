@@ -1,10 +1,6 @@
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
 const db = admin.firestore();
 
 /**

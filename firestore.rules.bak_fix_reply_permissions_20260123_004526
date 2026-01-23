@@ -149,45 +149,39 @@ service cloud.firestore {
       // -------------------------
       // Comunicação (Threads / Mensagens)
       // -------------------------
-
-      // -------------------------
-      // Threads / Mensagens (Comunicação)
-      // - Admin/Síndico gerenciam tudo
-      // - Morador só responde se moradorReplyEnabled == true e for o alvo da thread
-      // -------------------------
       match /threads/{threadId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
 
-        // thread: criação e updates (ex: habilitar resposta) só admins/síndico
-        allow create, update, delete: if canManageCondo(condominioId);
+        allow create: if canManageCondo(condominioId);
+
+        allow update: if canManageCondo(condominioId) || (
+          isMembroAtivo(condominioId) &&
+          roleNoCondo(condominioId) == "MORADOR" &&
+          resource.data.tipo == "MORADOR" &&
+          (resource.data.alvo.uid == request.auth.uid) &&
+          resource.data.moradorReplyEnabled == true &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(["updatedAt", "lastMessage"])
+        );
+
+        allow delete: if canManageCondo(condominioId) || isSuper();
 
         match /mensagens/{msgId} {
           allow read: if isSuper() || isMembroAtivo(condominioId);
 
-          // Admin/Síndico podem enviar sempre
-          // Morador pode enviar SOMENTE se:
-          //  - thread.tipo == "MORADOR"
-          //  - thread.moradorReplyEnabled == true
-          //  - thread.alvo.uid (ou alvo.uidMorador) == request.auth.uid
-          //  - createdByUid == request.auth.uid
-          allow create: if canManageCondo(condominioId)
-            || (
-              isMembroAtivo(condominioId)
-              && roleNoCondo(condominioId) == "MORADOR"
-              && get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.tipo == "MORADOR"
-              && get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.moradorReplyEnabled == true
-              && (
-                get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uid == request.auth.uid
-                || get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uidMorador == request.auth.uid
-              )
-              && request.resource.data.createdByUid == request.auth.uid
-            );
+          allow create: if canManageCondo(condominioId) || (
+            isMembroAtivo(condominioId) &&
+            roleNoCondo(condominioId) == "MORADOR" &&
+            get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.tipo == "MORADOR" &&
+            get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.moradorReplyEnabled == true &&
+            get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uid == request.auth.uid &&
+            request.resource.data.createdByUid == request.auth.uid &&
+            request.resource.data.createdAt is timestamp &&
+            request.resource.data.texto is string &&
+            request.resource.data.texto.size() > 0
+          );
 
-          // Ninguém edita mensagem (padrão). Se quiser, libera admin.
-          allow update, delete: if canManageCondo(condominioId);
+          allow update, delete: if canManageCondo(condominioId) || isSuper();
         }
-      }
-
       }
 
 
@@ -199,3 +193,4 @@ service cloud.firestore {
       }
     }
   }
+}

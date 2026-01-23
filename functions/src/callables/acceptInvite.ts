@@ -2,10 +2,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
-function mustInit() {
-  if (admin.apps.length === 0) admin.initializeApp();
-  return admin.firestore();
-}
+const db = admin.firestore();
 
 /**
  * acceptInvite
@@ -24,8 +21,6 @@ export const acceptInvite = onCall({region: "us-central1"}, async (req) => {
   const email = (auth.token.email || "").toLowerCase();
   const conviteId = String(req.data?.conviteId || "").trim();
   if (!conviteId) throw new HttpsError("invalid-argument", "conviteId é obrigatório.");
-
-  const db = mustInit();
 
   const conviteRef = db.collection("convites").doc(conviteId);
   const conviteSnap = await conviteRef.get();

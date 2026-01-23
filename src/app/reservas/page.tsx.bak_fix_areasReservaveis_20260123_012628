@@ -14,7 +14,6 @@ import { useFirestore } from "@/firebase";
 import { addDoc, collection, Timestamp, serverTimestamp, getDoc, doc } from "firebase/firestore";
 import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
 
-import { isSunday, getStatusForNewReserva, requiresApproval } from "@/lib/reservasPoliticas";
 function moneyBRLFromCentavos(v?: number) {
   const n = Number(v ?? 0) / 100;
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -154,26 +153,18 @@ React.useEffect(() => {
     podeVer && isMoradorLike && selectedAreaId !== "ALL" && !!selectedOpcaoMeta && !isChecking && !isCreating;
 
   async function handleSolicitarReserva() {
-      if (!podeVer || !podeReservar) return;
+    if (!podeVer || !podeReservar) return;
 
-      if (isSunday(dateStr)) {
-        alert("❌ Não é permitido fazer reservas aos domingos.");
-        return;
-      }
+    if (!condId || selectedAreaId === "ALL" || !selectedOpcaoMeta) {
+      alert("Selecione uma área e uma opção para reservar.");
+      return;
+    }
+    if (!firestore || !user?.uid) {
+      alert("Sessão inválida. Recarregue a página.");
+      return;
+    }
 
-      if (!condId || selectedAreaId === "ALL" || !selectedOpcaoMeta) {
-        alert("Selecione uma área e uma opção para reservar.");
-        return;
-      }
-      if (!firestore || !user?.uid) {
-        alert("Sessão inválida. Recarregue a página.");
-        return;
-      }
-
-      const statusInicial = getStatusForNewReserva(dateStr);
-      const precisaAprovacao = requiresApproval(dateStr);
-
-      setIsChecking(true);
+    setIsChecking(true);
     try {
       const chk = await isDiaDisponivelPorArea(firestore, condId, selectedAreaId, dateStr);
       if (!chk.disponivel) {
@@ -196,11 +187,10 @@ React.useEffect(() => {
         areaId: selectedAreaId,
         condominioId: condId,
         uid: user.uid,
-        status: statusInicial,
+        status: "PENDENTE",
         data: Timestamp.fromDate(dataIni),
         valorCobrado: Number(selectedOpcaoMeta.precoCentavos) || 0,
         criadoEm: serverTimestamp(),
-          precisaAprovacao: precisaAprovacao,
         opcaoId: selectedOpcaoMeta.opcaoId,
         opcaoNome: selectedOpcaoMeta.opcaoNome,
       });
