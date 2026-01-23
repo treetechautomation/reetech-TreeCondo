@@ -54,7 +54,8 @@ function inferCapacidade(areaIdOrName?: string) {
 }
 
 export default function ReservasConvidadosPage() {
-  const { reservaId } = useParams<{ reservaId: string }>();
+  const params = useParams<{ reservaId: string }>();
+  const reservaId = params?.reservaId ?? "";
   const router = useRouter();
   const _fsAny = useFirestore() as any;
   const firestore = (_fsAny?.firestore ?? _fsAny) as any;
@@ -73,7 +74,7 @@ const { session, isSessionLoading } = useSessionCtx();
 
   const canUse =
     !!session &&
-    !!session.activeCondominioId &&
+    !!session?.activeCondominioId &&
     (session.superAdmin || session.role === "MORADOR" || session.role === "SINDICO" || session.role === "ADMIN");
 
   // Carrega dados da reserva (pra validar dono e pegar capacidade)
@@ -84,7 +85,7 @@ const { session, isSessionLoading } = useSessionCtx();
 
     (async () => {
       try {
-        const ref = doc(firestoreFinal, "condominios", String(session.activeCondominioId), "reservas", String(reservaId));
+        const ref = doc(firestoreFinal, "condominios", String(session?.activeCondominioId), "reservas", String(reservaId));
         const snap = await getDoc(ref);
         if (!alive) return;
 
@@ -115,7 +116,7 @@ const { session, isSessionLoading } = useSessionCtx();
 
     const ref = collection(firestoreFinal,
       "condominios",
-      String(session.activeCondominioId),
+      String(session?.activeCondominioId),
       "reservas",
       String(reservaId),
       "convidados"
@@ -191,7 +192,7 @@ const { session, isSessionLoading } = useSessionCtx();
     try {
       const ref = collection(firestoreFinal,
         "condominios",
-        String(session.activeCondominioId),
+        String(session?.activeCondominioId),
         "reservas",
         String(reservaId),
         "convidados"
@@ -225,7 +226,7 @@ const { session, isSessionLoading } = useSessionCtx();
     try {
       const ref = doc(firestoreFinal,
         "condominios",
-        String(session.activeCondominioId),
+        String(session?.activeCondominioId),
         "reservas",
         String(reservaId),
         "convidados",

@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { initializeFirebase } from "@/firebase";
 
-export type RoleKey = "SINDICO" | "ADMIN" | "MORADOR" | "PORTEIRO" | "SUPER_ADMIN";
+export type RoleKey = "SINDICO" | "ADMIN" | "ADMIN_CONDOMINIO" | "MORADOR" | "PORTEIRO" | "ZELADOR" | "SUPER_ADMIN";
 
 export type MenuKey =
   | "dashboard"
@@ -20,13 +20,7 @@ export type MenuKey =
   | "reunioes"
   | "configuracoes"
   | "administrador_global"
-export type MenuPermissions = {
-  SINDICO?: Partial<Record<MenuKey, boolean>>;
-  ADMIN?: Partial<Record<MenuKey, boolean>>;
-  MORADOR?: Partial<Record<MenuKey, boolean>>;
-  PORTEIRO?: Partial<Record<MenuKey, boolean>>;
-  SUPER_ADMIN?: Partial<Record<MenuKey, boolean>>;
-};
+export type MenuPermissions = Partial<Record<RoleKey, Partial<Record<MenuKey, boolean>>>>;//__TC_MENU_PERMS_RECORD__
 
 export const MENU_LABELS: Record<MenuKey, string> = {
   dashboard: "Dashboard",
@@ -88,6 +82,24 @@ export const DEFAULT_PERMS: MenuPermissions = {
     configuracoes: true,
     administrador_global: false,
   },
+  ADMIN_CONDOMINIO: {
+    dashboard: true,
+    condominios: true,
+    cadastros: true,
+    acesso: true,
+    anuncios: true,
+    reservas: true,
+      reservas_checkin: true,
+      reservas_solicitacoes: true,
+      reservas_agenda: true,
+    incidentes: true,
+    encomendas: true,
+    documentos: true,
+    enquetes: true,
+    reunioes: true,
+    configuracoes: true,
+    administrador_global: false,
+  },
   MORADOR: {
     dashboard: true,
     anuncios: true,
@@ -120,6 +132,24 @@ export const DEFAULT_PERMS: MenuPermissions = {
     configuracoes: false,
     administrador_global: false,
   },
+    ZELADOR: {
+      dashboard: true,
+      incidentes: true,
+      encomendas: true,
+      acesso: true,
+      anuncios: false,
+      reservas: false,
+      reservas_checkin: true,
+      reservas_agenda: true,
+      reservas_solicitacoes: false,
+      documentos: false,
+      enquetes: false,
+      reunioes: false,
+      condominios: false,
+      cadastros: false,
+      configuracoes: false,
+      administrador_global: false,
+    },
 };
 
 export function menuPermissionsRef(condominioId: string) {

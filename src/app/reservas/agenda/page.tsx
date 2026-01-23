@@ -25,7 +25,7 @@ export default function AgendaReservasPage() {
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
   const user = session?.user ?? null;
-  const role = session?.role ?? null;
+  const role: string | null = (session as any)?.role ?? null;
 
   const firestore = useFirestore();
   const podeVer = !isSessionLoading && !!session && !!condId;

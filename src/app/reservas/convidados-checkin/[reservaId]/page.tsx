@@ -61,13 +61,14 @@ function maskCpf(v?: string | null) {
 }
 
 export default function ConvidadosCheckinPage() {
-  const { reservaId } = useParams<{ reservaId: string }>();
+  const params = useParams<{ reservaId: string }>();
+  const reservaId = params?.reservaId ?? "";
   const router = useRouter();
   const firestore = useFirestore();
   const { session, isSessionLoading } = useSessionCtx();
 
   const condId = session?.activeCondominioId ?? null;
-  const role = session?.role ?? null;
+  const role: string | null = (session as any)?.role ?? null;
 
   const isPorteiro = role === "PORTEIRO";
   const isAdminLike =
@@ -280,7 +281,7 @@ export default function ConvidadosCheckinPage() {
       await updateDoc(ref, {
         status: "ENTROU",
         entrouEm: serverTimestamp(),
-        porteiroUid: session.user?.uid ?? null,
+        porteiroUid: session?.user?.uid ?? null,
         updatedAt: serverTimestamp(),
       });
     } catch (e) {
@@ -293,34 +294,85 @@ export default function ConvidadosCheckinPage() {
     }
   }
 
-  function baixarPDF() {
-    const doc = new jsPDF();
+  async function baixarPDF() {
+      const pdf = new jsPDF();
 
-    const titulo = `Lista de Convidados - Reserva ${String(reservaId)}`;
-    doc.setFontSize(14);
-    doc.text(titulo, 14, 16);
+      const moradorNome =
+        moradorInfo?.nome ||
+        moradorInfo?.displayName ||
+        moradorInfo?.name ||
+        "Morador";
 
-    doc.setFontSize(10);
-    doc.text(`Área: ${areaLabel}`, 14, 24);
-    doc.text(`Status da Reserva: ${statusReserva}`, 14, 30);
+      const moradorBloco =
+        moradorInfo?.blocoId ||
+        moradorInfo?.bloco ||
+        moradorInfo?.blocoNome ||
+        moradorInfo?.blocoName ||
+        moradorInfo?.blocoLabel ||
+        "";
 
-    const body = filtrados.map((c, idx) => [
-      String(idx + 1).padStart(2, "0"),
-      String(c.nome || "-"),
-      String(c.cpf ? maskCpf(c.cpf) : "-"),
-      String(c.status || "PENDENTE"),
-    ]);
+      const moradorUnidade =
+        moradorInfo?.unidadeId ||
+        moradorInfo?.unidade ||
+        moradorInfo?.unidadeNome ||
+        moradorInfo?.unidadeLabel ||
+        moradorInfo?.apto ||
+        "";
 
-    autoTable(doc, {
-      startY: 36,
-      head: [["Nº", "Nome", "CPF", "Status"]],
-      body,
-      styles: { fontSize: 9 },
-      headStyles: { fontSize: 9 },
-    });
+      // título
+      pdf.setFontSize(14);
+      pdf.text("Lista de Convidados (Check-in)", 14, 16);
 
-    doc.save(`convidados_${String(reservaId)}.pdf`);
-  }
+      // QR Code (canto superior direito)
+      const url =
+        typeof window !== "undefined"
+          ? window.location.href
+          : `/reservas/convidados-checkin/${String(reservaId)}`;
+
+      try {
+        const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 160 });
+        pdf.addImage(qrDataUrl, "PNG", 160, 8, 40, 40);
+        pdf.setFontSize(8);
+        pdf.text("QR do Check-in", 162, 50);
+      } catch (e) {
+        console.warn("[pdf] falha ao gerar QR:", e);
+      }
+
+      // infos
+      pdf.setFontSize(10);
+      pdf.text(`Área: ${areaLabel}`, 14, 26);
+      pdf.text(`Status da Reserva: ${statusReserva}`, 14, 32);
+
+      // morador (NUNCA mostrar uid aqui)
+      pdf.text(`Morador: ${moradorNome}`, 14, 38);
+
+      const extra = [
+        moradorBloco ? `Bloco ${moradorBloco}` : null,
+        moradorUnidade ? `Unidade/Apto ${moradorUnidade}` : null,
+      ].filter(Boolean).join(" • ");
+
+      if (extra) {
+        pdf.text(extra, 14, 44);
+      }
+
+      const body = filtrados.map((c, idx) => ([
+        String(idx + 1).padStart(2, "0"),
+        String(c.nome || "-"),
+        String(c.cpf ? maskCpf(c.cpf) : "-"),
+        String(c.status || "PENDENTE"),
+      ]));
+
+      autoTable(pdf, {
+        startY: extra ? 52 : 48,
+        head: [["Nº", "Nome", "CPF", "Status"]],
+        body,
+        styles: { fontSize: 9 },
+        headStyles: { fontSize: 9 },
+      });
+
+      pdf.save(`convidados_${String(reservaId)}.pdf`);
+    }
+
   return (
     <AppLayout
       pageTitle="Check-in de Convidados"
@@ -348,10 +400,7 @@ export default function ConvidadosCheckinPage() {
                   <span className="font-medium">
                     {moradorInfo?.nome ||
                       moradorInfo?.displayName ||
-                      moradorInfo?.name ||
-                      (reserva as any)?.uid ||
-                      (reserva as any)?.userId ||
-                      "-"}
+                      moradorInfo?.name || "-"}
                   </span>
                   {moradorInfo?.blocoId ||
                   moradorInfo?.bloco ||

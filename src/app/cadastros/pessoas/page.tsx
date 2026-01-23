@@ -1,6 +1,8 @@
-
-
 "use client";
+
+import Link from "next/link";
+
+
 
 
 import * as React from "react";
@@ -35,7 +37,7 @@ import {
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
-type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "FUNCIONARIO";
+type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "FUNCIONARIO";
 
 type Membro = {
   id: string;
@@ -65,6 +67,28 @@ export default function PessoasPage() {
 
   const [loading, setLoading] = useState(false);
   const [membros, setMembros] = useState<Membro[]>([]);
+
+  const [abaLista, setAbaLista] = useState<
+    "MORADORES" | "SINDICOS" | "PORTEIROS" | "ZELADORES" | "FUNCIONARIOS" | "TODOS"
+  >("MORADORES");
+
+  const membrosFiltrados = useMemo(() => {
+    switch (abaLista) {
+      case "MORADORES":
+        return membros.filter((m) => m.role === "MORADOR");
+      case "SINDICOS":
+        return membros.filter((m) => m.role === "SINDICO");
+      case "PORTEIROS":
+        return membros.filter((m) => m.role === "PORTEIRO");
+      case "ZELADORES":
+        return membros.filter((m) => m.role === "ZELADOR");
+      case "FUNCIONARIOS":
+        return membros.filter((m) => m.role === "FUNCIONARIO");
+      case "TODOS":
+      default:
+        return membros;
+    }
+  }, [membros, abaLista]);
   const [form, setForm] = useState<{
     nome: string;
     email: string;
@@ -487,12 +511,23 @@ setLoading(true);
         <div className="rounded-2xl border border-black/5 bg-white/55 p-6 shadow-sm backdrop-blur-xl">
           <h2 className="mb-4 text-lg font-semibold text-slate-900">Pessoas cadastradas</h2>
 
+            <Tabs value={abaLista} onValueChange={(v) => setAbaLista(v as any)} className="space-y-4">
+              <TabsList className="w-full justify-start flex flex-wrap gap-2">
+                <TabsTrigger value="MORADORES">Moradores</TabsTrigger>
+                <TabsTrigger value="SINDICOS">Síndicos</TabsTrigger>
+                <TabsTrigger value="PORTEIROS">Porteiros</TabsTrigger>
+                <TabsTrigger value="ZELADORES">Zeladores</TabsTrigger>
+                <TabsTrigger value="FUNCIONARIOS">Funcionários</TabsTrigger>
+                <TabsTrigger value="TODOS">Todos</TabsTrigger>
+              </TabsList>
+
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>E-mail</TableHead>
                 <TableHead>Tipo</TableHead>
+                  <TableHead>Ficha</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -501,18 +536,18 @@ setLoading(true);
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-6 text-center">
+                  <TableCell colSpan={6} className="py-6 text-center">
                     Carregando...
                   </TableCell>
                 </TableRow>
-              ) : membros.length === 0 ? (
+              ) : membrosFiltrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-6 text-center">
+                  <TableCell colSpan={6} className="py-6 text-center">
                     Nenhuma pessoa cadastrada.
                   </TableCell>
                 </TableRow>
               ) : (
-                membros.map((m) => (
+                membrosFiltrados.map((m) => (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.nome}</TableCell>
                     <TableCell>{m.email}</TableCell>
@@ -525,8 +560,19 @@ setLoading(true);
                         ? "Síndico"
                         : m.role === "PORTEIRO"
                         ? "Porteiro"
+                          : m.role === "ZELADOR"
+                          ? "Zelador"
                         : "Funcionário"}
                     </TableCell>
+                      <TableCell>
+                        {m.role === "MORADOR" && condominioAtivoId ? (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/cadastros/moradores/${condominioAtivoId}/${m.id}/ficha`}>Abrir</Link>
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>—</Button>
+                        )}
+                      </TableCell>
                     <TableCell>{m.status ?? "—"}</TableCell>
                     <TableCell className="space-x-2 text-right">
                       {m.role !== "SINDICO" && (
@@ -540,6 +586,7 @@ setLoading(true);
               )}
             </TableBody>
           </Table>
+            </Tabs>
         </div>
       </div>
     </AppLayout>

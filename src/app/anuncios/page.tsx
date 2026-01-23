@@ -12,6 +12,8 @@ import { useCondominio } from "@/contexts/CondominioContext";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MensagensSection } from "@/modules/comunicacao/components/MensagensSection";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,8 +157,11 @@ export default function AnunciosPage() {
   
   const canManage = hasRole(session, ["SUPER_ADMIN", "ADMIN", "SINDICO"]);
 
+  const [aba, setAba] = React.useState<"ANUNCIOS" | "MENSAGENS">("ANUNCIOS");
+
+
   return (
-    <AppLayout pageTitle="Anúncios">
+    <AppLayout pageTitle="Comunicação">
       {canManage && (
         <div
           className="mb-8 p-4 rounded-3xl"
@@ -172,16 +177,29 @@ export default function AnunciosPage() {
         </div>
       )}
       
-      <div className={cn("grid gap-6", canManage ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
-        {canManage ? (
-          <>
-            <CreateAnuncioForm />
-            <AnnouncementsList />
-          </>
-        ) : (
-          <AnnouncementsList />
-        )}
-      </div>
+        <Tabs value={aba} onValueChange={(v) => setAba(v as any)} className="space-y-6">
+          <TabsList className="w-full justify-start flex flex-wrap gap-2">
+            <TabsTrigger value="ANUNCIOS">Anúncios</TabsTrigger>
+            <TabsTrigger value="MENSAGENS">Mensagens</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="ANUNCIOS" className="space-y-6">
+            <div className={cn("grid gap-6", canManage ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
+              {canManage ? (
+                <>
+                  <CreateAnuncioForm />
+                  <AnnouncementsList />
+                </>
+              ) : (
+                <AnnouncementsList />
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="MENSAGENS" className="space-y-6">
+              <MensagensSection />
+            </TabsContent>
+        </Tabs>
     </AppLayout>
   );
 }

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 type AreaOpcao = {
   id: string;
@@ -93,7 +94,7 @@ export function AreaCard({
         </div>
 
         {/* TEXTO */}
-        <div className="min-w-0 flex-1 text-foreground">
+        <div className="min-w-0 flex-1 text-left">
           <div className="flex items-start gap-2">
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-foreground">{area.nome}</div>
@@ -108,8 +109,8 @@ export function AreaCard({
           </div>
 
           {selected && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Selecionado
+            <div className="mt-2">
+                <Badge>Selecionado</Badge>
             </div>
           )}
         </div>

@@ -35,7 +35,7 @@ function PrimeiroAcessoInner() {
   const sp = useSearchParams();
 
   // Se você quiser permitir preencher por URL futuramente (ex: ?code=TC-XXXX)
-  const initialCode = useMemo(() => normalizeCode(sp.get("code") || ""), [sp]);
+  const initialCode = useMemo(() => normalizeCode((sp?.get("code") ?? "")), [sp]);
 
   const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);

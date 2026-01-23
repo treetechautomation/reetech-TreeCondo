@@ -1,5 +1,6 @@
 "use client";
 
+import { hasRole } from "@/lib/acl";
 import React, {
   createContext,
   useContext,
@@ -16,7 +17,7 @@ import { collection, query, orderBy, onSnapshot, QueryDocumentSnapshot, Document
 const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
 const LS_UNIDADE = (condominioId: string) => `tc_bloco_${condominioId}_unidade`;
 
-export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ADMIN";
+export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ZELADOR" | "ADMIN" | "ADMIN_CONDOMINIO";
 
 export type Vinculo = {
   condominioId: string;
@@ -63,6 +64,7 @@ const CondominioContext = createContext<CondominioContextType | undefined>(
 
 export function CondominioProvider({ children }: { children: ReactNode }) {
   const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
+  const isSuperAdmin = hasRole(session, ["SUPER_ADMIN"]);
   const firestore = useFirestore();
 
   const condominioAtivoId = session?.activeCondominioId ?? null;
@@ -92,16 +94,20 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     null
   );
 
-  // Se o usuário logar e tiver vínculos mas nenhum condominioAtivoId, escolhe o primeiro
-  useEffect(() => {
-    if (!condominioAtivoId && vinculos.length > 0) {
-      setActiveCondominioId(vinculos[0].condominioId);
+  // Se NÃO for super admin, trava o condomínio no vínculo (primeiro vínculo).
+  React.useEffect(() => {
+    if (isSuperAdmin) return;
+    if (!vinculos || vinculos.length === 0) return;
+
+    const lockedId = vinculos[0].condominioId;
+    if (!lockedId) return;
+
+    // se estiver vazio ou diferente, força para o condomínio do vínculo
+    if (!condominioAtivoId || condominioAtivoId !== lockedId) {
+      setActiveCondominioId(lockedId);
     }
-  }, [condominioAtivoId, vinculos, setActiveCondominioId]);
-
-  
-
-  // FIX_AUTOPICK_CONDO_FROM_MEMBRO:
+  }, [isSuperAdmin, condominioAtivoId, vinculos, setActiveCondominioId]);
+// FIX_AUTOPICK_CONDO_FROM_MEMBRO:
   // Se não vier "vinculos" no session (ex: morador novo), tenta descobrir o condomínio
   // olhando o doc: condominios/{condId}/membros/{uid} (status ATIVO)
   React.useEffect(() => {
@@ -268,7 +274,8 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   const handleSetCondominioAtivoId = useCallback(
     (id: string | null) => {
-      setActiveCondominioId(id);
+            if (!isSuperAdmin) return; // somente SUPER_ADMIN pode trocar condomínio ativo
+setActiveCondominioId(id);
       if (!id) return;
 
       // Quando troca de condomínio, limpamos seleções antigas

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FirebaseApp, initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, type Auth, type User } from "firebase/auth";
+import { firebaseConfig } from "./config";
 import {
   getFirestore,
   type Firestore,
@@ -195,3 +196,7 @@ export function useUser() {
 
 // re-exports de hooks
 export { useAuth } from "./hooks/useAuth";
+
+export function getFirebaseApp() {
+  return getApps().length ? getApp() : initializeApp(firebaseConfig);
+}

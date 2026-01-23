@@ -1,6 +1,6 @@
 import type { Session } from "@/hooks/useSession";
 
-export type Role = "SUPER_ADMIN" | "ADMIN" | "SINDICO" | "PORTEIRO" | "MORADOR";
+export type Role = "SUPER_ADMIN" | "ADMIN" | "ADMIN_CONDOMINIO" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "MORADOR";
 
 /**
  * ACL simples e robusta baseada na role resolvida da sessão.

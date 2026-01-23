@@ -70,20 +70,8 @@ export default function ReservasPage() {
   }, [reservas, areaFilter]);
 
   const reservasVisiveis = React.useMemo(() => {
-    const base = reservasFiltradas || [];
-
-    // Admin/Síndico vê tudo
-    if (isAdminLike) return base;
-
-    // Morador vê somente as próprias reservas (qualquer status)
-    if (role === "MORADOR") {
-      const myUid = user?.uid || "";
-      return base.filter((r: any) => (r?.uid || r?.userId || "") === myUid);
-    }
-
-    // Outros perfis "não admin" (se existirem) vêem só aprovadas
-    return base.filter((r: any) => String(r.status) === "APROVADA");
-  }, [reservasFiltradas, isAdminLike, role, user?.uid]);
+    return reservasFiltradas || [];
+  }, [reservasFiltradas]);
 
 React.useEffect(() => {
     let cancelled = false;
@@ -301,36 +289,6 @@ React.useEffect(() => {
             ) : (
               <div className="mt-4 space-y-2">
                 {reservasVisiveis.map((r: any) => {
-                  // MORADOR/SINDICO: vê botão de Convidados quando a reserva estiver APROVADA
-                  if (isMoradorLike && String(r.status) === "APROVADA") {
-                    return (
-                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium">
-                            Área: <span className="text-muted-foreground">{r.areaId}</span>
-                          </div>
-                          <div className="text-sm">
-                            Status: <span className="font-semibold">{r.status}</span>
-                          </div>
-                        </div>
-
-                        <div className="text-sm text-muted-foreground">
-                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2">
-                          <Button asChild variant="outline">
-                            <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
-                          </Button>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground">
-                          Reserva ID: {r.id}
-                        </div>
-                      </div>
-                    );
-                  }
-
                   if (isAdminLike) {
                     const m = membrosByUid[r.uid] || null;
                     const nome = m?.nome || m?.displayName || m?.name || "";
@@ -361,18 +319,52 @@ React.useEffect(() => {
                         </div>
                       </div>
                     );
-                  } else {
-                    return (
-                      <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
-                        <div className="font-medium">
-                          Área: <span className="text-muted-foreground">{r.areaId}</span>
+                  }
+
+                  // MORADOR
+                  if (meuUid && r.uid === meuUid) {
+                    const isAprovada = String(r.status) === "APROVADA";
+                     return (
+                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium">
+                            Área: <span className="text-muted-foreground">{r.areaId}</span>
+                          </div>
+                          <div className="text-sm">
+                            Status: <span className="font-semibold">{r.status}</span>
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold text-primary">
-                          Reservado
+
+                        <div className="text-sm text-muted-foreground">
+                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
+                        </div>
+
+                        {isAprovada && (
+                            <div className="flex items-center justify-end gap-2">
+                                <Button asChild variant="outline">
+                                    <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
+                                </Button>
+                            </div>
+                        )}
+
+                        <div className="text-xs text-muted-foreground">
+                          Reserva ID: {r.id}
                         </div>
                       </div>
                     );
                   }
+
+                  // Outros moradores veem apenas que está reservado
+                  return (
+                    <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
+                      <div className="font-medium">
+                        Área: <span className="text-muted-foreground">{r.areaId}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-primary">
+                        Reservado
+                      </div>
+                    </div>
+                  );
                 })}
               </div>
             )}

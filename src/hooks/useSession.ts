@@ -6,8 +6,8 @@ import type { User } from "firebase/auth";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { useUser, useClaims, useFirestore } from "@/firebase";
 
-export type RoleKey = "SUPER_ADMIN" | "SINDICO" | "ADMIN" | "PORTEIRO" | "MORADOR";
-export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ADMIN";
+export type RoleKey = "SUPER_ADMIN" | "SINDICO" | "ADMIN" | "ADMIN_CONDOMINIO" | "PORTEIRO" | "ZELADOR" | "MORADOR";
+export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ZELADOR" | "ADMIN" | "ADMIN_CONDOMINIO";
 
 export type Vinculo = {
   condominioId: string;
@@ -33,7 +33,8 @@ function resolveRole(superAdmin: boolean, vinculoAtivo: Vinculo | null): RoleKey
   if (!vinculoAtivo) return "MORADOR"; // Fallback seguro
   if (vinculoAtivo.role === "SINDICO") return "SINDICO";
   if (vinculoAtivo.role === "PORTEIRO") return "PORTEIRO";
-  if (vinculoAtivo.role === "ADMIN") return "ADMIN";
+  if (vinculoAtivo.role === "ZELADOR") return "ZELADOR";
+  if (vinculoAtivo.role === "ADMIN" || vinculoAtivo.role === "ADMIN_CONDOMINIO") return "ADMIN";
   return "MORADOR";
 }
 

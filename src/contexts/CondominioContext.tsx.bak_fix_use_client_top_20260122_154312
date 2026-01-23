@@ -1,0 +1,356 @@
+import { hasRole } from "@/lib/acl";
+"use client";
+
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  ReactNode,
+} from "react";
+import { useSessionCtx } from "./SessionContext";
+import { useFirestore } from "@/firebase";
+import { collection, query, orderBy, onSnapshot, QueryDocumentSnapshot, DocumentData, getDocs, doc, getDoc } from "firebase/firestore";
+
+const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
+const LS_UNIDADE = (condominioId: string) => `tc_bloco_${condominioId}_unidade`;
+
+export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ZELADOR" | "ADMIN" | "ADMIN_CONDOMINIO";
+
+export type Vinculo = {
+  condominioId: string;
+  role: VinculoRole;
+  blocoId?: string | null;
+  unidadeId?: string | null;
+  status: "ATIVO" | "INATIVO";
+};
+
+export type Bloco = {
+  id: string;
+  nome: string;
+  ordem?: number | null;
+};
+
+export type Unidade = {
+  id: string;
+  numero: string;
+  blocoId: string;
+};
+
+type CondominioContextType = {
+  condominioAtivoId: string | null;
+  setCondominioAtivoId: (id: string | null) => void;
+
+  vinculos: Vinculo[];
+  vinculoAtivo: Vinculo | null;
+  isLoadingVinculos: boolean;
+
+  blocos: Bloco[];
+  isLoadingBlocos: boolean;
+  blocoAtivoId: string | null;
+  setBlocoAtivoId: (id: string | null) => void;
+
+  unidades: Unidade[];
+  isLoadingUnidades: boolean;
+  unidadeAtivaId: string | null;
+  setUnidadeAtivaId: (id: string | null) => void;
+};
+
+const CondominioContext = createContext<CondominioContextType | undefined>(
+  undefined
+);
+
+export function CondominioProvider({ children }: { children: ReactNode }) {
+  const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
+  const isSuperAdmin = hasRole(session, ["SUPER_ADMIN"]);
+  const firestore = useFirestore();
+
+  const condominioAtivoId = session?.activeCondominioId ?? null;
+
+  // --- Vínculos (vem da Session) ---
+  const vinculos: Vinculo[] = useMemo(
+    () => ((session as any)?.vinculos as Vinculo[] | undefined) ?? [],
+    [session]
+  );
+  const isLoadingVinculos = isSessionLoading;
+
+  const vinculoAtivo = useMemo(() => {
+    if (!condominioAtivoId) return null;
+    return (
+      vinculos.find((v) => v.condominioId === condominioAtivoId) ?? null
+    );
+  }, [vinculos, condominioAtivoId]);
+
+  // --- Blocos / Unidades (estado local) ---
+  const [blocos, setBlocos] = useState<Bloco[]>([]);
+  const [isLoadingBlocos, setIsLoadingBlocos] = useState(false);
+  const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(null);
+
+  const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [isLoadingUnidades, setIsLoadingUnidades] = useState(false);
+  const [unidadeAtivaId, setUnidadeAtivaIdState] = useState<string | null>(
+    null
+  );
+
+  // Se NÃO for super admin, trava o condomínio no vínculo (primeiro vínculo).
+  React.useEffect(() => {
+    if (isSuperAdmin) return;
+    if (!vinculos || vinculos.length === 0) return;
+
+    const lockedId = vinculos[0].condominioId;
+    if (!lockedId) return;
+
+    // se estiver vazio ou diferente, força para o condomínio do vínculo
+    if (!condominioAtivoId || condominioAtivoId !== lockedId) {
+      setActiveCondominioId(lockedId);
+    }
+  }, [isSuperAdmin, condominioAtivoId, vinculos, setActiveCondominioId]);
+// FIX_AUTOPICK_CONDO_FROM_MEMBRO:
+  // Se não vier "vinculos" no session (ex: morador novo), tenta descobrir o condomínio
+  // olhando o doc: condominios/{condId}/membros/{uid} (status ATIVO)
+  React.useEffect(() => {
+    const run = async () => {
+      if (!firestore) return;
+      if (!session?.user) return;
+      if (condominioAtivoId) return;
+
+      // se já tem vínculos, o outro effect cuida
+      if (Array.isArray(vinculos) && vinculos.length > 0) return;
+
+      try {
+        // 1) lista condomínios públicos
+        const pubsQ = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
+        const pubsSnap = await getDocs(pubsQ);
+
+        for (const d of pubsSnap.docs) {
+          const condId = d.id;
+
+          // 2) testa se existe membro ATIVO para este usuário
+          const mref = doc(firestore, "condominios", condId, "membros", session.user.uid);
+          const ms = await getDoc(mref);
+
+          if (ms.exists()) {
+            const data = ms.data() as any;
+            if (data?.status === "ATIVO") {
+              setActiveCondominioId(condId);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[CondominioContext] autopick condo fallback falhou:", e);
+      }
+    };
+
+    run();
+  }, [firestore, session?.user, condominioAtivoId, vinculos, setActiveCondominioId]);
+
+// Restaurar bloco/unidade do localStorage quando trocar de condomínio
+  useEffect(() => {
+    if (!condominioAtivoId) {
+      setBlocoAtivoIdState(null);
+      setUnidadeAtivaIdState(null);
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+
+    const savedBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
+    const savedUnidade = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
+
+    setBlocoAtivoIdState(savedBloco || null);
+    setUnidadeAtivaIdState(savedUnidade || null);
+  }, [condominioAtivoId]);
+
+  // Listener de blocos do condomínio ativo
+  useEffect(() => {
+    if (!firestore || !condominioAtivoId) {
+      setBlocos([]);
+      return;
+    }
+
+    setIsLoadingBlocos(true);
+
+    const q = query(
+      collection(firestore, `condominios/${condominioAtivoId}/blocos`),
+      orderBy("ordem")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Bloco[] = snapshot.docs.map(
+          (doc: QueryDocumentSnapshot<DocumentData>) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Bloco, "id">),
+          })
+        );
+        setBlocos(list);
+        setIsLoadingBlocos(false);
+
+        // Se não há bloco selecionado, tenta restaurar do LS ou pegar o primeiro
+        if (!blocoAtivoId) {
+          if (typeof window !== "undefined") {
+            const savedBloco = localStorage.getItem(
+              LS_BLOCO(condominioAtivoId)
+            );
+            if (savedBloco && list.find((b) => b.id === savedBloco)) {
+              setBlocoAtivoIdState(savedBloco);
+              return;
+            }
+          }
+          if (list.length > 0) {
+            setBlocoAtivoIdState(list[0].id);
+          }
+        }
+      },
+      (error) => {
+        console.error("Erro ao buscar blocos:", error);
+        setIsLoadingBlocos(false);
+      }
+    );
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firestore, condominioAtivoId]);
+
+  // Listener de unidades do bloco ativo
+  useEffect(() => {
+    if (!firestore || !condominioAtivoId || !blocoAtivoId) {
+      setUnidades([]);
+      return;
+    }
+
+    setIsLoadingUnidades(true);
+
+    const q = query(
+      collection(
+        firestore,
+        `condominios/${condominioAtivoId}/blocos/${blocoAtivoId}/unidades`
+      ),
+      orderBy("numero")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Unidade[] = snapshot.docs.map(
+          (doc: QueryDocumentSnapshot<DocumentData>) => ({
+            id: doc.id,
+            blocoId: blocoAtivoId,
+            ...(doc.data() as Omit<Unidade, "id" | "blocoId">),
+          })
+        );
+        setUnidades(list);
+        setIsLoadingUnidades(false);
+
+        // Se não há unidade selecionada, tenta restaurar ou pegar a primeira
+        if (!unidadeAtivaId) {
+          if (typeof window !== "undefined") {
+            const savedUnidade = localStorage.getItem(
+              LS_UNIDADE(condominioAtivoId)
+            );
+            if (savedUnidade && list.find((u) => u.id === savedUnidade)) {
+              setUnidadeAtivaIdState(savedUnidade);
+              return;
+            }
+          }
+          if (list.length > 0) {
+            setUnidadeAtivaIdState(list[0].id);
+          }
+        }
+      },
+      (error) => {
+        console.error("Erro ao buscar unidades:", error);
+        setIsLoadingUnidades(false);
+      }
+    );
+
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firestore, condominioAtivoId, blocoAtivoId]);
+
+  const handleSetCondominioAtivoId = useCallback(
+    (id: string | null) => {
+            if (!isSuperAdmin) return; // somente SUPER_ADMIN pode trocar condomínio ativo
+setActiveCondominioId(id);
+      if (!id) return;
+
+      // Quando troca de condomínio, limpamos seleções antigas
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(LS_BLOCO(id));
+        localStorage.removeItem(LS_UNIDADE(id));
+      }
+      setBlocoAtivoIdState(null);
+      setUnidadeAtivaIdState(null);
+    },
+    [setActiveCondominioId]
+  );
+
+  const handleSetBlocoAtivoId = useCallback(
+    (id: string | null) => {
+      setBlocoAtivoIdState(id);
+      setUnidadeAtivaIdState(null);
+
+      if (typeof window !== "undefined" && condominioAtivoId) {
+        if (id) {
+          localStorage.setItem(LS_BLOCO(condominioAtivoId), id);
+        } else {
+          localStorage.removeItem(LS_BLOCO(condominioAtivoId));
+        }
+        localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+      }
+    },
+    [condominioAtivoId]
+  );
+
+  const handleSetUnidadeAtivaId = useCallback(
+    (id: string | null) => {
+      setUnidadeAtivaIdState(id);
+
+      if (typeof window !== "undefined" && condominioAtivoId) {
+        if (id) {
+          localStorage.setItem(LS_UNIDADE(condominioAtivoId), id);
+        } else {
+          localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+        }
+      }
+    },
+    [condominioAtivoId]
+  );
+
+  const value: CondominioContextType = {
+    condominioAtivoId,
+    setCondominioAtivoId: handleSetCondominioAtivoId,
+
+    vinculos,
+    vinculoAtivo,
+    isLoadingVinculos,
+
+    blocos,
+    isLoadingBlocos,
+    blocoAtivoId,
+    setBlocoAtivoId: handleSetBlocoAtivoId,
+
+    unidades,
+    isLoadingUnidades,
+    unidadeAtivaId,
+    setUnidadeAtivaId: handleSetUnidadeAtivaId,
+  };
+
+  return (
+    <CondominioContext.Provider value={value}>
+      {children}
+    </CondominioContext.Provider>
+  );
+}
+
+export function useCondominio() {
+  const ctx = useContext(CondominioContext);
+  if (!ctx) {
+    throw new Error("useCondominio must be used within CondominioProvider");
+  }
+  return ctx;
+}
