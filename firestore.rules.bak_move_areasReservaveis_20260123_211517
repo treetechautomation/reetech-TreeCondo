@@ -84,15 +84,6 @@ service cloud.firestore {
     // -------------------------
     match /condominios/{condominioId} {
 
-      // -------------------------
-      // Áreas Reserváveis
-      // -------------------------
-      match /areasReservaveis/{areaId} {
-        allow read: if isSuper() || isMembroAtivo(condominioId);
-        allow create, update, delete: if canManageCondo(condominioId);
-      }
-
-
       allow read: if isSuper() || isMembroAtivo(condominioId);
       allow create, update, delete: if isSuper();
 
@@ -101,6 +92,11 @@ service cloud.firestore {
       // - leitura: qualquer membro ativo do condomínio
       // - escrita: admin/síndico (canManageCondo)
       // -------------------------
+      match /areasReservaveis/{areaId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create, update, delete: if canManageCondo(condominioId);
+      }
+
       match /membros/{uid} {
         allow read: if isSuper()
                     || (signedIn() && request.auth.uid == uid)
@@ -229,3 +225,4 @@ service cloud.firestore {
       }
     }
   }
+}

@@ -19,6 +19,12 @@ export type AreaOpcao = {
   bloqueiaAreaId?: string | null;
 };
 
+// HELPER to safely convert to number
+function toNum(v: any, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function brlFromCentavos(v: number) {
   const n = Number(v || 0) / 100;
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -77,10 +83,10 @@ export function AreaOpcaoDialog({
       bloqueiaAreaId: null as string | null,
       isBase: true,
     };
-    const opts = (opcoes || []).map((o) => ({
+    const opts = (opcoes || []).map((o: any) => ({
       id: String(o.id),
       nome: String(o.nome),
-      preco: Number(o.preco || 0),
+      preco: toNum(o.preco ?? o.valorCobrado ?? o.valor ?? 0, 0),
       bloqueiaAreaId: (o.bloqueiaAreaId ?? null) as string | null,
       isBase: false,
     }));
