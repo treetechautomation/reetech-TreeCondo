@@ -85,9 +85,7 @@ export default function ReservasPage() {
       }
 
       loadPoliticas();
-      return () => {
-        cancelledP = true;
-      };
+      return () => { cancelledP = true; };
     }, [firestore, condId]);
 
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
@@ -221,7 +219,7 @@ React.useEffect(() => {
 
 
         const areaSel = (areas || []).find((a: any) => String(a.id) === String(selectedAreaId)) ?? null;
-        const capacidadeMaxSel = (Number.isFinite(Number(areaSel?.capacidadeMax)) ? Number(areaSel?.capacidadeMax) : null);
+        const capacidadeMaxSnapshot = Number(areaSel?.capacidadeMax ?? areaSel?.capacidade ?? 0) || null;
       await addDoc(collection(firestore, "condominios", condId, "reservas"), {
         areaId: selectedAreaId,
         condominioId: condId,
@@ -233,7 +231,7 @@ React.useEffect(() => {
           precisaAprovacao: precisaAprovacao,
         opcaoId: selectedOpcaoMeta.opcaoId,
         opcaoNome: selectedOpcaoMeta.opcaoNome,
-          capacidadeMax: capacidadeMaxSel,
+          capacidadeMax: capacidadeMaxSnapshot,
       });
 
       alert("✅ Reserva enviada (PENDENTE).");

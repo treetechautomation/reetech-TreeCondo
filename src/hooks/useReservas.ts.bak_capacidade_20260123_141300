@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { getApp } from "firebase/app";
 import { useFirestore } from "@/firebase";
 import {
   collection,
@@ -34,9 +33,8 @@ export type AreaReservavel = {
   permiteAte?: number | null; // ex: 24
   opcoes?: AreaOpcao[] | null;
   fotoUrl?: string | null; // opcional (pra imagem)
-  capacidadeMax?: number | null;
-    fotoHint?: string | null;
-  };
+  fotoHint?: string | null;
+};
 
 export type Reserva = {
   id: string;
@@ -50,15 +48,14 @@ export type Reserva = {
   criadoEm?: Timestamp;
 };
 
-
-
-
-const areaNomeFallback: Record<string, string> = {
-  salao_festas: "Salao de Festas",
-  churrasqueira_1: "Churrasqueira 1",
-  churrasqueira_2: "Churrasqueira 2",
-  campo_quadra: "Campo",
+const areaImageMap: Record<string, string> = {
+    churrasqueira_1: 'churrasqueira-1',
+    churrasqueira_2: 'churrasqueira-2',
+    'campo_quadra': 'campo-quadra',
+    'salao_de_festas': 'salao-festas',
 };
+
+
 function startOfDayUTC(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 0, 0, 0, 0));
@@ -84,14 +81,6 @@ export function useReservas(condominioId: string | null, dateStr: string) {
   const firestoreRaw = useFirestore();
   const firestore = React.useMemo(() => resolveFirestore(firestoreRaw), [firestoreRaw]);
 
-  const storage = React.useMemo(() => {
-    try {
-      return getStorage(getApp());
-    } catch (e) {
-      return null;
-    }
-  }, []);
-
   const [areas, setAreas] = React.useState<AreaReservavel[]>([]);
   const [areaStorageUrls, setAreaStorageUrls] = React.useState<Record<string, string>>({});
   const [reservas, setReservas] = React.useState<Reserva[]>([]);
@@ -99,101 +88,59 @@ export function useReservas(condominioId: string | null, dateStr: string) {
   const [loadingReservas, setLoadingReservas] = React.useState(true);
 
   React.useEffect(() => {
-  if (!firestore || !condominioId) {
-    setAreas([]);
-    setLoadingAreas(false);
-    return;
-  }
+    if (!condominioId) {
+      setAreas([]);
+      setLoadingAreas(false);
+      return;
+    }
 
-  let alive = true;
-  setLoadingAreas(true);
+    // Se firestore vier inválido, evita quebrar a tela
+    if (!firestore) {
+      setAreas([]);
+      setLoadingAreas(false);
+      return;
+    }
 
-  const refCol = collection(firestore, "condominios", condominioId, "areasReservaveis");
+    setLoadingAreas(true);
 
-  const unsub = onSnapshot(
-    refCol,
-    async (snap) => {
-      try {
+    const ref = collection(firestore, "condominios", condominioId, "areasReservaveis");
+    const qy = query(ref);
+
+    return onSnapshot(
+      qy,
+      (snap) => {
         const list: AreaReservavel[] = snap.docs.map((d) => {
           const data = d.data() as any;
 
-          const fotoPath = (data.fotoPath || data.fotoStoragePath || null) as string | null;
-          const fotoUrl = (data.fotoUrl || data.imagemUrl || null) as string | null;
-
-          const base = `condominios/${String(condominioId)}/areas/${String(d.id)}`;
-          const imgPathCandidates = [
-            fotoPath,
-            `${base}.jpeg`,
-            `${base}.jpg`,
-            `${base}.png`,
-          ].filter(Boolean);
+          const imageId = areaImageMap[d.id];
+          const placeholder = PlaceHolderImages.find(p => p.id === imageId);
 
           return {
             id: d.id,
-            nome: String(data.nome ?? data.titulo ?? areaNomeFallback[String(d.id)] ?? d.id),
+            nome: String(data.nome ?? d.id),
             descricao: data.descricao ?? null,
+            preco: toNum(data.preco ?? data.valorCentavos ?? 0),
             ativo: Boolean(data.ativo ?? true),
-            capacidadeMax: (Number.isFinite(Number(data.capacidadeMax)) ? Number(data.capacidadeMax) : null),
-            preco: (Number.isFinite(Number(data.preco)) ? Number(data.preco) : (Number.isFinite(Number(data.valorBaseCentavos)) ? Number(data.valorBaseCentavos) : 0)),
-            opcoes: Array.isArray(data.opcoes) ? data.opcoes : null,
-            fotoUrl: fotoUrl ?? null,
-            fotoHint: imgPathCandidates.length ? String(imgPathCandidates[0]) : null,
-          } as any;
+            tipo: data.tipo ?? null,
+            diaInteiro: data.diaInteiro ?? false,
+            horaInicio: data.horaInicio ?? null,
+            horaFim: data.horaFim ?? null,
+            permiteAte: (data.horaFim ?? data.permiteAte ?? null) as any,
+            opcoes: (data.opcoes ?? null) as any,
+            fotoUrl: (data.fotoUrl ?? areaStorageUrls[d.id] ?? placeholder?.imageUrl ?? null) as any,
+            fotoHint: (placeholder?.imageHint ?? null) as any,
+          };
         });
 
-        // resolve urls (storage) só para itens que não têm fotoUrl, e ainda não estão no cache
-        const pending = list.filter((a: any) => !a.fotoUrl && a.fotoHint && !areaStorageUrls[a.id]);
-
-        if (storage && pending.length) {
-          const updates: Record<string, string> = {};
-          for (const a of pending) {
-            try {
-              const url = await getDownloadURL(storageRef(storage, String(a.fotoHint)));
-              updates[a.id] = url;
-            } catch (e) {
-              // ignora se não existe, não quebra a tela
-            }
-          }
-          if (alive && Object.keys(updates).length) {
-            setAreaStorageUrls((prev) => ({ ...prev, ...updates }));
-          }
-        }
-
-        // aplica urls resolvidas ao list
-        const withImgs = list.map((a: any) => ({
-          ...a,
-          fotoUrl: a.fotoUrl || areaStorageUrls[a.id] || null,
-        }));
-
-        if (alive) {
-          
-          const allowedIds = new Set(["salao_festas","churrasqueira_1","churrasqueira_2"].map(x => String(x).trim().toLowerCase()));
-          // Mostra só as áreas principais no front (o campo continua existindo para bloqueio/agenda)
-          setAreas(withImgs.filter((a: any) => a.ativo && allowedIds.has(String(a.id).trim().toLowerCase())));
-          setLoadingAreas(false);
-        }
-      } catch (e) {
-        console.error("[useReservas] erro ao montar areas:", e);
-        if (alive) {
-          setAreas([]);
-          setLoadingAreas(false);
-        }
-      }
-    },
-    (err) => {
-      console.error("[useReservas] snapshot areas erro:", err);
-      if (alive) {
+        setAreas(list.filter((a) => a.ativo));
+        setLoadingAreas(false);
+      },
+      () => {
         setAreas([]);
         setLoadingAreas(false);
-      }
-    }
-  );
-
-  return () => {
-    alive = false;
-    unsub();
-  };
-}, [firestore, storage, condominioId, areaStorageUrls]);
+      },
+    );
+  }, [firestore, condominioId, areaStorageUrls]);
 
   React.useEffect(() => {
     if (!condominioId) {

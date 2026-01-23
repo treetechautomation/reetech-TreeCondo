@@ -14,7 +14,7 @@ import { useFirestore } from "@/firebase";
 import { addDoc, collection, Timestamp, serverTimestamp, getDoc, doc } from "firebase/firestore";
 import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
 
-import { isSunday, getStatusForNewReserva, requiresApproval, getPoliticasReservas, type ReservasPoliticas } from "@/lib/reservasPoliticas";
+import { isSunday, getStatusForNewReserva, requiresApproval } from "@/lib/reservasPoliticas";
 function moneyBRLFromCentavos(v?: number) {
   const n = Number(v ?? 0) / 100;
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -62,33 +62,6 @@ export default function ReservasPage() {
   const [isCreating, setIsCreating] = React.useState(false);
 
   const { areas, reservas, loadingAreas, loadingReservas } = useReservas(condId, dateStr);
-
-
-    const [politicas, setPoliticas] = React.useState<ReservasPoliticas | null>(null);
-
-    // carrega políticas de reserva por condomínio (dinâmico)
-    React.useEffect(() => {
-      let cancelledP = false;
-
-      async function loadPoliticas() {
-        try {
-          if (!firestore || !condId) {
-            if (!cancelledP) setPoliticas(null);
-            return;
-          }
-          const p = await getPoliticasReservas(firestore, condId);
-          if (!cancelledP) setPoliticas(p);
-        } catch (e) {
-          console.error("[Reservas] erro ao carregar politicas:", e);
-          if (!cancelledP) setPoliticas(null);
-        }
-      }
-
-      loadPoliticas();
-      return () => {
-        cancelledP = true;
-      };
-    }, [firestore, condId]);
 
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
 
@@ -183,7 +156,7 @@ React.useEffect(() => {
   async function handleSolicitarReserva() {
       if (!podeVer || !podeReservar) return;
 
-      if ((politicas?.bloquearDomingo ?? true) && isSunday(dateStr)) {
+      if (isSunday(dateStr)) {
         alert("❌ Não é permitido fazer reservas aos domingos.");
         return;
       }
@@ -197,8 +170,8 @@ React.useEffect(() => {
         return;
       }
 
-      const statusInicial = getStatusForNewReserva(dateStr, politicas || { bloquearDomingo: true, autoAprovarAposHoras: 24, exigirAprovacaoQuandoMenosQueHoras: 24, cancelamentoMinHoras: 48 });
-      const precisaAprovacao = requiresApproval(dateStr, politicas || { bloquearDomingo: true, autoAprovarAposHoras: 24, exigirAprovacaoQuandoMenosQueHoras: 24, cancelamentoMinHoras: 48 });
+      const statusInicial = getStatusForNewReserva(dateStr);
+      const precisaAprovacao = requiresApproval(dateStr);
 
       setIsChecking(true);
     try {
@@ -219,9 +192,6 @@ React.useEffect(() => {
     try {
       const dataIni = startOfDayUTC(dateStr);
 
-
-        const areaSel = (areas || []).find((a: any) => String(a.id) === String(selectedAreaId)) ?? null;
-        const capacidadeMaxSel = (Number.isFinite(Number(areaSel?.capacidadeMax)) ? Number(areaSel?.capacidadeMax) : null);
       await addDoc(collection(firestore, "condominios", condId, "reservas"), {
         areaId: selectedAreaId,
         condominioId: condId,
@@ -233,7 +203,6 @@ React.useEffect(() => {
           precisaAprovacao: precisaAprovacao,
         opcaoId: selectedOpcaoMeta.opcaoId,
         opcaoNome: selectedOpcaoMeta.opcaoNome,
-          capacidadeMax: capacidadeMaxSel,
       });
 
       alert("✅ Reserva enviada (PENDENTE).");

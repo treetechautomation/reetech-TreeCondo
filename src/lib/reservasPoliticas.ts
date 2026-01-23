@@ -1,45 +1,71 @@
-import { Timestamp } from "firebase/firestore";
+import { doc, getDoc, type Firestore } from "firebase/firestore";
 
-/**
- * Política TreeCondo - Reservas
- * - Não permite reservas aos domingos
- * - Dentro de 24h: precisa aprovação (status PENDENTE_APROVACAO)
- * - A partir de 24h: não precisa aprovação (status APROVADA)
- * - Cancelamento: só até 48h antes do início
- */
+export type ReservasPoliticas = {
+  bloquearDomingo: boolean;
+  autoAprovarAposHoras: number; // >= 24 => auto aprova
+  exigirAprovacaoQuandoMenosQueHoras: number; // < 24 => exige aprovação
+  cancelamentoMinHoras: number; // 48h
+};
 
-export function parseLocalDateStr(dateStr: string) {
-  // dateStr = "YYYY-MM-DD"
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0); // meia-noite LOCAL
-}
+const DEFAULTS: ReservasPoliticas = {
+  bloquearDomingo: true,
+  autoAprovarAposHoras: 24,
+  exigirAprovacaoQuandoMenosQueHoras: 24,
+  cancelamentoMinHoras: 48,
+};
 
 export function isSunday(dateStr: string) {
-  const dt = parseLocalDateStr(dateStr);
-  return dt.getDay() === 0; // 0 = domingo
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12, 0, 0, 0));
+  return dt.getUTCDay() === 0; // 0 = domingo
 }
 
-export function hoursUntilLocalDayStart(dateStr: string, now = new Date()) {
-  const start = parseLocalDateStr(dateStr).getTime();
-  const diffMs = start - now.getTime();
+function hoursFromNowTo(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const target = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12, 0, 0, 0)); // meio-dia UTC
+  const now = new Date();
+  const diffMs = target.getTime() - now.getTime();
   return diffMs / (1000 * 60 * 60);
 }
 
-export function requiresApproval(dateStr: string, now = new Date()) {
-  // regra: dentro de 24h precisa aprovação
-  const hrs = hoursUntilLocalDayStart(dateStr, now);
-  return hrs < 24;
+export async function getPoliticasReservas(
+  firestore: Firestore,
+  condominioId: string
+): Promise<ReservasPoliticas> {
+  try {
+    const ref = doc(firestore, "condominios", condominioId, "config", "reservas");
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return DEFAULTS;
+
+    const d = snap.data() as any;
+
+    return {
+      bloquearDomingo: Boolean(d.bloquearDomingo ?? DEFAULTS.bloquearDomingo),
+      autoAprovarAposHoras: Number(d.autoAprovarAposHoras ?? DEFAULTS.autoAprovarAposHoras),
+      exigirAprovacaoQuandoMenosQueHoras: Number(
+        d.exigirAprovacaoQuandoMenosQueHoras ?? DEFAULTS.exigirAprovacaoQuandoMenosQueHoras
+      ),
+      cancelamentoMinHoras: Number(d.cancelamentoMinHoras ?? DEFAULTS.cancelamentoMinHoras),
+    };
+  } catch {
+    return DEFAULTS;
+  }
 }
 
-export function getStatusForNewReserva(dateStr: string, now = new Date()) {
-  return requiresApproval(dateStr, now) ? "PENDENTE_APROVACACAO" : "APROVADA";
+// Retorna "APROVADA" quando não precisa aprovação
+export function getStatusForNewReserva(dateStr: string, politicas: ReservasPoliticas) {
+  const hrs = hoursFromNowTo(dateStr);
+  if (hrs >= politicas.autoAprovarAposHoras) return "APROVADA";
+  return "PENDENTE";
 }
 
-/**
- * Cancelamento: somente até 48h antes do início (data da reserva).
- */
-export function canCancelReserva(reservaData: Timestamp | Date, now = new Date(), hours = 48) {
-  const dt = reservaData instanceof Date ? reservaData : reservaData.toDate();
-  const diffMs = dt.getTime() - now.getTime();
-  return diffMs >= hours * 60 * 60 * 1000;
+export function requiresApproval(dateStr: string, politicas: ReservasPoliticas) {
+  const hrs = hoursFromNowTo(dateStr);
+  return hrs < politicas.exigirAprovacaoQuandoMenosQueHoras;
+}
+
+// Útil para regras de cancelamento no futuro
+export function canCancelReserva(dateStr: string, politicas: ReservasPoliticas) {
+  const hrs = hoursFromNowTo(dateStr);
+  return hrs >= politicas.cancelamentoMinHoras;
 }

@@ -111,6 +111,14 @@ const { session, isSessionLoading } = useSessionCtx();
       String(reservaId),
       "convidados"
     );
+
+
+        await addDoc(ref, {
+          nome: n,
+          cpf: c ? c : null,
+          status: "PENDENTE",
+          createdAt: serverTimestamp(),
+        });
     const q = query(ref, orderBy("createdAt", "asc"));
 
     const unsub = onSnapshot(
@@ -205,13 +213,6 @@ const { session, isSessionLoading } = useSessionCtx();
         String(reservaId),
         "convidados"
       );
-
-        await addDoc(ref, {
-          nome: n,
-          cpf: c ? c : null,
-          status: "PENDENTE",
-          createdAt: serverTimestamp(),
-        });
         setNome("");
         setCpf("");
 } catch (e) {

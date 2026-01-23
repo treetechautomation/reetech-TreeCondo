@@ -31,37 +31,23 @@ export async function isDiaDisponivelPorArea(
   // OBS: não colocamos "status" no query pra evitar exigir novo índice.
   const q = query(
     collection(firestore, "condominios", condominioId, "reservas"),
+    where("areaId", "==", areaId),
     where("data", ">=", Timestamp.fromDate(ini)),
     where("data", "<", Timestamp.fromDate(fim))
   );
-const snap = await getDocs(q);
 
-  let totalNoDia = 0;
+  const snap = await getDocs(q);
+
   let bloqueando = 0;
-
   snap.forEach((doc) => {
     const data = doc.data() as any;
     const status = String(data?.status ?? "");
-
-    const areaDaReserva = String(data?.areaId ?? "");
-    const bloqueiaAreaId = data?.bloqueiaAreaId != null ? String(data.bloqueiaAreaId) : "";
-    const bloqueiaAreaIds = Array.isArray(data?.bloqueiaAreaIds) ? data.bloqueiaAreaIds.map((x: any) => String(x)) : [];
-
-    const afetaEstaArea =
-      areaDaReserva === String(areaId) ||
-      bloqueiaAreaId === String(areaId) ||
-      bloqueiaAreaIds.includes(String(areaId));
-
-    if (!afetaEstaArea) return;
-
-    totalNoDia++;
-
     if (STATUS_BLOQUEIA.has(status)) bloqueando++;
   });
 
   return {
     disponivel: bloqueando === 0,
-    totalNoDia,
+    totalNoDia: snap.size,
     bloqueando,
   };
 }

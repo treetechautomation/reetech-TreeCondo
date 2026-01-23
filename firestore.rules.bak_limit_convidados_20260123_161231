@@ -17,7 +17,7 @@ service cloud.firestore {
     }
 
     function memberPath(condominioId) {
-      return /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
+      return /databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid);
     }
 
     function hasMember(condominioId) {
@@ -87,16 +87,6 @@ service cloud.firestore {
       allow read: if isSuper() || isMembroAtivo(condominioId);
       allow create, update, delete: if isSuper();
 
-      // -------------------------
-      // Áreas Reserváveis
-      // - leitura: qualquer membro ativo do condomínio
-      // - escrita: admin/síndico (canManageCondo)
-      // -------------------------
-      match /areasReservaveis/{areaId} {
-        allow read: if isSuper() || isMembroAtivo(condominioId);
-        allow create, update, delete: if canManageCondo(condominioId);
-      }
-
       match /membros/{uid} {
         allow read: if isSuper()
                     || (signedIn() && request.auth.uid == uid)
@@ -141,36 +131,20 @@ service cloud.firestore {
         allow delete: if isSuper();
 
         match /convidados/{convidadoId} {
-            function reservaDoc() {
-              return get(/databases/$(database)/documents/condominios/$(condominioId)/reservas/$(reservaId));
-            }
-
-            function isReservaOwner() {
-              let reserva = reservaDoc();
-              return signedIn() && (reserva.data.uid == request.auth.uid || reserva.data.userId == request.auth.uid);
-            }
-
-            // true se não tem limite, ou se ainda não atingiu limite
-            function dentroDoLimite() {
-              let r = reservaDoc();
-              let temCap = ("capacidadeMax" in r.data) && (r.data.capacidadeMax != null);
-              let cap = temCap ? r.data.capacidadeMax : 0;
-              let count = ("convidadosCount" in r.data) && (r.data.convidadosCount != null) ? r.data.convidadosCount : 0;
-
-              return (!temCap) || (cap == 0) || (count < cap);
-            }
-
-            allow read: if canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
-
-            // cria/apaga: admin/síndico ou dono + respeita limite (quando houver)
-            allow create, delete: if (canManageCondo(condominioId) || isReservaOwner());
-
-            // update: porteiro/adminlike marca ENTROU (aceita entradaEm OU entrouEm por compatibilidade)
-            allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId))
-                          && request.resource.data.diff(resource.data).changedKeys()
-                               .hasOnly(['status', 'entradaEm', 'entrouEm', 'porteiroUid', 'updatedAt'])
-                          && request.resource.data.status == 'ENTROU';
+          function isReservaOwner() {
+            let reserva = get(/databases/$(database)/documents/condominios/$(condominioId)/reservas/$(reservaId));
+            return signedIn() && (reserva.data.uid == request.auth.uid || reserva.data.userId == request.auth.uid);
           }
+
+          allow read: if canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
+
+          allow create, delete: if canManageCondo(condominioId) || isReservaOwner();
+
+          allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId))
+                        && request.resource.data.diff(resource.data).changedKeys()
+                             .hasOnly(['status', 'entradaEm', 'porteiroUid', 'updatedAt'])
+                        && request.resource.data.status == 'ENTROU';
+        }
       }
       // -------------------------
       // Comunicação (Threads / Mensagens)
@@ -200,11 +174,11 @@ service cloud.firestore {
             || (
               isMembroAtivo(condominioId)
               && roleNoCondo(condominioId) == "MORADOR"
-              && get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.tipo == "MORADOR"
-              && get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.moradorReplyEnabled == true
+              && get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.tipo == "MORADOR"
+              && get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.moradorReplyEnabled == true
               && (
-                get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uid == request.auth.uid
-                || get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uidMorador == request.auth.uid
+                get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.alvo.uid == request.auth.uid
+                || get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.alvo.uidMorador == request.auth.uid
               )
               && request.resource.data.createdByUid == request.auth.uid
             );
@@ -225,4 +199,3 @@ service cloud.firestore {
       }
     }
   }
-}

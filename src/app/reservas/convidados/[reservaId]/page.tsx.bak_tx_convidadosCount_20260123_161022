@@ -1,13 +1,23 @@
 "use client";
 
 import * as React from "react";
-import {
-useParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore, initializeFirebase } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, getCountFromServer } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
+
 type Convidado = {
   id: string;
   nome?: string;
@@ -111,6 +121,7 @@ const { session, isSessionLoading } = useSessionCtx();
       String(reservaId),
       "convidados"
     );
+
     const q = query(ref, orderBy("createdAt", "asc"));
 
     const unsub = onSnapshot(
@@ -172,31 +183,12 @@ const { session, isSessionLoading } = useSessionCtx();
 
     if (!n) return;
 
-    if (limite > 0) {
-        try {
-          const refCount = collection(
-            firestoreFinal,
-            "condominios",
-            String(session?.activeCondominioId),
-            "reservas",
-            String(reservaId),
-            "convidados"
-          );
-          const snapCount = await getCountFromServer(refCount);
-          const totalServer = Number(snapCount.data().count || 0);
+    if (limite > 0 && total >= limite) {
+      alert("Limite de convidados atingido para esta reserva.");
+      return;
+    }
 
-          if (totalServer >= limite) {
-            alert("Limite de convidados atingido para esta reserva.");
-            return;
-          }
-        } catch (e) {
-          console.error("[convidados] erro ao contar convidados no servidor:", e);
-          alert("Não consegui validar o limite agora. Tente novamente.");
-          return;
-        }
-      }
-
-      setSaving(true);
+    setSaving(true);
     try {
       const ref = collection(firestoreFinal,
         "condominios",
@@ -206,15 +198,16 @@ const { session, isSessionLoading } = useSessionCtx();
         "convidados"
       );
 
-        await addDoc(ref, {
-          nome: n,
-          cpf: c ? c : null,
-          status: "PENDENTE",
-          createdAt: serverTimestamp(),
-        });
-        setNome("");
-        setCpf("");
-} catch (e) {
+      await addDoc(ref, {
+        nome: n,
+        cpf: c ? c : null, // opcional
+        status: "PENDENTE",
+        createdAt: serverTimestamp(),
+      });
+
+      setNome("");
+      setCpf("");
+    } catch (e) {
       console.error("[convidados] erro add:", e);
       alert("Não consegui adicionar. Veja o console.");
     } finally {

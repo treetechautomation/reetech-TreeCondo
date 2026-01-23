@@ -20,9 +20,8 @@ export type AreaReservavelUI = {
   tipo?: string | null;
   fotoUrl?: string | null;
   fotoHint?: string | null;
-  capacidadeMax?: number | null;
-    opcoes?: AreaOpcao[] | null;
-  };
+  opcoes?: AreaOpcao[] | null;
+};
 
 function toNum(v: any, fallback = 0) {
   const n = Number(v);
@@ -100,11 +99,6 @@ export function AreaCard({
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-foreground">{area.nome}</div>
               <div className="mt-1 text-sm text-muted-foreground group-hover:text-muted-foreground">{priceLabel}</div>
-                {Number.isFinite(Number(area.capacidadeMax)) && Number(area.capacidadeMax) > 0 && (
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Capacidade: <span className="font-medium text-foreground">{Number(area.capacidadeMax)}</span> pessoas
-                  </div>
-                )}
             </div>
 
             {hasOptions && (

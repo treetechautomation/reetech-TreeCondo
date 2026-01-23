@@ -130,11 +130,11 @@ export function useReservas(condominioId: string | null, dateStr: string) {
 
           return {
             id: d.id,
-            nome: String(data.nome ?? data.titulo ?? areaNomeFallback[String(d.id)] ?? d.id),
+            nome: String(data.nome ?? data.titulo ?? d.id),
             descricao: data.descricao ?? null,
             ativo: Boolean(data.ativo ?? true),
             capacidadeMax: (Number.isFinite(Number(data.capacidadeMax)) ? Number(data.capacidadeMax) : null),
-            preco: (Number.isFinite(Number(data.preco)) ? Number(data.preco) : (Number.isFinite(Number(data.valorBaseCentavos)) ? Number(data.valorBaseCentavos) : 0)),
+            valorBaseCentavos: (Number.isFinite(Number(data.valorBaseCentavos)) ? Number(data.valorBaseCentavos) : undefined),
             opcoes: Array.isArray(data.opcoes) ? data.opcoes : null,
             fotoUrl: fotoUrl ?? null,
             fotoHint: imgPathCandidates.length ? String(imgPathCandidates[0]) : null,
@@ -167,9 +167,9 @@ export function useReservas(condominioId: string | null, dateStr: string) {
 
         if (alive) {
           
-          const allowedIds = new Set(["salao_festas","churrasqueira_1","churrasqueira_2"].map(x => String(x).trim().toLowerCase()));
+          const allowedIds = new Set(["salao_festas","churrasqueira_1","churrasqueira_2"]);
           // Mostra só as áreas principais no front (o campo continua existindo para bloqueio/agenda)
-          setAreas(withImgs.filter((a: any) => a.ativo && allowedIds.has(String(a.id).trim().toLowerCase())));
+          setAreas(withImgs.filter((a: any) => a.ativo && allowedIds.has(String(a.id))));
           setLoadingAreas(false);
         }
       } catch (e) {

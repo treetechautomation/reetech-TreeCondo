@@ -65,31 +65,6 @@ export default function ReservasPage() {
 
 
     const [politicas, setPoliticas] = React.useState<ReservasPoliticas | null>(null);
-
-    // carrega políticas de reserva por condomínio (dinâmico)
-    React.useEffect(() => {
-      let cancelledP = false;
-
-      async function loadPoliticas() {
-        try {
-          if (!firestore || !condId) {
-            if (!cancelledP) setPoliticas(null);
-            return;
-          }
-          const p = await getPoliticasReservas(firestore, condId);
-          if (!cancelledP) setPoliticas(p);
-        } catch (e) {
-          console.error("[Reservas] erro ao carregar politicas:", e);
-          if (!cancelledP) setPoliticas(null);
-        }
-      }
-
-      loadPoliticas();
-      return () => {
-        cancelledP = true;
-      };
-    }, [firestore, condId]);
-
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
 
   const reservasFiltradas = React.useMemo(() => {
@@ -103,6 +78,22 @@ export default function ReservasPage() {
 
 React.useEffect(() => {
     let cancelled = false;
+
+    // carrega políticas de reserva por condomínio (dinâmico)
+    React.useEffect(() => {
+      let cancelledP = false;
+      async function loadPoliticas() {
+        if (!firestore || !condId) {
+          if (!cancelledP) setPoliticas(null);
+          return;
+        }
+        const p = await getPoliticasReservas(firestore, condId);
+        if (!cancelledP) setPoliticas(p);
+      }
+      loadPoliticas();
+      return () => { cancelledP = true; };
+    }, [firestore, condId]);
+
 
     async function fetchMembros() {
       if (!firestore || !condId || !isAdminLike || reservasVisiveis.length === 0) {
@@ -219,9 +210,6 @@ React.useEffect(() => {
     try {
       const dataIni = startOfDayUTC(dateStr);
 
-
-        const areaSel = (areas || []).find((a: any) => String(a.id) === String(selectedAreaId)) ?? null;
-        const capacidadeMaxSel = (Number.isFinite(Number(areaSel?.capacidadeMax)) ? Number(areaSel?.capacidadeMax) : null);
       await addDoc(collection(firestore, "condominios", condId, "reservas"), {
         areaId: selectedAreaId,
         condominioId: condId,
@@ -233,7 +221,6 @@ React.useEffect(() => {
           precisaAprovacao: precisaAprovacao,
         opcaoId: selectedOpcaoMeta.opcaoId,
         opcaoNome: selectedOpcaoMeta.opcaoNome,
-          capacidadeMax: capacidadeMaxSel,
       });
 
       alert("✅ Reserva enviada (PENDENTE).");

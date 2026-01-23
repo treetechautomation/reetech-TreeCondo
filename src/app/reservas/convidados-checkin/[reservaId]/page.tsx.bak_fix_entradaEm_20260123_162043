@@ -280,7 +280,7 @@ export default function ConvidadosCheckinPage() {
 
       await updateDoc(ref, {
         status: "ENTROU",
-        entradaEm: serverTimestamp(),
+        entrouEm: serverTimestamp(),
         porteiroUid: session?.user?.uid ?? null,
         updatedAt: serverTimestamp(),
       });

@@ -7,7 +7,21 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore, initializeFirebase } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, getCountFromServer } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  runTransaction,
+  increment,
+
+  getCountFromServer,
+} from "firebase/firestore";
 type Convidado = {
   id: string;
   nome?: string;
@@ -111,6 +125,7 @@ const { session, isSessionLoading } = useSessionCtx();
       String(reservaId),
       "convidados"
     );
+
     const q = query(ref, orderBy("createdAt", "asc"));
 
     const unsub = onSnapshot(
@@ -206,12 +221,44 @@ const { session, isSessionLoading } = useSessionCtx();
         "convidados"
       );
 
-        await addDoc(ref, {
-          nome: n,
-          cpf: c ? c : null,
-          status: "PENDENTE",
-          createdAt: serverTimestamp(),
+      
+        // Transaction: respeita capacidadeMax via contador na reserva
+        const reservaRef = doc(
+          firestoreFinal,
+          "condominios",
+          String(session?.activeCondominioId),
+          "reservas",
+          String(reservaId)
+        );
+
+        await runTransaction(firestoreFinal, async (tx) => {
+          const reservaSnap = await tx.get(reservaRef);
+          if (!reservaSnap.exists()) throw new Error("Reserva não encontrada.");
+
+          const r = reservaSnap.data() || {};
+          const capMax = Number(r.capacidadeMax ?? 0) || 0;
+          const count = Number(r.convidadosCount ?? 0) || 0;
+
+          if (capMax > 0 && count >= capMax) {
+            throw new Error("Limite de convidados atingido para esta reserva.");
+          }
+
+          // cria convidado
+          tx.set(doc(ref), {
+            nome: n,
+        cpf: c ? c : null, // opcional
+        status: "PENDENTE",
+        createdAt: serverTimestamp(),
+      
+          });
+
+          // incrementa contador na reserva
+          tx.update(reservaRef, {
+            convidadosCount: increment(1),
+            updatedAt: serverTimestamp(),
+          });
         });
+
         setNome("");
         setCpf("");
 } catch (e) {

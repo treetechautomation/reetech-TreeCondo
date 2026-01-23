@@ -17,7 +17,7 @@ service cloud.firestore {
     }
 
     function memberPath(condominioId) {
-      return /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
+      return /databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid);
     }
 
     function hasMember(condominioId) {
@@ -87,16 +87,6 @@ service cloud.firestore {
       allow read: if isSuper() || isMembroAtivo(condominioId);
       allow create, update, delete: if isSuper();
 
-      // -------------------------
-      // Áreas Reserváveis
-      // - leitura: qualquer membro ativo do condomínio
-      // - escrita: admin/síndico (canManageCondo)
-      // -------------------------
-      match /areasReservaveis/{areaId} {
-        allow read: if isSuper() || isMembroAtivo(condominioId);
-        allow create, update, delete: if canManageCondo(condominioId);
-      }
-
       match /membros/{uid} {
         allow read: if isSuper()
                     || (signedIn() && request.auth.uid == uid)
@@ -163,7 +153,8 @@ service cloud.firestore {
             allow read: if canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
 
             // cria/apaga: admin/síndico ou dono + respeita limite (quando houver)
-            allow create, delete: if (canManageCondo(condominioId) || isReservaOwner());
+            allow create, delete: if (canManageCondo(condominioId) || isReservaOwner())
+                                  && dentroDoLimite();
 
             // update: porteiro/adminlike marca ENTROU (aceita entradaEm OU entrouEm por compatibilidade)
             allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId))
@@ -200,11 +191,11 @@ service cloud.firestore {
             || (
               isMembroAtivo(condominioId)
               && roleNoCondo(condominioId) == "MORADOR"
-              && get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.tipo == "MORADOR"
-              && get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.moradorReplyEnabled == true
+              && get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.tipo == "MORADOR"
+              && get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.moradorReplyEnabled == true
               && (
-                get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uid == request.auth.uid
-                || get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.alvo.uidMorador == request.auth.uid
+                get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.alvo.uid == request.auth.uid
+                || get(/databases/$(database)/documents/condominios/$(condId)/threads/$(threadId)).data.alvo.uidMorador == request.auth.uid
               )
               && request.resource.data.createdByUid == request.auth.uid
             );
@@ -225,4 +216,3 @@ service cloud.firestore {
       }
     }
   }
-}
