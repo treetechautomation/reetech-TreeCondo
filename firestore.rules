@@ -232,14 +232,12 @@ service cloud.firestore {
         }
       }
 
-      }
-
-
-
       // outras subcoleções: leitura p/ membro ativo; escrita p/ admin/síndico
       match /{subcollection}/{docId=**} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
       }
+
     }
   }
+}

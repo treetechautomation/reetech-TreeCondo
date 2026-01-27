@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -85,19 +84,23 @@ service cloud.firestore {
     // -------------------------
     match /condominios/{condominioId} {
 
-      allow read: if isSuper() || isMembroAtivo(condominioId);
-      allow create, update, delete: if isSuper();
-      
       // -------------------------
       // Áreas Reserváveis
-      // - leitura: qualquer membro ativo do condomínio
-      // - escrita: admin/síndico (canManageCondo)
       // -------------------------
       match /areasReservaveis/{areaId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow create, update, delete: if canManageCondo(condominioId);
       }
 
+
+      allow read: if isSuper() || isMembroAtivo(condominioId);
+      allow create, update, delete: if isSuper();
+
+      // -------------------------
+      // Áreas Reserváveis
+      // - leitura: qualquer membro ativo do condomínio
+      // - escrita: admin/síndico (canManageCondo)
+      // -------------------------
       match /membros/{uid} {
         allow read: if isSuper()
                     || (signedIn() && request.auth.uid == uid)
@@ -119,13 +122,12 @@ service cloud.firestore {
       // --- REGRAS DE RESERVAS E CONVIDADOS ---
       match /reservas/{reservaId} {
         function isOwner() {
-            let r = resource.data;
             return signedIn() && (
-              r.uid == request.auth.uid ||
-              r.userId == request.auth.uid ||
-              r.moradorUid == request.auth.uid ||
-              r.createdByUid == request.auth.uid ||
-              (r.createdBy != null && r.createdBy.uid == request.auth.uid)
+              resource.data.uid == request.auth.uid ||
+              resource.data.userId == request.auth.uid ||
+              resource.data.moradorUid == request.auth.uid ||
+              resource.data.createdByUid == request.auth.uid ||
+              (resource.data.createdBy != null && resource.data.createdBy.uid == request.auth.uid)
             );
           }
 
@@ -133,8 +135,12 @@ service cloud.firestore {
                     || (isPorteiro(condominioId) && resource.data.status == 'APROVADA');
 
         allow create: if isMembroAtivo(condominioId)
-                      && request.resource.data.uid == request.auth.uid;
-        
+                      && (roleNoCondo(condominioId) == 'MORADOR' || roleNoCondo(condominioId) == 'SINDICO')
+                      && request.resource.data.uid == request.auth.uid
+                      && (request.resource.data.status == 'PENDENTE' || request.resource.data.status == 'APROVADA')
+                      && request.resource.data.condominioId == condominioId
+                      && request.resource.data.data is timestamp;
+
         allow update: if canManageCondo(condominioId)
                       || (
                            isPorteiro(condominioId) &&
@@ -142,48 +148,72 @@ service cloud.firestore {
                              .hasOnly(['statusAcesso', 'entradaEm', 'porteiroUid', 'updatedAt'])
                          );
 
-        allow delete: if isSuper() || canManageCondo(condominioId);
+        allow delete: if isSuper();
 
         match /convidados/{convidadoId} {
-            function getReservaDoc() {
+            function reservaDoc() {
               return get(/databases/$(database)/documents/condominios/$(condominioId)/reservas/$(reservaId));
             }
 
-            function isParentReservaOwner() {
-                let reserva = getReservaDoc().data;
+            function isReservaOwner() {
+                let reserva = reservaDoc();
                 return signedIn() && (
-                  reserva.uid == request.auth.uid ||
-                  reserva.userId == request.auth.uid ||
-                  reserva.moradorUid == request.auth.uid ||
-                  reserva.createdByUid == request.auth.uid ||
-                  (reserva.createdBy != null && reserva.createdBy.uid == request.auth.uid)
+                  reserva.data.uid == request.auth.uid ||
+                  reserva.data.userId == request.auth.uid ||
+                  reserva.data.moradorUid == request.auth.uid ||
+                  reserva.data.createdByUid == request.auth.uid ||
+                  (reserva.data.createdBy != null && reserva.data.createdBy.uid == request.auth.uid)
                 );
               }
 
-            allow read: if isSuper() || canManageCondo(condominioId) || isParentReservaOwner() ||
-                        (isPorteiro(condominioId) && getReservaDoc().data.status == 'APROVADA');
+            // true se não tem limite, ou se ainda não atingiu limite
+            function dentroDoLimite() {
+              let r = reservaDoc();
+              let temCap = ("capacidadeMax" in r.data) && (r.data.capacidadeMax != null);
+              let cap = temCap ? r.data.capacidadeMax : 0;
+              let count = ("convidadosCount" in r.data) && (r.data.convidadosCount != null) ? r.data.convidadosCount : 0;
 
-            allow create, delete: if isSuper() || canManageCondo(condominioId) || isParentReservaOwner();
-            
-            allow update: if canManageCondo(condominioId) ||
-                          (isPorteiro(condominioId)
-                            && getReservaDoc().data.status == 'APROVADA'
-                            && request.resource.data.status == 'ENTROU'
-                            && request.resource.data.diff(resource.data).changedKeys()
-                                 .hasOnly(['status', 'entradaEm', 'porteiroUid', 'updatedAt']));
+              return (!temCap) || (cap == 0) || (count < cap);
+            }
+
+            allow read: if isSuper() || canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
+
+            // cria/apaga: admin/síndico ou dono + respeita limite (quando houver)
+            allow create: if isSuper() || isReservaOwner();
+
+              allow delete: if isSuper() || isReservaOwner();
+
+            // update: porteiro/adminlike marca ENTROU (aceita entradaEm OU entrouEm por compatibilidade)
+            allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId))
+                          && request.resource.data.diff(resource.data).changedKeys()
+                               .hasOnly(['status', 'entradaEm', 'entrouEm', 'porteiroUid', 'updatedAt'])
+                          && request.resource.data.status == 'ENTROU';
           }
       }
-      
       // -------------------------
       // Comunicação (Threads / Mensagens)
       // -------------------------
+
+      // -------------------------
+      // Threads / Mensagens (Comunicação)
+      // - Admin/Síndico gerenciam tudo
+      // - Morador só responde se moradorReplyEnabled == true e for o alvo da thread
+      // -------------------------
       match /threads/{threadId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
+
+        // thread: criação e updates (ex: habilitar resposta) só admins/síndico
         allow create, update, delete: if canManageCondo(condominioId);
 
         match /mensagens/{msgId} {
           allow read: if isSuper() || isMembroAtivo(condominioId);
 
+          // Admin/Síndico podem enviar sempre
+          // Morador pode enviar SOMENTE se:
+          //  - thread.tipo == "MORADOR"
+          //  - thread.moradorReplyEnabled == true
+          //  - thread.alvo.uid (ou alvo.uidMorador) == request.auth.uid
+          //  - createdByUid == request.auth.uid
           allow create: if canManageCondo(condominioId)
             || (
               isMembroAtivo(condominioId)
@@ -197,6 +227,7 @@ service cloud.firestore {
               && request.resource.data.createdByUid == request.auth.uid
             );
 
+          // Ninguém edita mensagem (padrão). Se quiser, libera admin.
           allow update, delete: if canManageCondo(condominioId);
         }
       }
@@ -206,7 +237,5 @@ service cloud.firestore {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
       }
-
     }
   }
-}

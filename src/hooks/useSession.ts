@@ -23,9 +23,13 @@ type UserDoc = {
   vinculos?: Vinculo[];
 };
 
-function isSuperAdminUser(user: User | null, claims: Record<string, any> | null) {
-  const email = (user?.email || "").toLowerCase();
-  return claims?.super_admin === true || email === "treecommunity@treetechautomation.com";
+function isSuperAdminUser(user: User | null, claims: Record<string, any> | null): boolean {
+  if (!user) return false;
+  const email = (user.email || "").toLowerCase();
+  if (email === "treecommunity@treetechautomation.com") return true;
+  if (claims?.super_admin === true) return true;
+  if (claims?.superAdmin === true) return true;
+  return false;
 }
 
 function resolveRole(superAdmin: boolean, vinculoAtivo: Vinculo | null): RoleKey {
