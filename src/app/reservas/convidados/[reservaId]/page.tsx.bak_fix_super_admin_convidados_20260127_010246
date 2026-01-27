@@ -148,16 +148,10 @@ const { session, isSessionLoading } = useSessionCtx();
 
   const donoUid = (reserva.uid || reserva.userId || (reserva as any).moradorUid || "").toString();
   const meuUid = (session.user?.uid || "").toString();
-
-  const isSuper =
-    Boolean((session as any)?.superAdmin) ||
-    Boolean((session as any)?.isSuperAdmin) ||
-    Boolean((session as any)?.super_admin) ||
-    String((session as any)?.role || session?.role || "").toUpperCase() === "SUPER_ADMIN";
   const souDono = donoUid && meuUid && donoUid === meuUid;
 
   // Morador só mexe nas próprias reservas (admin/síndico/superadmin podem ver tudo)
-  if (!isSuper && session.role === "MORADOR" && !souDono) {
+  if (!session.superAdmin && session.role === "MORADOR" && !souDono) {
     return <AppLayout pageTitle="Lista de Convidados">Esta reserva não é sua.</AppLayout>;
   }
 

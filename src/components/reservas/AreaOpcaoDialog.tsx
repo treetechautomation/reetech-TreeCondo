@@ -19,7 +19,6 @@ export type AreaOpcao = {
   bloqueiaAreaId?: string | null;
 };
 
-// HELPER to safely convert to number
 function toNum(v: any, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -35,17 +34,10 @@ type Props = {
   onOpenChange: (v: boolean) => void;
 
   areaNome: string;
-
-  // base (pode ser 0)
   precoBaseCentavos: number;
-
-  // opcoes do Firestore
   opcoes: AreaOpcao[];
-
-  // valor atual selecionado
   selectedOpcaoId: string | null;
 
-  // confirma seleção
   onConfirm: (payload: {
     opcaoId: string;
     opcaoNome: string;
@@ -63,10 +55,7 @@ export function AreaOpcaoDialog({
   selectedOpcaoId,
   onConfirm,
 }: Props) {
-  const defaultId =
-    selectedOpcaoId ??
-    (opcoes?.[0]?.id ?? "base");
-
+  const defaultId = selectedOpcaoId ?? (opcoes?.[0]?.id ?? "base");
   const [value, setValue] = React.useState<string>(defaultId);
 
   React.useEffect(() => {
@@ -74,7 +63,6 @@ export function AreaOpcaoDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Monta lista: base + opcoes
   const items = React.useMemo(() => {
     const base = {
       id: "base",
@@ -83,13 +71,39 @@ export function AreaOpcaoDialog({
       bloqueiaAreaId: null as string | null,
       isBase: true,
     };
-    const opts = (opcoes || []).map((o: any) => ({
-      id: String(o.id),
-      nome: String(o.nome),
-      preco: toNum(o.preco ?? o.valorCobrado ?? o.valor ?? 0, 0),
-      bloqueiaAreaId: (o.bloqueiaAreaId ?? null) as string | null,
-      isBase: false,
-    }));
+
+    const opts = (opcoes || [])
+      .map((o: any) => {
+        const preco = toNum(
+          o?.preco ??
+            o?.precoCentavos ??
+            o?.valor ??
+            o?.valorCentavos ??
+            o?.valorCobrado ??
+            o?.valorCobradoCentavos ??
+            o?.precoBaseCentavos ??
+            0,
+          0
+        );
+
+        return {
+          id: String(o?.id ?? ""),
+          nome: String(o?.nome ?? ""),
+          preco,
+          bloqueiaAreaId: (o?.bloqueiaAreaId ??
+            o?.bloqueia ??
+            o?.bloqueiaId ??
+            null) as string | null,
+          isBase: false,
+        };
+      })
+      .filter(
+        (x: any) =>
+          !!String(x.id || "").trim() &&
+          !!String(x.nome || "").trim() &&
+          String(x.id).toLowerCase() !== "base"
+      );
+
     return [base, ...opts];
   }, [areaNome, precoBaseCentavos, opcoes]);
 
@@ -111,7 +125,8 @@ export function AreaOpcaoDialog({
         <DialogHeader>
           <DialogTitle>Opções de reserva</DialogTitle>
           <DialogDescription>
-            Escolha como deseja reservar <span className="font-medium">{areaNome}</span>.
+            Escolha como deseja reservar{" "}
+            <span className="font-medium">{areaNome}</span>.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,13 +143,16 @@ export function AreaOpcaoDialog({
                     <div className="font-medium">
                       {i.nome}{" "}
                       {i.isBase ? (
-                        <Badge variant="secondary" className="ml-2">padrão</Badge>
+                        <Badge variant="secondary" className="ml-2">
+                          padrão
+                        </Badge>
                       ) : null}
                     </div>
 
                     {i.bloqueiaAreaId ? (
                       <div className="text-xs text-muted-foreground">
-                        Bloqueia: <span className="font-medium">{i.bloqueiaAreaId}</span>
+                        Bloqueia:{" "}
+                        <span className="font-medium">{i.bloqueiaAreaId}</span>
                       </div>
                     ) : (
                       <div className="text-xs text-muted-foreground">—</div>
@@ -142,9 +160,7 @@ export function AreaOpcaoDialog({
                   </div>
                 </div>
 
-                <div className="text-sm font-semibold">
-                  {brlFromCentavos(i.preco)}
-                </div>
+                <div className="text-sm font-semibold">{brlFromCentavos(i.preco)}</div>
               </label>
             ))}
           </RadioGroup>

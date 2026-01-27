@@ -46,16 +46,6 @@ function toISODateLocal(d: Date) {
 }
 
 
-function cleanCondId(v: any): string | null {
-  const x = String(v ?? "").trim();
-  if (!x) return null;
-  if (x === "null" || x === "undefined") return null;
-  // ids do firestore normalmente são >= 10 chars (evita lixo)
-  if (x.length < 10) return null;
-  return x;
-}
-
-
 function isBlockedISODate(dateStrYYYYMMDD: string, politicas: any) {
   // domingo bloqueado pela política
   if ((politicas?.bloquearDomingo ?? true) && isSunday(dateStrYYYYMMDD)) return true;
@@ -64,45 +54,7 @@ function isBlockedISODate(dateStrYYYYMMDD: string, politicas: any) {
 
 export default function ReservasPage() {
   const { session, isSessionLoading } = useSessionCtx();
-  const condIdFromSession = cleanCondId(session?.activeCondominioId ?? null);
-  const [condId, setCondId] = React.useState<string | null>(condIdFromSession);
-
-  React.useEffect(() => {
-    if (condIdFromSession) {
-      setCondId(condIdFromSession);
-      return;
-    }
-    try {
-      // tenta várias chaves comuns + qualquer chave que contenha "cond"
-      const keys = [
-        "activeCondominioId",
-        "condominioAtivoId",
-        "condominioIdAtivo",
-        "condominioSelecionado",
-        "condId",
-      ];
-
-      // varre localStorage procurando algo que pareça condId
-      let found: string | null = null;
-
-      for (const k of keys) {
-        const v = cleanCondId(localStorage.getItem(k));
-        if (v) { found = v; break; }
-      }
-
-      if (!found) {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          if (!/cond/i.test(k)) continue;
-          const v = cleanCondId(localStorage.getItem(k));
-          if (v) { found = v; break; }
-        }
-      }
-
-      if (found) setCondId(found);
-    } catch (e) {}
-  }, [condIdFromSession]);
+  const condId = session?.activeCondominioId ?? null;
   const user = session?.user ?? null;
   const role = session?.role ?? null;
 
@@ -116,7 +68,7 @@ export default function ReservasPage() {
 
   const meuUid = user?.uid ?? null;
   const firestore = useFirestore();
-  const podeVer = !isSessionLoading && !!session;
+  const podeVer = !isSessionLoading && !!session && !!condId;
 
   const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO";
   const isMoradorLike = role === "MORADOR" || role === "SINDICO" || isSuperAdmin;
@@ -329,8 +281,6 @@ React.useEffect(() => {
     <AppLayout
       pageTitle="Reservas"
       headerActions={
-        /* DEBUG condId */
-      
         isMoradorLike ? (
           <Button variant="default" onClick={handleSolicitarReserva} disabled={!podeReservar}>
             {isChecking ? "Verificando..." : isCreating ? "Enviando..." : "Confirmar reserva"}
@@ -344,15 +294,9 @@ React.useEffect(() => {
         )
       }
     >
-      {isSessionLoading ? (
+      {!podeVer ? (
         <div className="rounded-2xl border bg-card p-6">
-          <div className="text-sm text-muted-foreground">Carregando sessão...</div>
-        </div>
-      ) : !condId ? (
-        <div className="rounded-2xl border bg-card p-6">
-          <div className="text-sm text-muted-foreground">
-            Selecione um condomínio para ver as áreas e fazer reservas.
-          </div>
+          <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
         </div>
       ) : (
         <div className="space-y-6">

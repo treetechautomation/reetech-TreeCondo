@@ -1,0 +1,261 @@
+"use client";
+
+import * as React from "react";
+import { cn } from "@/lib/utils";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  Timestamp,
+  type Firestore,
+} from "firebase/firestore";
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toISODateLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  return `${y}-${m}-${day}`;
+}
+
+function startOfMonthLocal(yyyy: number, mm0: number) {
+  return new Date(yyyy, mm0, 1, 0, 0, 0, 0);
+}
+function endOfMonthLocalExclusive(yyyy: number, mm0: number) {
+  return new Date(yyyy, mm0 + 1, 1, 0, 0, 0, 0);
+}
+
+function isSundayISO(iso: string) {
+  // iso: YYYY-MM-DD
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return dt.getDay() === 0;
+}
+
+type Props = {
+  firestore: Firestore | null;
+  condominioId: string | null;
+  areaId: string;
+  selectedDateStr: string; // YYYY-MM-DD
+  onSelectDateStr: (iso: string) => void;
+
+  bloquearDomingo?: boolean;
+};
+
+export function CalendarMonth({
+  firestore,
+  condominioId,
+  areaId,
+  selectedDateStr,
+  onSelectDateStr,
+  bloquearDomingo = true,
+}: Props) {
+  const [monthCursor, setMonthCursor] = React.useState(() => {
+    // começa no mês do selectedDateStr
+    const [y, m] = selectedDateStr.split("-").map(Number);
+    const dt = new Date((y || new Date().getFullYear()), (m ? m - 1 : new Date().getMonth()), 1);
+    return dt;
+  });
+
+  React.useEffect(() => {
+    // se selectedDateStr mudou para outro mês, acompanha
+    const [y, m] = selectedDateStr.split("-").map(Number);
+    if (!y || !m) return;
+    const curY = monthCursor.getFullYear();
+    const curM = monthCursor.getMonth() + 1;
+    if (curY !== y || curM !== m) {
+      setMonthCursor(new Date(y, m - 1, 1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDateStr]);
+
+  const [loading, setLoading] = React.useState(false);
+  const [blockedSet, setBlockedSet] = React.useState<Set<string>>(new Set());
+
+  const yyyy = monthCursor.getFullYear();
+  const mm0 = monthCursor.getMonth();
+
+  const monthLabel = monthCursor.toLocaleString("pt-BR", { month: "long", year: "numeric" });
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadApprovedBlockedDays() {
+      if (!firestore || !condominioId || !areaId) {
+        setBlockedSet(new Set());
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const ini = startOfMonthLocal(yyyy, mm0);
+        const fim = endOfMonthLocalExclusive(yyyy, mm0);
+
+        // pega reservas da área no mês
+        const qy = query(
+          collection(firestore, "condominios", condominioId, "reservas"),
+          where("areaId", "==", areaId),
+          where("data", ">=", Timestamp.fromDate(ini)),
+          where("data", "<", Timestamp.fromDate(fim))
+        );
+
+        const snap = await getDocs(qy);
+
+        const s = new Set<string>();
+        snap.forEach((docu) => {
+          const data = docu.data() as any;
+          const status = String(data?.status ?? "");
+          if (status !== "APROVADA") return;
+
+          const ts = data?.data as any;
+          const dt: Date | null =
+            ts?.toDate ? ts.toDate() :
+            ts instanceof Date ? ts :
+            null;
+
+          if (!dt) return;
+
+          // converte para iso local (dia)
+          const iso = toISODateLocal(dt);
+          s.add(iso);
+        });
+
+        if (!cancelled) setBlockedSet(s);
+      } catch (e) {
+        console.error("[CalendarMonth] erro ao buscar reservas do mês:", e);
+        if (!cancelled) setBlockedSet(new Set());
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadApprovedBlockedDays();
+    return () => { cancelled = true; };
+  }, [firestore, condominioId, areaId, yyyy, mm0]);
+
+  // monta grid do mês
+  const days = React.useMemo(() => {
+    const first = startOfMonthLocal(yyyy, mm0);
+    const firstWeekday = (first.getDay() + 6) % 7; // segunda=0 ... domingo=6
+    const daysInMonth = new Date(yyyy, mm0 + 1, 0).getDate();
+
+    const cells: Array<{ iso: string; day: number; inMonth: boolean }> = [];
+
+    // padding antes
+    for (let i = 0; i < firstWeekday; i++) {
+      cells.push({ iso: "", day: 0, inMonth: false });
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(yyyy, mm0, d);
+      cells.push({ iso: toISODateLocal(dt), day: d, inMonth: true });
+    }
+
+    // completa última semana
+    while (cells.length % 7 !== 0) {
+      cells.push({ iso: "", day: 0, inMonth: false });
+    }
+
+    return cells;
+  }, [yyyy, mm0]);
+
+  function prevMonth() {
+    setMonthCursor(new Date(yyyy, mm0 - 1, 1));
+  }
+  function nextMonth() {
+    setMonthCursor(new Date(yyyy, mm0 + 1, 1));
+  }
+
+  return (
+    <div className="w-full rounded-2xl border bg-background/40 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={prevMonth}
+          className="rounded-xl border px-3 py-1 text-sm hover:opacity-90"
+          aria-label="Mês anterior"
+        >
+          ‹
+        </button>
+
+        <div className="text-sm font-semibold capitalize">
+          {monthLabel}
+          {loading ? <span className="ml-2 text-xs text-muted-foreground">(carregando...)</span> : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="rounded-xl border px-3 py-1 text-sm hover:opacity-90"
+          aria-label="Próximo mês"
+        >
+          ›
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
+        {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((w) => (
+          <div key={w} className="py-1">{w}</div>
+        ))}
+      </div>
+
+      <div className="mt-2 grid grid-cols-7 gap-2">
+        {days.map((c, idx) => {
+          const inMonth = c.inMonth;
+          const iso = c.iso;
+
+          const selected = inMonth && iso === selectedDateStr;
+
+          const blockedBySunday = inMonth && bloquearDomingo && iso && isSundayISO(iso);
+          const blockedByReserva = inMonth && iso && blockedSet.has(iso);
+
+          const disabled = !inMonth || blockedBySunday || blockedByReserva;
+
+          // classes (verde disponível / vermelho bloqueado / destaque selecionado)
+          const stateClass = !inMonth
+            ? "opacity-0 pointer-events-none"
+            : disabled
+              ? "bg-destructive/15 border-destructive/30 text-destructive"
+              : "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300";
+
+          const selectedClass = selected
+            ? "ring-2 ring-primary/30 border-primary"
+            : "";
+
+          return (
+            <button
+              key={idx}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (iso) onSelectDateStr(iso);
+              }}
+              className={cn(
+                "h-9 rounded-xl border text-sm font-medium transition hover:opacity-90",
+                stateClass,
+                selectedClass
+              )}
+            >
+              {inMonth ? c.day : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+          <span className="h-2 w-2 rounded-full bg-emerald-500/60" />
+          Disponível
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+          <span className="h-2 w-2 rounded-full bg-destructive/60" />
+          Indisponível
+        </span>
+      </div>
+    </div>
+  );
+}

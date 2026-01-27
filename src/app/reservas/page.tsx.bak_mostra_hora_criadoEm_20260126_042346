@@ -21,38 +21,11 @@ function moneyBRLFromCentavos(v?: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function formatCriadoEmBR(ts: any) {
-  try {
-    if (!ts) return "";
-    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
-    if (!(d instanceof Date) || isNaN(d.getTime())) return "";
-    return d.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
-
 function toISODateLocal(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-
-function cleanCondId(v: any): string | null {
-  const x = String(v ?? "").trim();
-  if (!x) return null;
-  if (x === "null" || x === "undefined") return null;
-  // ids do firestore normalmente são >= 10 chars (evita lixo)
-  if (x.length < 10) return null;
-  return x;
 }
 
 
@@ -64,62 +37,17 @@ function isBlockedISODate(dateStrYYYYMMDD: string, politicas: any) {
 
 export default function ReservasPage() {
   const { session, isSessionLoading } = useSessionCtx();
-  const condIdFromSession = cleanCondId(session?.activeCondominioId ?? null);
-  const [condId, setCondId] = React.useState<string | null>(condIdFromSession);
-
-  React.useEffect(() => {
-    if (condIdFromSession) {
-      setCondId(condIdFromSession);
-      return;
-    }
-    try {
-      // tenta várias chaves comuns + qualquer chave que contenha "cond"
-      const keys = [
-        "activeCondominioId",
-        "condominioAtivoId",
-        "condominioIdAtivo",
-        "condominioSelecionado",
-        "condId",
-      ];
-
-      // varre localStorage procurando algo que pareça condId
-      let found: string | null = null;
-
-      for (const k of keys) {
-        const v = cleanCondId(localStorage.getItem(k));
-        if (v) { found = v; break; }
-      }
-
-      if (!found) {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          if (!/cond/i.test(k)) continue;
-          const v = cleanCondId(localStorage.getItem(k));
-          if (v) { found = v; break; }
-        }
-      }
-
-      if (found) setCondId(found);
-    } catch (e) {}
-  }, [condIdFromSession]);
+  const condId = session?.activeCondominioId ?? null;
   const user = session?.user ?? null;
   const role = session?.role ?? null;
-
-  const isSuperAdmin =
-    Boolean((session as any)?.isSuperAdmin) ||
-    Boolean((session as any)?.superAdmin) ||
-    Boolean((session as any)?.super_admin) ||
-    Boolean((session as any)?.claims?.superAdmin) ||
-    Boolean((session as any)?.claims?.super_admin);
 
 
   const meuUid = user?.uid ?? null;
   const firestore = useFirestore();
-  const podeVer = !isSessionLoading && !!session;
+  const podeVer = !isSessionLoading && !!session && !!condId;
 
   const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO";
-  const isMoradorLike = role === "MORADOR" || role === "SINDICO" || isSuperAdmin;
+  const isMoradorLike = role === "MORADOR" || role === "SINDICO";
 
   const [dateStr, setDateStr] = React.useState(() => toISODateLocal(new Date()));
   const [areaFilter, setAreaFilter] = React.useState<string | "ALL">("ALL");
@@ -329,8 +257,6 @@ React.useEffect(() => {
     <AppLayout
       pageTitle="Reservas"
       headerActions={
-        /* DEBUG condId */
-      
         isMoradorLike ? (
           <Button variant="default" onClick={handleSolicitarReserva} disabled={!podeReservar}>
             {isChecking ? "Verificando..." : isCreating ? "Enviando..." : "Confirmar reserva"}
@@ -344,15 +270,9 @@ React.useEffect(() => {
         )
       }
     >
-      {isSessionLoading ? (
+      {!podeVer ? (
         <div className="rounded-2xl border bg-card p-6">
-          <div className="text-sm text-muted-foreground">Carregando sessão...</div>
-        </div>
-      ) : !condId ? (
-        <div className="rounded-2xl border bg-card p-6">
-          <div className="text-sm text-muted-foreground">
-            Selecione um condomínio para ver as áreas e fazer reservas.
-          </div>
+          <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
         </div>
       ) : (
         <div className="space-y-6">
@@ -446,11 +366,6 @@ React.useEffect(() => {
                         <div className="text-sm text-muted-foreground">
                           Valor: {moneyBRLFromCentavos(r.valorCobrado)}
                         </div>
-                        {r.criadoEm ? (
-                          <div className="text-sm text-muted-foreground">
-                            Feita em: {formatCriadoEmBR(r.criadoEm)}
-                          </div>
-                        ) : null}
                         <div className="text-sm text-muted-foreground">
                           Morador: <span className="font-medium">{nome || r.uid}</span>
                           {bloco || unidade ? (
@@ -481,11 +396,6 @@ React.useEffect(() => {
                         <div className="text-sm text-muted-foreground">
                           Valor: {moneyBRLFromCentavos(r.valorCobrado)}
                         </div>
-                        {r.criadoEm ? (
-                          <div className="text-sm text-muted-foreground">
-                            Feita em: {formatCriadoEmBR(r.criadoEm)}
-                          </div>
-                        ) : null}
 
                         {isAprovada && (
                             <div className="flex items-center justify-end gap-2">

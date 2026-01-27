@@ -30,11 +30,11 @@ export type AreaReservavel = {
   diaInteiro?: boolean;
   horaInicio?: string;
   horaFim?: string;
-  permiteAte?: number | null;
+  permiteAte?: number | null; // ex: 24
   opcoes?: AreaOpcao[] | null;
   fotoUrl?: string | null;
-  fotoHint?: string | null;
   capacidadeMax?: number | null;
+  fotoHint?: string | null; // path candidato do storage
 };
 
 export type Reserva = {
@@ -78,13 +78,64 @@ function resolveFirestore(maybe: any) {
   return maybe?.firestore ?? maybe;
 }
 
-function normId(v: any) {
+function normalizeId(v: any) {
+  return String(v ?? "").trim();
+}
+
+function normalizeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
+}
+
+function resolvePrecoCentavos(raw: any): number {
+  // tenta vários nomes comuns que podem existir no Firestore
+  const v =
+    raw?.preco ??
+    raw?.precoCentavos ??
+    raw?.valor ??
+    raw?.valorCentavos ??
+    raw?.valorCobrado ??
+    raw?.valorCobradoCentavos ??
+    raw?.price ??
+    raw?.amount ??
+    0;
+
+  return toNum(v, 0);
+}
+
+function normalizeOpcoes(rawOpcoes: any): AreaOpcao[] | null {
+  if (!Array.isArray(rawOpcoes)) return null;
+
+  const list: AreaOpcao[] = rawOpcoes
+    .map((o: any, idx: number) => {
+      const id = normalizeId(o?.id ?? o?.opcaoId ?? o?.key ?? `op${idx + 1}`);
+      const nome = String(o?.nome ?? o?.titulo ?? o?.label ?? "").trim();
+      const preco = resolvePrecoCentavos(o);
+      const bloqueiaAreaId =
+        o?.bloqueiaAreaId ?? o?.bloqueia ?? o?.bloqueiaId ?? null;
+
+      return {
+        id,
+        nome: nome || id,
+        preco,
+        bloqueiaAreaId: bloqueiaAreaId ? String(bloqueiaAreaId) : null,
+      };
+    })
+    // remove opções vazias/duplicadas ruins
+    .filter((o) => !!o.id && !!o.nome);
+
+  // evita duplicar “base” se o dialog já mostra o “padrão”
+  // (se você gravou uma opção "base" sem querer, ela sai daqui)
+  const filtered = list.filter((o) => normalizeLower(o.id) !== "base");
+
+  return filtered.length ? filtered : null;
 }
 
 export function useReservas(condominioId: string | null, dateStr: string) {
   const firestoreRaw = useFirestore();
-  const firestore = React.useMemo(() => resolveFirestore(firestoreRaw), [firestoreRaw]);
+  const firestore = React.useMemo(
+    () => resolveFirestore(firestoreRaw),
+    [firestoreRaw]
+  );
 
   const storage = React.useMemo(() => {
     try {
@@ -95,11 +146,14 @@ export function useReservas(condominioId: string | null, dateStr: string) {
   }, []);
 
   const [areas, setAreas] = React.useState<AreaReservavel[]>([]);
-  const [areaStorageUrls, setAreaStorageUrls] = React.useState<Record<string, string>>({});
+  const [areaStorageUrls, setAreaStorageUrls] = React.useState<
+    Record<string, string>
+  >({});
   const [reservas, setReservas] = React.useState<Reserva[]>([]);
   const [loadingAreas, setLoadingAreas] = React.useState(true);
   const [loadingReservas, setLoadingReservas] = React.useState(true);
 
+  // ===== AREAS =====
   React.useEffect(() => {
     if (!firestore || !condominioId) {
       setAreas([]);
@@ -110,7 +164,12 @@ export function useReservas(condominioId: string | null, dateStr: string) {
     let alive = true;
     setLoadingAreas(true);
 
-    const refCol = collection(firestore, "condominios", condominioId, "areasReservaveis");
+    const refCol = collection(
+      firestore,
+      "condominios",
+      condominioId,
+      "areasReservaveis"
+    );
 
     const unsub = onSnapshot(
       refCol,
@@ -118,16 +177,35 @@ export function useReservas(condominioId: string | null, dateStr: string) {
         try {
           const list: AreaReservavel[] = snap.docs.map((d) => {
             const data = d.data() as any;
-            const id = normId(d.id);
+            const id = normalizeId(d.id);
 
-            const nomeRaw = String(data.nome ?? data.titulo ?? "").trim();
-            const nome = nomeRaw || areaNomeFallback[id] || d.id;
+            // preço base (centavos) — seu Firestore hoje está usando "preco"
+            const precoBase =
+              toNum(data?.preco, NaN) ??
+              toNum(data?.valorBaseCentavos, NaN) ??
+              toNum(data?.precoCentavos, NaN);
 
-            const fotoPath = (data.fotoPath || data.fotoStoragePath || null) as string | null;
-            const fotoUrl = (data.fotoUrl || data.imagemUrl || null) as string | null;
+            const preco =
+              Number.isFinite(Number(precoBase)) ? Number(precoBase) : 0;
 
-            // tenta descobrir um path padrão se não houver fotoPath
-            const base = `condominios/${String(condominioId)}/areas/${String(d.id)}`;
+            const nome =
+              String(data?.nome ?? data?.titulo ?? "").trim() ||
+              areaNomeFallback[id] ||
+              id;
+
+            const fotoPath =
+              (data?.fotoPath ||
+                data?.fotoStoragePath ||
+                data?.fotoHint ||
+                null) as string | null;
+
+            const fotoUrl =
+              (data?.fotoUrl || data?.imagemUrl || null) as string | null;
+
+            // fallback de path padrão do storage (com base no que você listou no bucket)
+            const base = `condominios/${String(
+              condominioId
+            )}/areas/${String(id)}`;
             const imgPathCandidates = [
               fotoPath,
               `${base}.jpeg`,
@@ -135,47 +213,47 @@ export function useReservas(condominioId: string | null, dateStr: string) {
               `${base}.png`,
             ].filter(Boolean);
 
-            // preço base da área
-            const preco = toNum(data.preco ?? data.valorBaseCentavos ?? 0, 0);
-
-            // opcoes: normaliza preço (preco OU valorCobrado OU valor)
-            const opcoes: AreaOpcao[] | null = Array.isArray(data.opcoes)
-              ? data.opcoes.map((op: any, idx: number) => {
-                  const opId = String(op?.id ?? `${id}_op_${idx}`).trim();
-                  const opNome = String(op?.nome ?? op?.titulo ?? "Opcao").trim();
-                  const opPreco = toNum(op?.preco ?? op?.valorCobrado ?? op?.valor ?? 0, 0);
-                  const bloqueiaAreaId = op?.bloqueiaAreaId ?? op?.bloqueia ?? null;
-                  return {
-                    id: opId,
-                    nome: opNome,
-                    preco: opPreco,
-                    bloqueiaAreaId: bloqueiaAreaId ? String(bloqueiaAreaId) : null,
-                  };
-                })
-              : null;
+            const opcoes = normalizeOpcoes(data?.opcoes);
 
             return {
-              id: d.id, // mantém o id original para bater com o resto do app
+              id,
               nome,
-              descricao: data.descricao ?? null,
-              ativo: Boolean(data.ativo ?? true),
+              descricao: data?.descricao ?? null,
               preco,
-              capacidadeMax: Number.isFinite(Number(data.capacidadeMax)) ? Number(data.capacidadeMax) : null,
+              ativo: Boolean(data?.ativo ?? true),
+              tipo: data?.tipo ?? null,
+              diaInteiro: data?.diaInteiro ?? undefined,
+              horaInicio: data?.horaInicio ?? undefined,
+              horaFim: data?.horaFim ?? undefined,
+              permiteAte:
+                Number.isFinite(Number(data?.permiteAte))
+                  ? Number(data?.permiteAte)
+                  : null,
               opcoes,
+              capacidadeMax:
+                Number.isFinite(Number(data?.capacidadeMax))
+                  ? Number(data?.capacidadeMax)
+                  : null,
               fotoUrl: fotoUrl ?? null,
-              fotoHint: imgPathCandidates.length ? String(imgPathCandidates[0]) : null,
+              fotoHint: imgPathCandidates.length
+                ? String(imgPathCandidates[0])
+                : null,
             };
           });
 
-          // resolve urls (storage) só para itens que não têm fotoUrl, e ainda não estão no cache
-          const pending = list.filter((a) => !a.fotoUrl && a.fotoHint && !areaStorageUrls[String(a.id)]);
+          // resolve urls (storage) só para itens que não têm fotoUrl e ainda não estão no cache
+          const pending = list.filter(
+            (a) => !a.fotoUrl && a.fotoHint && !areaStorageUrls[a.id]
+          );
 
           if (storage && pending.length) {
             const updates: Record<string, string> = {};
             for (const a of pending) {
               try {
-                const url = await getDownloadURL(storageRef(storage, String(a.fotoHint)));
-                updates[String(a.id)] = url;
+                const url = await getDownloadURL(
+                  storageRef(storage, String(a.fotoHint))
+                );
+                updates[a.id] = url;
               } catch {
                 // ignora se não existe
               }
@@ -185,24 +263,24 @@ export function useReservas(condominioId: string | null, dateStr: string) {
             }
           }
 
-          // aplica urls resolvidas ao list
           const withImgs = list.map((a) => ({
             ...a,
-            fotoUrl: a.fotoUrl || areaStorageUrls[String(a.id)] || null,
+            fotoUrl: a.fotoUrl || areaStorageUrls[a.id] || null,
           }));
 
           if (alive) {
+            // mostra só as 3 áreas principais no /reservas (campo/quadra fica “invisível” no card)
             const allowedIds = new Set(
-              ["salao_festas", "churrasqueira_1", "churrasqueira_2"].map((x) => String(x).trim().toLowerCase())
+              ["salao_festas", "churrasqueira_1", "churrasqueira_2"].map((x) =>
+                normalizeLower(x)
+              )
             );
 
             setAreas(
-              withImgs.filter((a) => {
-                const id = normId(a.id);
-                return a.ativo && allowedIds.has(id);
-              })
+              withImgs.filter(
+                (a) => a.ativo && allowedIds.has(normalizeLower(a.id))
+              )
             );
-
             setLoadingAreas(false);
           }
         } catch (e) {
@@ -215,8 +293,10 @@ export function useReservas(condominioId: string | null, dateStr: string) {
       },
       (err) => {
         console.error("[useReservas] snapshot areas erro:", err);
-        setAreas([]);
-        setLoadingAreas(false);
+        if (alive) {
+          setAreas([]);
+          setLoadingAreas(false);
+        }
       }
     );
 
@@ -226,6 +306,7 @@ export function useReservas(condominioId: string | null, dateStr: string) {
     };
   }, [firestore, storage, condominioId, areaStorageUrls]);
 
+  // ===== RESERVAS DO DIA (usado na lista de “reservas do dia”) =====
   React.useEffect(() => {
     if (!condominioId || !firestore) {
       setReservas([]);
@@ -267,7 +348,8 @@ export function useReservas(condominioId: string | null, dateStr: string) {
         setReservas(list);
         setLoadingReservas(false);
       },
-      () => {
+      (err) => {
+        console.error("[useReservas] snapshot reservas erro:", err);
         setReservas([]);
         setLoadingReservas(false);
       }

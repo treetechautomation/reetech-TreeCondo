@@ -122,14 +122,8 @@ service cloud.firestore {
       // --- REGRAS DE RESERVAS E CONVIDADOS ---
       match /reservas/{reservaId} {
         function isOwner() {
-            return signedIn() && (
-              resource.data.uid == request.auth.uid ||
-              resource.data.userId == request.auth.uid ||
-              resource.data.moradorUid == request.auth.uid ||
-              resource.data.createdByUid == request.auth.uid ||
-              (resource.data.createdBy != null && resource.data.createdBy.uid == request.auth.uid)
-            );
-          }
+          return signedIn() && (resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid);
+        }
 
         allow read: if canManageCondo(condominioId) || isOwner()
                     || (isPorteiro(condominioId) && resource.data.status == 'APROVADA');
@@ -156,15 +150,9 @@ service cloud.firestore {
             }
 
             function isReservaOwner() {
-                let reserva = reservaDoc();
-                return signedIn() && (
-                  reserva.data.uid == request.auth.uid ||
-                  reserva.data.userId == request.auth.uid ||
-                  reserva.data.moradorUid == request.auth.uid ||
-                  reserva.data.createdByUid == request.auth.uid ||
-                  (reserva.data.createdBy != null && reserva.data.createdBy.uid == request.auth.uid)
-                );
-              }
+              let reserva = reservaDoc();
+              return signedIn() && (reserva.data.uid == request.auth.uid || reserva.data.userId == request.auth.uid);
+            }
 
             // true se não tem limite, ou se ainda não atingiu limite
             function dentroDoLimite() {
@@ -176,12 +164,10 @@ service cloud.firestore {
               return (!temCap) || (cap == 0) || (count < cap);
             }
 
-            allow read: if isSuper() || canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
+            allow read: if canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
 
             // cria/apaga: admin/síndico ou dono + respeita limite (quando houver)
-            allow create: if isSuper() || isReservaOwner();
-
-              allow delete: if isSuper() || isReservaOwner();
+            allow create, delete: if (canManageCondo(condominioId) || isReservaOwner());
 
             // update: porteiro/adminlike marca ENTROU (aceita entradaEm OU entrouEm por compatibilidade)
             allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId))
