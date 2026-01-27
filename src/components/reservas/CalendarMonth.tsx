@@ -176,7 +176,7 @@ export function CalendarMonth({
         <button
           type="button"
           onClick={prevMonth}
-          className="rounded-xl border px-3 py-1 text-sm hover:opacity-90"
+          className="rounded-xl border border-accent bg-accent px-3 py-1 text-sm text-accent-foreground hover:bg-accent/90"
           aria-label="Mês anterior"
         >
           ‹
@@ -190,7 +190,7 @@ export function CalendarMonth({
         <button
           type="button"
           onClick={nextMonth}
-          className="rounded-xl border px-3 py-1 text-sm hover:opacity-90"
+          className="rounded-xl border border-accent bg-accent px-3 py-1 text-sm text-accent-foreground hover:bg-accent/90"
           aria-label="Próximo mês"
         >
           ›
