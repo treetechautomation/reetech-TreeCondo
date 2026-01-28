@@ -95,7 +95,7 @@ export async function POST(req: Request) {
         targetUnidadeId: unidadeId,
         titulo: "📦 Encomenda recebida",
         mensagem: `Chegou uma encomenda da ${transportadora} para a sua unidade.`,
-        tipo: "ENCOMENDA",
+        tipo: "ENCOMENDA_CHEGOU",
         encomendaId: encomendaRef.id,
         lida: false,
         lidaEm: null,

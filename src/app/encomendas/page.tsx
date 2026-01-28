@@ -10,6 +10,7 @@ import {
   History,
   KeyRound,
   RefreshCcw,
+  Package,
 } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -36,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useSessionCtx } from "@/contexts/SessionContext";
+import { useCondominio } from "@/contexts/CondominioContext";
 import { useFirestore, initializeFirebase } from "@/firebase";
 import {
   collection,
@@ -44,6 +46,7 @@ import {
   query,
   where,
   Timestamp,
+  type Query,
 } from "firebase/firestore";
 
 type EncomendaDoc = {
@@ -106,22 +109,24 @@ async function apiPost(path: string, body: any) {
 
 export default function EncomendasPage() {
   const { session, isSessionLoading } = useSessionCtx();
+  const { condominioAtivoId, vinculoAtivo } = useCondominio();
   const firestore = useFirestore();
 
-  const condId = session?.activeCondominioId ?? null;
-  const role: string | null = (session as any)?.role ?? null;
-
-  const podeVer = !isSessionLoading && !!session && !!condId;
-
-  // MVP: quem pode operar (registrar/retirar)
+  const condId = condominioAtivoId;
+  const role: string | null = vinculoAtivo?.role ?? null;
+  
   const isOperador =
     role === "PORTEIRO" ||
     role === "ZELADOR" ||
     role === "SINDICO" ||
     role === "ADMIN" ||
     role === "ADMIN_CONDOMINIO" ||
-    Boolean((session as any)?.superAdmin) ||
-    Boolean((session as any)?.super_admin);
+    session?.superAdmin;
+  
+  const isMorador = role === "MORADOR";
+  const unidadeIdMorador = isMorador ? vinculoAtivo?.unidadeId : null;
+
+  const podeVer = !isSessionLoading && !!session && !!condId && (isOperador || (isMorador && !!unidadeIdMorador));
 
   const [waiting, setWaiting] = React.useState<EncomendaDoc[]>([]);
   const [history, setHistory] = React.useState<EncomendaDoc[]>([]);
@@ -148,64 +153,67 @@ export default function EncomendasPage() {
 
   // listener firestore
   React.useEffect(() => {
-    if (!firestore || !condId || !podeVer) return;
+    if (!condId || !firestore || !podeVer) {
+      setWaiting([]);
+      setHistory([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
+    const base = collection(firestore, "condominios", condId, "encomendas");
+    
+    // For residents, we do one query and filter locally to avoid needing a composite index.
+    if (isMorador && unidadeIdMorador) {
+        const q = query(base, where("unidadeId", "==", unidadeIdMorador));
+        const unsub = onSnapshot(q, (snap) => {
+            const allItems: EncomendaDoc[] = [];
+            snap.forEach(d => allItems.push({ id: d.id, ...d.data() as any }));
 
-    const base = collection(firestore, "condominios", String(condId), "encomendas");
-
-    const qWaiting = query(base, where("status", "==", "AGUARDANDO"));
-    const qHistory = query(base, where("status", "==", "RETIRADA"));
-
-    const unsub1 = onSnapshot(
-      qWaiting,
-      (snap) => {
-        const out: EncomendaDoc[] = [];
-        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+            const waitingItems = allItems
+                .filter(item => item.status === 'AGUARDANDO')
+                .sort((a,b) => (b.chegouEm?.toMillis() ?? 0) - (a.chegouEm?.toMillis() ?? 0));
+            
+            const historyItems = allItems
+                .filter(item => item.status === 'RETIRADA')
+                .sort((a,b) => (b.retiradaEm?.toMillis() ?? 0) - (a.retiradaEm?.toMillis() ?? 0));
+            
+            setWaiting(waitingItems);
+            setHistory(historyItems);
+            setLoading(false);
+        }, (err) => {
+            console.error("[Encomendas Morador] erro:", err);
+            setLoading(false);
+        });
+        return () => unsub();
+    }
+    
+    // For operators, we use indexed queries.
+    if (isOperador) {
+        const qWaiting = query(base, where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
+        const qHistory = query(base, where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
         
-        out.sort((a, b) => {
-            const timeA = a.chegouEm?.toMillis?.() ?? 0;
-            const timeB = b.chegouEm?.toMillis?.() ?? 0;
-            return timeB - timeA;
+        const unsub1 = onSnapshot(qWaiting, (snap) => {
+            const out: EncomendaDoc[] = [];
+            snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+            setWaiting(out);
+            setLoading(false);
+        }, (err) => {
+            console.error("[DIAGNÓSTICO Operador] Erro 'AGUARDANDO':", err);
+            setLoading(false);
         });
 
-        setWaiting(out);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("[DIAGNÓSTICO] Erro ao carregar encomendas 'AGUARDANDO':", err);
-        alert(`Erro ao carregar encomendas 'AGUARDANDO':\n${err.message}`);
-        setWaiting([]);
-        setLoading(false);
-      }
-    );
-
-    const unsub2 = onSnapshot(
-      qHistory,
-      (snap) => {
-        const out: EncomendaDoc[] = [];
-        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
-
-        out.sort((a, b) => {
-            const timeA = a.retiradaEm?.toMillis?.() ?? 0;
-            const timeB = b.retiradaEm?.toMillis?.() ?? 0;
-            return timeB - timeA;
+        const unsub2 = onSnapshot(qHistory, (snap) => {
+            const out: EncomendaDoc[] = [];
+            snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+            setHistory(out);
+        }, (err) => {
+            console.error("[DIAGNÓSTICO Operador] Erro 'RETIRADA':", err);
         });
 
-        setHistory(out);
-      },
-      (err) => {
-        console.error("[DIAGNÓSTICO] Erro ao carregar histórico de encomendas:", err);
-        alert(`Erro ao carregar histórico de encomendas:\n${err.message}`);
-        setHistory([]);
-      }
-    );
-
-    return () => {
-      unsub1();
-      unsub2();
-    };
-  }, [firestore, condId, podeVer]);
+        return () => { unsub1(); unsub2(); };
+    }
+  }, [firestore, condId, podeVer, isMorador, isOperador, unidadeIdMorador]);
 
   async function handleCreate() {
     if (!condId) return;
@@ -275,132 +283,134 @@ export default function EncomendasPage() {
     }
   }
 
+  const pageTitle = isMorador ? "Minhas Encomendas" : "Gestão de Encomendas";
+
   return (
     <AppLayout
-      pageTitle="Gestão de Encomendas"
+      pageTitle={pageTitle}
       headerActions={
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              alert("✅ Atualiza em tempo real. Se algo travou, recarregue a página.");
-            }}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Atualizar
-          </Button>
+        isOperador && (
+            <div className="flex items-center gap-2">
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.reload()}
+            >
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Atualizar
+            </Button>
 
-          <Dialog open={openCreate} onOpenChange={(v) => {
-            setOpenCreate(v);
-            if (!v) setLastCreated(null);
-          }}>
-            <DialogTrigger asChild>
-              <Button size="sm" disabled={!isOperador}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline-block">Registrar Encomenda</span>
-              </Button>
-            </DialogTrigger>
-
-            <DialogContent className="sm:max-w-[520px]">
-              <DialogHeader>
-                <DialogTitle>Registrar Nova Encomenda</DialogTitle>
-                <DialogDescription>
-                  Insira os dados da encomenda. O morador receberá um aviso no app (notificação interna).
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="unidadeId" className="text-right">Unidade</Label>
-                  <Input
-                    id="unidadeId"
-                    placeholder="Ex: 101"
-                    className="col-span-3"
-                    value={unidadeId}
-                    onChange={(e) => setUnidadeId(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="blocoId" className="text-right">Bloco</Label>
-                  <Input
-                    id="blocoId"
-                    placeholder="Opcional (Ex: A)"
-                    className="col-span-3"
-                    value={blocoId}
-                    onChange={(e) => setBlocoId(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="transportadora" className="text-right">Transportadora</Label>
-                  <Input
-                    id="transportadora"
-                    placeholder="Ex: Correios, Mercado Livre"
-                    className="col-span-3"
-                    value={transportadora}
-                    onChange={(e) => setTransportadora(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="observacao" className="text-right">Obs</Label>
-                  <Input
-                    id="observacao"
-                    placeholder="Opcional"
-                    className="col-span-3"
-                    value={observacao}
-                    onChange={(e) => setObservacao(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="pin" className="text-right">PIN</Label>
-                  <Input
-                    id="pin"
-                    placeholder="Opcional (fallback). Se vazio, usa últimos 4 dígitos da unidade."
-                    className="col-span-3"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                  />
-                </div>
-
-                {lastCreated?.codigo ? (
-                  <div className="rounded-xl border bg-white/60 p-4 text-sm">
-                    <div className="font-semibold mb-2">✅ Encomenda registrada!</div>
-                    <div className="flex items-center gap-2">
-                      <QrCode className="h-4 w-4" />
-                      <span>Código (QR texto):</span>
-                      <code className="font-mono font-semibold">{lastCreated.codigo}</code>
-                    </div>
-                    {lastCreated?.pin ? (
-                      <div className="mt-2 flex items-center gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        <span>PIN (fallback):</span>
-                        <code className="font-mono font-semibold">{lastCreated.pin}</code>
-                      </div>
-                    ) : null}
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      MVP: QR por texto agora. Câmera fica para fase 2.
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  onClick={handleCreate}
-                  disabled={savingCreate || !isOperador}
-                >
-                  <PackageCheck className="mr-2 h-4 w-4" />
-                  {savingCreate ? "Registrando..." : "Registrar e Notificar"}
+            <Dialog open={openCreate} onOpenChange={(v) => {
+                setOpenCreate(v);
+                if (!v) setLastCreated(null);
+            }}>
+                <DialogTrigger asChild>
+                <Button size="sm" disabled={!isOperador}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline-block">Registrar Encomenda</span>
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+                </DialogTrigger>
+
+                <DialogContent className="sm:max-w-[520px]">
+                <DialogHeader>
+                    <DialogTitle>Registrar Nova Encomenda</DialogTitle>
+                    <DialogDescription>
+                    Insira os dados da encomenda. O morador receberá um aviso no app (notificação interna).
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="unidadeId" className="text-right">Unidade</Label>
+                    <Input
+                        id="unidadeId"
+                        placeholder="Ex: 101"
+                        className="col-span-3"
+                        value={unidadeId}
+                        onChange={(e) => setUnidadeId(e.target.value)}
+                    />
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="blocoId" className="text-right">Bloco</Label>
+                    <Input
+                        id="blocoId"
+                        placeholder="Opcional (Ex: A)"
+                        className="col-span-3"
+                        value={blocoId}
+                        onChange={(e) => setBlocoId(e.target.value)}
+                    />
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="transportadora" className="text-right">Transportadora</Label>
+                    <Input
+                        id="transportadora"
+                        placeholder="Ex: Correios, Mercado Livre"
+                        className="col-span-3"
+                        value={transportadora}
+                        onChange={(e) => setTransportadora(e.target.value)}
+                    />
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="observacao" className="text-right">Obs</Label>
+                    <Input
+                        id="observacao"
+                        placeholder="Opcional"
+                        className="col-span-3"
+                        value={observacao}
+                        onChange={(e) => setObservacao(e.target.value)}
+                    />
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="pin" className="text-right">PIN</Label>
+                    <Input
+                        id="pin"
+                        placeholder="Opcional (fallback). Se vazio, usa últimos 4 dígitos da unidade."
+                        className="col-span-3"
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                    />
+                    </div>
+
+                    {lastCreated?.codigo ? (
+                    <div className="rounded-xl border bg-white/60 p-4 text-sm">
+                        <div className="font-semibold mb-2">✅ Encomenda registrada!</div>
+                        <div className="flex items-center gap-2">
+                        <QrCode className="h-4 w-4" />
+                        <span>Código (QR texto):</span>
+                        <code className="font-mono font-semibold">{lastCreated.codigo}</code>
+                        </div>
+                        {lastCreated?.pin ? (
+                        <div className="mt-2 flex items-center gap-2">
+                            <KeyRound className="h-4 w-4" />
+                            <span>PIN (fallback):</span>
+                            <code className="font-mono font-semibold">{lastCreated.pin}</code>
+                        </div>
+                        ) : null}
+                        <div className="mt-2 text-xs text-muted-foreground">
+                        MVP: QR por texto agora. Câmera fica para fase 2.
+                        </div>
+                    </div>
+                    ) : null}
+                </div>
+
+                <DialogFooter>
+                    <Button
+                    type="button"
+                    onClick={handleCreate}
+                    disabled={savingCreate || !isOperador}
+                    >
+                    <PackageCheck className="mr-2 h-4 w-4" />
+                    {savingCreate ? "Registrando..." : "Registrar e Notificar"}
+                    </Button>
+                </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            </div>
+        )
       }
     >
       {!podeVer ? (
@@ -409,12 +419,6 @@ export default function EncomendasPage() {
         </div>
       ) : (
         <>
-          {!isOperador ? (
-            <div className="mb-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
-              Você está em modo leitura. Apenas PORTEIRO / ZELADOR / ADMIN / SÍNDICO podem registrar e retirar.
-            </div>
-          ) : null}
-
           <Tabs defaultValue="waiting">
             <TabsList className="mb-4">
               <TabsTrigger value="waiting"><Clock className="mr-2 h-4 w-4" />Aguardando</TabsTrigger>
@@ -426,13 +430,17 @@ export default function EncomendasPage() {
                 {loading ? (
                   <div className="text-sm text-muted-foreground">Carregando encomendas...</div>
                 ) : waiting.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">Nenhuma encomenda aguardando retirada.</div>
+                  <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
+                    <Package className="h-12 w-12 text-slate-400" />
+                    <div className="text-sm font-medium text-slate-700">Tudo em dia!</div>
+                    <div className="text-xs text-slate-500">Nenhuma encomenda aguardando retirada.</div>
+                  </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="hidden sm:table-cell">ID</TableHead>
-                        <TableHead>Unidade</TableHead>
+                        {isOperador && <TableHead className="hidden sm:table-cell">ID</TableHead>}
+                        {isOperador && <TableHead>Unidade</TableHead>}
                         <TableHead>Transportadora</TableHead>
                         <TableHead>Chegada</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -442,16 +450,13 @@ export default function EncomendasPage() {
                     <TableBody>
                       {waiting.map((pkg) => (
                         <TableRow key={pkg.id}>
-                          <TableCell className="font-mono hidden sm:table-cell">{pkg.id.slice(0, 8)}</TableCell>
-                          <TableCell>
-                            {pkg.blocoId ? `Bloco ${pkg.blocoId} • ` : ""}
-                            {pkg.unidadeId || "-"}
-                            {pkg.codigo ? (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Código: <span className="font-mono">{pkg.codigo}</span>
-                              </div>
-                            ) : null}
-                          </TableCell>
+                          {isOperador && <TableCell className="font-mono hidden sm:table-cell">{pkg.id.slice(0, 8)}</TableCell>}
+                          {isOperador && (
+                            <TableCell>
+                                {pkg.blocoId ? `Bloco ${pkg.blocoId} • ` : ""}
+                                {pkg.unidadeId || "-"}
+                            </TableCell>
+                          )}
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
                           <TableCell>{fmtTS(pkg.chegouEm)}</TableCell>
                           <TableCell className="text-right">
@@ -482,8 +487,8 @@ export default function EncomendasPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="hidden sm:table-cell">ID</TableHead>
-                        <TableHead>Unidade</TableHead>
+                        {isOperador && <TableHead className="hidden sm:table-cell">ID</TableHead>}
+                        {isOperador && <TableHead>Unidade</TableHead>}
                         <TableHead>Transportadora</TableHead>
                         <TableHead>Retirada</TableHead>
                         <TableHead className="hidden md:table-cell">Retirada por</TableHead>
@@ -492,11 +497,13 @@ export default function EncomendasPage() {
                     <TableBody>
                       {history.map((pkg) => (
                         <TableRow key={pkg.id}>
-                          <TableCell className="font-mono hidden sm:table-cell">{pkg.id.slice(0, 8)}</TableCell>
-                          <TableCell>
-                            {pkg.blocoId ? `Bloco ${pkg.blocoId} • ` : ""}
-                            {pkg.unidadeId || "-"}
-                          </TableCell>
+                          {isOperador && <TableCell className="font-mono hidden sm:table-cell">{pkg.id.slice(0, 8)}</TableCell>}
+                           {isOperador && (
+                                <TableCell>
+                                    {pkg.blocoId ? `Bloco ${pkg.blocoId} • ` : ""}
+                                    {pkg.unidadeId || "-"}
+                                </TableCell>
+                           )}
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
                           <TableCell>{fmtTS(pkg.retiradaEm)}</TableCell>
                           <TableCell className="hidden md:table-cell font-mono text-xs">

@@ -49,16 +49,32 @@ export async function POST(req: Request) {
     if (!okCodigo && !okPin) {
       return jsonError("Código/PIN inválido.", 403);
     }
+    
+    const retiradoPorNome = decoded.name || decoded.email || "Não identificado";
 
-    await ref.set(
-      {
-        status: "RETIRADA",
-        retiradaEm: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        retiradoPorUid: decoded.uid,
-      },
-      { merge: true }
-    );
+    await db.runTransaction(async (tx) => {
+        tx.update(ref, {
+            status: "RETIRADA",
+            retiradaEm: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            retiradoPorUid: decoded.uid,
+            retiradoPorNome,
+        });
+
+        const notifRef = db.collection("condominios").doc(condominioId).collection("notificacoes").doc();
+        tx.set(notifRef, {
+            targetUnidadeId: data.unidadeId,
+            titulo: "✅ Encomenda Retirada",
+            mensagem: `Sua encomenda da ${data.transportadora || 'transportadora'} foi retirada por ${retiradoPorNome}.`,
+            tipo: "ENCOMENDA_RETIRADA",
+            encomendaId: encomendaId,
+            lida: false,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            createdByUid: decoded.uid,
+        });
+    });
+
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
