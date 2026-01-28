@@ -98,7 +98,7 @@ async function apiPost(path: string, body: any) {
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    throw new Error(data?.error || `Erro ${r.status}`);
+    throw new Error(data?.error || `Erro ${r.status} ${r.statusText}`);
   }
   return data;
 }
@@ -153,19 +153,29 @@ export default function EncomendasPage() {
 
     const base = collection(firestore, "condominios", String(condId), "encomendas");
 
-    const qWaiting = query(base, where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
-    const qHistory = query(base, where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
+    // MODIFICAÇÃO: Removido orderBy para evitar índice composto. Ordenação será feita no cliente.
+    const qWaiting = query(base, where("status", "==", "AGUARDANDO"));
+    const qHistory = query(base, where("status", "==", "RETIRADA"));
 
     const unsub1 = onSnapshot(
       qWaiting,
       (snap) => {
         const out: EncomendaDoc[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        
+        // Ordena no cliente
+        out.sort((a, b) => {
+            const timeA = a.chegouEm?.toMillis?.() ?? 0;
+            const timeB = b.chegouEm?.toMillis?.() ?? 0;
+            return timeB - timeA;
+        });
+
         setWaiting(out);
         setLoading(false);
       },
       (err) => {
         console.error("[DIAGNÓSTICO] Erro ao carregar encomendas 'AGUARDANDO':", err);
+        alert(`Erro ao carregar encomendas 'AGUARDANDO':\n${err.message}`);
         setWaiting([]);
         setLoading(false);
       }
@@ -176,10 +186,19 @@ export default function EncomendasPage() {
       (snap) => {
         const out: EncomendaDoc[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+
+        // Ordena no cliente
+        out.sort((a, b) => {
+            const timeA = a.retiradaEm?.toMillis?.() ?? 0;
+            const timeB = b.retiradaEm?.toMillis?.() ?? 0;
+            return timeB - timeA;
+        });
+
         setHistory(out);
       },
       (err) => {
         console.error("[DIAGNÓSTICO] Erro ao carregar encomendas 'RETIRADA':", err);
+        alert(`Erro ao carregar histórico de encomendas:\n${err.message}`);
         setHistory([]);
       }
     );
@@ -209,6 +228,7 @@ export default function EncomendasPage() {
 
     try {
       const resp = await apiPost("/api/encomendas/create", payload);
+      console.log("[DIAGNÓSTICO] API create respondeu:", resp);
 
       setLastCreated({ codigo: resp?.codigo, pin: resp?.pin });
 
@@ -221,7 +241,7 @@ export default function EncomendasPage() {
 
     } catch (e: any) {
       console.error("[DIAGNÓSTICO] Erro ao chamar API de criar encomenda:", e);
-      alert(`Ocorreu um erro ao registrar a encomenda:\n\n${e?.message || "Verifique o console para mais detalhes."}`);
+      alert(`Ocorreu um erro ao registrar a encomenda:\n\n${e?.message || "Verifique o console para mais detalhes."}\n\nStack: ${e?.stack ?? 'N/A'}`);
     } finally {
       setSavingCreate(false);
     }
