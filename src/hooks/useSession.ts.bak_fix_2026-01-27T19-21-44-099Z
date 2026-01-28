@@ -38,8 +38,7 @@ function resolveRole(superAdmin: boolean, vinculoAtivo: Vinculo | null): RoleKey
   if (vinculoAtivo.role === "SINDICO") return "SINDICO";
   if (vinculoAtivo.role === "PORTEIRO") return "PORTEIRO";
   if (vinculoAtivo.role === "ZELADOR") return "ZELADOR";
-  if (vinculoAtivo.role === "ADMIN_CONDOMINIO") return "ADMIN_CONDOMINIO";
-if (vinculoAtivo.role === "ADMIN") return "ADMIN";
+  if (vinculoAtivo.role === "ADMIN" || vinculoAtivo.role === "ADMIN_CONDOMINIO") return "ADMIN";
   return "MORADOR";
 }
 

@@ -70,19 +70,12 @@ export default function ConvidadosCheckinPage() {
   const condId = session?.activeCondominioId ?? null;
   const role: string | null = (session as any)?.role ?? null;
 
-    const isSuper =
-      Boolean((session as any)?.superAdmin) ||
-      Boolean((session as any)?.isSuperAdmin) ||
-      Boolean((session as any)?.super_admin) ||
-      String((session as any)?.role || session?.role || "").toUpperCase() === "SUPER_ADMIN";
-
   const isPorteiro = role === "PORTEIRO";
   const isAdminLike =
-      isSuper ||
-      role === "ADMIN" ||
-      role === "SINDICO" ||
-      role === "ADMIN_CONDOMINIO" ||
-      role === "ZELADOR";
+    session?.superAdmin ||
+    role === "ADMIN" ||
+    role === "SINDICO" ||
+    role === "ADMIN_CONDOMINIO";
 
   const canUse = !!session && !!condId && (isPorteiro || isAdminLike);
 

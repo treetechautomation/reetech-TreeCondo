@@ -1,10 +1,8 @@
 "use client";
 
 import React from "react";
-import { useSessionCtx } from "@/contexts/SessionContext";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { useCondominio } from "@/contexts/CondominioContext";
-import { useFirestore } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -17,7 +15,6 @@ import {
 } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
 
 function norm(s: string) {
   return (s || "")
@@ -28,8 +25,6 @@ function norm(s: string) {
 }
 
 export function CondominioSelector() {
-  const { session } = useSessionCtx();
-  const firestore = useFirestore();
   const {
     vinculos,
     condominioAtivoId,
@@ -40,75 +35,29 @@ export function CondominioSelector() {
   } = useCondominio();
 
   const [open, setOpen] = React.useState(false);
-  const [superOptions, setSuperOptions] = React.useState<{ id: string; nome: string }[]>([]);
-  const [isLoadingSuperOptions, setIsLoadingSuperOptions] = React.useState(false);
-
-  React.useEffect(() => {
-    const isSuper = String(session?.role || "") === "SUPER_ADMIN" || session?.superAdmin === true;
-    if (!isSuper) return;
-    if (!firestore) return;
-
-    // se já tem vínculos, não precisa do fallback
-    if (Array.isArray(vinculos) && vinculos.length > 0) return;
-
-    const loadSuperOptions = async () => {
-      try {
-        setIsLoadingSuperOptions(true);
-        const qPub = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
-        const snap = await getDocs(qPub);
-        const list = snap.docs.map(d => {
-          const data = d.data() as any;
-          return { id: d.id, nome: data?.nome || d.id };
-        });
-        setSuperOptions(list);
-      } catch (e) {
-        console.error("[CondominioSelector] erro ao carregar condominiosPublicos (super admin):", e);
-        setSuperOptions([]);
-      } finally {
-        setIsLoadingSuperOptions(false);
-      }
-    };
-
-    loadSuperOptions();
-  }, [session?.role, session?.superAdmin, firestore, Array.isArray(vinculos) ? vinculos.length : 0]);
-
 
   const options = React.useMemo(() => {
-    const isSuper = String(session?.role || "") === "SUPER_ADMIN" || session?.superAdmin === true;
-
-    // Base a partir dos vínculos (usuários normais)
-    const base = (vinculos || [])
+    const list = (vinculos || [])
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
         id: v.condominioId,
         nome: (v as any).condominioNome || v.condominioId,
       }));
 
-    // SUPER_ADMIN sem vínculos: usa lista pública
-    if (isSuper && base.length === 0) {
-      const seen = new Set<string>();
-      return (superOptions || []).filter((o) => {
-        if (seen.has(o.id)) return false;
-        seen.add(o.id);
-        return true;
-      });
-    }
-
-    // Usuários com vínculos
+    // evita duplicados
     const seen = new Set<string>();
-    return base.filter((o) => {
+    return list.filter((o) => {
       if (seen.has(o.id)) return false;
       seen.add(o.id);
       return true;
     });
-  }, [vinculos, superOptions, session?.role, session?.superAdmin]);
-  
+  }, [vinculos]);
 
   const active = React.useMemo(() => {
     return options.find((o) => o.id === condominioAtivoId) || null;
   }, [options, condominioAtivoId]);
 
-  if (isLoadingVinculos || isLoadingSuperOptions) return <Skeleton className="h-10 w-full" />;
+  if (isLoadingVinculos) return <Skeleton className="h-10 w-full" />;
 
   if (options.length === 0) {
     return (

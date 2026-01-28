@@ -38,6 +38,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "FUNCIONARIO";
+type FuncionarioTipo = "SEGURANCA" | "LIMPEZA" | "MANUTENCAO";
+
 
 type Membro = {
   id: string;
@@ -46,6 +48,8 @@ type Membro = {
   role: MembroRole;
   blocoId?: string | null;
   unidadeId?: string | null;
+  tipo?: "FUNCIONARIO" | null;
+  funcionarioTipo?: FuncionarioTipo | null;
   status?: "ATIVO" | "INATIVO" | "PENDENTE";
   isSuperAdmin?: boolean;
 };
@@ -83,7 +87,7 @@ export default function PessoasPage() {
       case "ZELADORES":
         return membros.filter((m) => m.role === "ZELADOR");
       case "FUNCIONARIOS":
-        return membros.filter((m) => m.role === "FUNCIONARIO");
+        return membros.filter((m) => m.role === "FUNCIONARIO" || (m.role === "ZELADOR" && m.tipo === "FUNCIONARIO"));
       case "TODOS":
       default:
         return membros;
@@ -95,12 +99,14 @@ export default function PessoasPage() {
     role: MembroRole;
     blocoId: string;
     unidadeId: string;
+    funcionarioTipo: FuncionarioTipo;
   }>({
     nome: "",
     email: "",
     role: "MORADOR" as MembroRole,
     blocoId: "",
-    unidadeId: ""
+    unidadeId: "",
+    funcionarioTipo: "SEGURANCA"
   });
   const [abaConvite, setAbaConvite] = React.useState<"dados"|"local">("dados");
 
@@ -246,6 +252,8 @@ list.sort((a, b) => a.nome.localeCompare(b.nome));
             role: (data.role ?? "MORADOR") as MembroRole,
             blocoId: data.blocoId ?? data.bloco ?? null,
             unidadeId: data.unidadeId ?? data.apartamento ?? null,
+            tipo: (data.tipo ?? null) as any,
+            funcionarioTipo: (data.funcionarioTipo ?? null) as any,
             status: (data.status ?? (data.ativo === true ? "ATIVO" : undefined)) as any,
           };
         });
@@ -300,7 +308,9 @@ setLoading(true);
           condominioId: condominioAtivoId,
           nome: form.nome.trim(),
           email: form.email.trim().toLowerCase(),
-          role: form.role,
+          role: form.role === "FUNCIONARIO" ? "ZELADOR" : form.role,
+          tipo: form.role === "FUNCIONARIO" ? "FUNCIONARIO" : null,
+          funcionarioTipo: form.role === "FUNCIONARIO" ? form.funcionarioTipo : null,
           blocoId: form.blocoId,
           unidadeId: form.unidadeId,
         });
@@ -315,7 +325,9 @@ setLoading(true);
           condominioId: condominioAtivoId,
           nome: form.nome.trim(),
           email: form.email.trim().toLowerCase(),
-          role: form.role,
+          role: form.role === "FUNCIONARIO" ? "ZELADOR" : form.role,
+          tipo: form.role === "FUNCIONARIO" ? "FUNCIONARIO" : null,
+          funcionarioTipo: form.role === "FUNCIONARIO" ? form.funcionarioTipo : null,
           blocoId: form.blocoId || null,
           unidadeId: form.unidadeId || null,
         }),
@@ -324,7 +336,7 @@ setLoading(true);
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao criar convite.");
 
-      setForm({ nome: "", email: "", role: "MORADOR" , blocoId: "", unidadeId: "" });
+      setForm({ nome: "", email: "", role: "MORADOR", blocoId: "", unidadeId: "", funcionarioTipo: "SEGURANCA" });
 
       toast({
         title: "Convite criado!",
@@ -450,6 +462,29 @@ setLoading(true);
               <option value="FUNCIONARIO">Funcionário</option>
             </select>
 
+            {form.role === "FUNCIONARIO" && (
+              <div className="md:col-span-3 grid gap-2">
+                <label className="text-sm text-slate-700">Tipo de funcionário</label>
+                <select
+                  className="rounded-md border bg-background px-3 py-2 text-sm"
+                  value={form.funcionarioTipo}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      funcionarioTipo: e.target.value as any,
+                    }))
+                  }
+                >
+                  <option value="SEGURANCA">Segurança</option>
+                  <option value="LIMPEZA">Limpeza</option>
+                  <option value="MANUTENCAO">Manutenção</option>
+                </select>
+                <div className="text-xs text-slate-600">
+                  Funcionário usa permissões do ZELADOR, com categoria para organização.
+                </div>
+              </div>
+            )}
+
             </div>
     <div className="mt-3 flex justify-end">
       <Button type="button" variant="outline" onClick={() => setAbaConvite("local")}>
@@ -560,8 +595,11 @@ setLoading(true);
                         ? "Síndico"
                         : m.role === "PORTEIRO"
                         ? "Porteiro"
-                          : m.role === "ZELADOR"
-                          ? "Zelador"
+                          
+                        : m.role === "ZELADOR" && m.tipo === "FUNCIONARIO"
+                        ? `Funcionário (${m.funcionarioTipo === "SEGURANCA" ? "Segurança" : m.funcionarioTipo === "LIMPEZA" ? "Limpeza" : m.funcionarioTipo === "MANUTENCAO" ? "Manutenção" : "—"})`
+                        : m.role === "ZELADOR"
+                        ? "Zelador"
                         : "Funcionário"}
                     </TableCell>
                       <TableCell>

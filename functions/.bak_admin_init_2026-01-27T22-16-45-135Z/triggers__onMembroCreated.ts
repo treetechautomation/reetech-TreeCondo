@@ -1,6 +1,3 @@
-import {getApps, initializeApp} from "firebase-admin/app";
-if (!getApps().length) initializeApp();
-
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 

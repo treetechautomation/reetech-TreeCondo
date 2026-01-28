@@ -27,12 +27,6 @@ export default function AgendaReservasPage() {
   const user = session?.user ?? null;
   const role: string | null = (session as any)?.role ?? null;
 
-    const isSuper =
-      Boolean((session as any)?.superAdmin) ||
-      Boolean((session as any)?.isSuperAdmin) ||
-      Boolean((session as any)?.super_admin) ||
-      String((session as any)?.role || session?.role || "").toUpperCase() === "SUPER_ADMIN";
-
   const firestore = useFirestore();
   const podeVer = !isSessionLoading && !!session && !!condId;
 
@@ -43,7 +37,7 @@ export default function AgendaReservasPage() {
   const { reservas, loadingReservas } = useReservas(condId, dateStr);
 
   const isPorteiro = role === "PORTEIRO";
-  const isAdminLike = isSuper || role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO" || role === "ZELADOR";
+  const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO";
 
   // Porteiro vê só aprovadas do dia; admin também pode ver pra auditoria
   const reservasDoDia = React.useMemo(() => {

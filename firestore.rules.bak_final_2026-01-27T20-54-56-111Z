@@ -42,15 +42,11 @@ service cloud.firestore {
         (roleNoCondo(condominioId) in ["ADMIN", "SINDICO", "ADMIN_CONDOMINIO"])
       );
     }
+
     function isPorteiro(condominioId) {
       return isMembroAtivo(condominioId) && roleNoCondo(condominioId) == 'PORTEIRO';
     }
 
-
-    
-    function isZelador(condominioId) {
-      return isMembroAtivo(condominioId) && roleNoCondo(condominioId) == 'ZELADOR';
-    }
 
     // -------------------------
     // Coleções Globais
@@ -118,70 +114,7 @@ service cloud.firestore {
         allow create, update, delete: if canManageCondo(condominioId);
       }
 
-
-        // -------------------------
-        // Encomendas
-        // - leitura: membro ativo
-        // - escrita: gestor do condomínio OU porteiro OU zelador
-        // -------------------------
-        match /encomendas/{encomendaId} {
-          allow read: if isSuper() || isMembroAtivo(condominioId);
-
-          // criar: porteiro/zelador/gestor
-          allow create: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
-
-          // atualizar: somente campos operacionais (status/retirada) por porteiro/zelador/gestor
-          allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId))
-              && request.resource.data.diff(resource.data).changedKeys()
-                   .hasOnly([
-                     'status',
-                     'retiradaEm',
-                     'retiradoPorNome',
-                     'retiradoPorDocumento',
-                     'retiradoPorUid',
-                     'retiradoPorTipo',
-                     'retiradoPorTelefone',
-                     'observacoes',
-                     'codigoRetiradaHash',
-                     'codigoRetiradaLast4',
-                     'updatedAt'
-                   ]);
-// deletar: só super/gestor (opcional)
-          allow delete: if isSuper() || canManageCondo(condominioId);
-        }
-
-      
-        // -------------------------
-        // Notificações (MODELO 1)
-        // - cria: porteiro/zelador/gestor (ex: aviso de encomenda)
-        // - lê: destinatário (targetUid) OU porteiro/zelador/gestor OU super
-        // - update: marcar como lida/arquivada
-        // -------------------------
-        match /notificacoes/{notificacaoId} {
-          function isTarget() {
-            return signedIn()
-              && (resource.data.targetUid == request.auth.uid);
-          }
-
-          allow read: if isSuper()
-                      || canManageCondo(condominioId)
-                      || isPorteiro(condominioId)
-                      || isZelador(condominioId)
-                      || isTarget();
-
-          allow create: if canManageCondo(condominioId)
-                        || isPorteiro(condominioId)
-                        || isZelador(condominioId);
-
-          // update só para marcar leitura/estado
-          allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId) || isTarget())
-                        && request.resource.data.diff(resource.data).changedKeys()
-                             .hasOnly(['lidaEm', 'lida', 'arquivada', 'updatedAt']);
-
-          allow delete: if isSuper() || canManageCondo(condominioId);
-        }
-
-match /config/{docId} {
+      match /config/{docId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
       }
@@ -198,8 +131,8 @@ match /config/{docId} {
             );
           }
 
-        allow read: if isSuper() || canManageCondo(condominioId) || isZelador(condominioId) || isOwner()
-                      || (isPorteiro(condominioId) && resource.data.status == 'APROVADA');
+        allow read: if canManageCondo(condominioId) || isOwner()
+                    || (isPorteiro(condominioId) && resource.data.status == 'APROVADA');
 
         allow create: if isMembroAtivo(condominioId)
                       && (roleNoCondo(condominioId) == 'MORADOR' || roleNoCondo(condominioId) == 'SINDICO')
@@ -210,19 +143,14 @@ match /config/{docId} {
 
         allow update: if canManageCondo(condominioId)
                       || (
-                           isZelador(condominioId) &&
-                           request.resource.data.diff(resource.data).changedKeys()
-                             .hasOnly(['status', 'aprovadoEm', 'aprovadorUid', 'bloqueadoEm', 'bloqueadoPorUid', 'motivoBloqueio', 'updatedAt'])
-                         )
-                      || (
                            isPorteiro(condominioId) &&
                            request.resource.data.diff(resource.data).changedKeys()
                              .hasOnly(['statusAcesso', 'entradaEm', 'porteiroUid', 'updatedAt'])
                          );
 
-          // delete só super
-          allow delete: if isSuper();
-match /convidados/{convidadoId} {
+        allow delete: if isSuper();
+
+        match /convidados/{convidadoId} {
             function reservaDoc() {
               return get(/databases/$(database)/documents/condominios/$(condominioId)/reservas/$(reservaId));
             }
@@ -248,27 +176,17 @@ match /convidados/{convidadoId} {
               return (!temCap) || (cap == 0) || (count < cap);
             }
 
-            allow read: if isSuper()
-                        || canManageCondo(condominioId)
-                        || isReservaOwner()
-                        || (isPorteiro(condominioId) && reservaDoc().data.status == 'APROVADA');
+            allow read: if isSuper() || canManageCondo(condominioId) || isPorteiro(condominioId) || isReservaOwner();
 
             // cria/apaga: admin/síndico ou dono + respeita limite (quando houver)
-            allow create: if (
-                          isSuper()
-                          || canManageCondo(condominioId)
-                          || (isReservaOwner() && roleNoCondo(condominioId) == 'MORADOR')
-                        ) && dentroDoLimite();
-
-            allow delete: if isSuper()
-                        || canManageCondo(condominioId)
-                        || (isReservaOwner() && roleNoCondo(condominioId) == 'MORADOR');
+            allow create: if isSuper() || canManageCondo(condominioId) || isReservaOwner();
+            allow delete: if isSuper() || canManageCondo(condominioId) || isReservaOwner();
 
             // update: porteiro/adminlike marca ENTROU (aceita entradaEm OU entrouEm por compatibilidade)
             allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId))
-                            && request.resource.data.diff(resource.data).changedKeys()
-                                 .hasOnly(['status', 'entradaEm', 'entrouEm', 'porteiroUid', 'updatedAt'])
-                            && request.resource.data.status == 'ENTROU';
+                          && request.resource.data.diff(resource.data).changedKeys()
+                               .hasOnly(['status', 'entradaEm', 'entrouEm', 'porteiroUid', 'updatedAt'])
+                          && request.resource.data.status == 'ENTROU';
           }
       }
       // -------------------------

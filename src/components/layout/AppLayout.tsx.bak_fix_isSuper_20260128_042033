@@ -84,12 +84,6 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
   const pathname = usePathname();
   const { session, isSessionLoading } = useSessionCtx();
 
-    const isSuper =
-      Boolean((session as any)?.superAdmin) ||
-      Boolean((session as any)?.isSuperAdmin) ||
-      Boolean((session as any)?.super_admin) ||
-      String((session as any)?.role || session?.role || "").toUpperCase() === "SUPER_ADMIN";
-
   const hideSidebar = pathname?.startsWith("/login");
 
   const [perms, setPerms] = React.useState<MenuPermissions | null>(null);
@@ -113,7 +107,7 @@ setPerms(p);
 
   function isAllowed(menuKey: MenuKey) {
     if (!session) return false;
-    if (isSuper) {
+    if (session.superAdmin) {
       // Super admin vê tudo, exceto o menu global que é tratado separadamente
       return menuKey !== "administrador_global" || session.user.email === "treecommunity@treetechautomation.com";
     }

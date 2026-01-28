@@ -89,7 +89,7 @@ const { session, isSessionLoading } = useSessionCtx();
   const [modoAuditoria, setModoAuditoria] = React.useState(false);
 
   const canApprove =
-    !!session && (session.superAdmin || session.role === "SINDICO" || session.role === "ADMIN" || session.role === "ZELADOR");
+    !!session && (session.superAdmin || session.role === "SINDICO" || session.role === "ADMIN");
 
   React.useEffect(() => {
     if (isSessionLoading) return;

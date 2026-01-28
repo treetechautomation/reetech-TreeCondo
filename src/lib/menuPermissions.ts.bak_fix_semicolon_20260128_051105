@@ -19,8 +19,7 @@ export type MenuKey =
   | "enquetes"
   | "reunioes"
   | "configuracoes"
-  | "administrador_global";
-
+  | "administrador_global"
 export type MenuPermissions = Partial<Record<RoleKey, Partial<Record<MenuKey, boolean>>>>;//__TC_MENU_PERMS_RECORD__
 
 export const MENU_LABELS: Record<MenuKey, string> = {

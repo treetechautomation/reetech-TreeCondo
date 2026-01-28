@@ -69,7 +69,7 @@ export default function ReservasConvidadosPage() {
   const condId = session?.activeCondominioId;
   const isSuper = session?.superAdmin;
   const isMorador = session?.role === "MORADOR";
-  const isAdminLike = isSuper || ["ADMIN", "SINDICO", "ADMIN_CONDOMINIO"].includes(String(session?.role || ""));
+  const isAdminLike = session?.role === "SINDICO" || session?.role === "ADMIN" || isSuper;
 
   // Carrega dados da reserva (pra validar dono e pegar capacidade)
   React.useEffect(() => {
@@ -127,16 +127,8 @@ export default function ReservasConvidadosPage() {
     return <AppLayout pageTitle="Lista de Convidados">Reserva não encontrada.</AppLayout>;
   }
 
-  const donoUid = (
-  reserva.uid ||
-  reserva.userId ||
-  reserva.moradorUid ||
-  (reserva as any).createdByUid ||
-  (reserva as any).createdBy?.uid ||
-  (reserva as any).createdBy?.userId ||
-  ""
-).toString();
-const souDono = !!user.uid && donoUid === user.uid;
+  const donoUid = (reserva.uid || reserva.userId || reserva.moradorUid || "").toString();
+  const souDono = !!user.uid && donoUid === user.uid;
 
   // Apenas Super Admin, Admin/Síndico ou o próprio morador dono podem gerenciar.
   const canManageGuests = isSuper || isAdminLike || souDono;

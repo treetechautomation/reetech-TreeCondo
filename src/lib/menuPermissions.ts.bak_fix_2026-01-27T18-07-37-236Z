@@ -19,8 +19,7 @@ export type MenuKey =
   | "enquetes"
   | "reunioes"
   | "configuracoes"
-  | "administrador_global";
-
+  | "administrador_global"
 export type MenuPermissions = Partial<Record<RoleKey, Partial<Record<MenuKey, boolean>>>>;//__TC_MENU_PERMS_RECORD__
 
 export const MENU_LABELS: Record<MenuKey, string> = {
@@ -133,24 +132,24 @@ export const DEFAULT_PERMS: MenuPermissions = {
     configuracoes: false,
     administrador_global: false,
   },
-      ZELADOR: {
-    dashboard: true,
-    incidentes: true,
-    encomendas: true,
-    acesso: true,
-    anuncios: true,
-    reservas: true,
+    ZELADOR: {
+      dashboard: true,
+      incidentes: true,
+      encomendas: true,
+      acesso: true,
+      anuncios: false,
+      reservas: false,
       reservas_checkin: true,
       reservas_agenda: true,
-      reservas_solicitacoes: true,
-    documentos: false,
-    enquetes: false,
-    reunioes: false,
-    condominios: false,
-    cadastros: false,
-    configuracoes: false,
-    administrador_global: false,
-  },
+      reservas_solicitacoes: false,
+      documentos: false,
+      enquetes: false,
+      reunioes: false,
+      condominios: false,
+      cadastros: false,
+      configuracoes: false,
+      administrador_global: false,
+    },
 };
 
 export function menuPermissionsRef(condominioId: string) {

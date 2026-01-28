@@ -118,70 +118,7 @@ service cloud.firestore {
         allow create, update, delete: if canManageCondo(condominioId);
       }
 
-
-        // -------------------------
-        // Encomendas
-        // - leitura: membro ativo
-        // - escrita: gestor do condomínio OU porteiro OU zelador
-        // -------------------------
-        match /encomendas/{encomendaId} {
-          allow read: if isSuper() || isMembroAtivo(condominioId);
-
-          // criar: porteiro/zelador/gestor
-          allow create: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
-
-          // atualizar: somente campos operacionais (status/retirada) por porteiro/zelador/gestor
-          allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId))
-              && request.resource.data.diff(resource.data).changedKeys()
-                   .hasOnly([
-                     'status',
-                     'retiradaEm',
-                     'retiradoPorNome',
-                     'retiradoPorDocumento',
-                     'retiradoPorUid',
-                     'retiradoPorTipo',
-                     'retiradoPorTelefone',
-                     'observacoes',
-                     'codigoRetiradaHash',
-                     'codigoRetiradaLast4',
-                     'updatedAt'
-                   ]);
-// deletar: só super/gestor (opcional)
-          allow delete: if isSuper() || canManageCondo(condominioId);
-        }
-
-      
-        // -------------------------
-        // Notificações (MODELO 1)
-        // - cria: porteiro/zelador/gestor (ex: aviso de encomenda)
-        // - lê: destinatário (targetUid) OU porteiro/zelador/gestor OU super
-        // - update: marcar como lida/arquivada
-        // -------------------------
-        match /notificacoes/{notificacaoId} {
-          function isTarget() {
-            return signedIn()
-              && (resource.data.targetUid == request.auth.uid);
-          }
-
-          allow read: if isSuper()
-                      || canManageCondo(condominioId)
-                      || isPorteiro(condominioId)
-                      || isZelador(condominioId)
-                      || isTarget();
-
-          allow create: if canManageCondo(condominioId)
-                        || isPorteiro(condominioId)
-                        || isZelador(condominioId);
-
-          // update só para marcar leitura/estado
-          allow update: if (canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId) || isTarget())
-                        && request.resource.data.diff(resource.data).changedKeys()
-                             .hasOnly(['lidaEm', 'lida', 'arquivada', 'updatedAt']);
-
-          allow delete: if isSuper() || canManageCondo(condominioId);
-        }
-
-match /config/{docId} {
+      match /config/{docId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
       }

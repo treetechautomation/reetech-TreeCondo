@@ -114,11 +114,7 @@ async function sendEmailResend(params: {
     const apiKeyLen = (process.env.RESEND_API_KEY || "").length;
     console.log("[convites/create] RESEND_API_KEY presente?", Boolean(process.env.RESEND_API_KEY), "len=", apiKeyLen);
     console.log("[convites/create] RESEND_FROM=", process.env.RESEND_FROM || "(default)");
-  
-    const fallbackFrom = "TreeCondo <no-reply@treetechautomation.com>";
-    const rawFrom = (process.env.RESEND_FROM || "").trim();
-    const isValidFrom = /^([^<>@\n]+\s<[^<>@\s\n]+@[^<>@\s\n]+\.[^<>@\s\n]+>|[^<>@\s\n]+@[^<>@\s\n]+\.[^<>@\s\n]+)$/.test(rawFrom);
-    const from = isValidFrom ? rawFrom : fallbackFrom;
+  const from = process.env.RESEND_FROM || "TreeCondo <no-reply@treetechautomation.com>";
   if (!apiKey) return { skipped: true, reason: "RESEND_API_KEY não configurada" };
 
   const r = await fetch("https://api.resend.com/emails", {

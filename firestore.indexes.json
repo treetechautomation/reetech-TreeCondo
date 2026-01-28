@@ -1,11 +1,21 @@
 {
   "indexes": [
     {
-      "collectionGroup": "reservas",
+      "collectionGroup": "encomendas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "areaId", "order": "ASCENDING" },
-        { "fieldPath": "data", "order": "ASCENDING" }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "retiradaEm", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "encomendas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "chegouEm", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ]
     }
   ],

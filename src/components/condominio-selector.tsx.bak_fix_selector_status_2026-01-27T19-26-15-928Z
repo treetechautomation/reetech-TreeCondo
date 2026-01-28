@@ -72,11 +72,9 @@ export function CondominioSelector() {
     loadSuperOptions();
   }, [session?.role, session?.superAdmin, firestore, Array.isArray(vinculos) ? vinculos.length : 0]);
 
-
-  const options = React.useMemo(() => {
+const options = React.useMemo(() => {
     const isSuper = String(session?.role || "") === "SUPER_ADMIN" || session?.superAdmin === true;
 
-    // Base a partir dos vínculos (usuários normais)
     const base = (vinculos || [])
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
@@ -84,25 +82,31 @@ export function CondominioSelector() {
         nome: (v as any).condominioNome || v.condominioId,
       }));
 
-    // SUPER_ADMIN sem vínculos: usa lista pública
+    // SUPER_ADMIN sem vínculos: usa condominiosPublicos como fallback
     if (isSuper && base.length === 0) {
       const seen = new Set<string>();
-      return (superOptions || []).filter((o) => {
+      return (superOptions || []).filter(o => {
         if (seen.has(o.id)) return false;
         seen.add(o.id);
         return true;
       });
     }
 
-    // Usuários com vínculos
+    const list = base
+      .filter((v) => v?.status !== "INATIVO")
+      .map((v) => ({
+        id: v.condominioId,
+        nome: (v as any).condominioNome || v.condominioId,
+      }));
+
+    // evita duplicados
     const seen = new Set<string>();
-    return base.filter((o) => {
+    return list.filter((o) => {
       if (seen.has(o.id)) return false;
       seen.add(o.id);
       return true;
     });
-  }, [vinculos, superOptions, session?.role, session?.superAdmin]);
-  
+  }, [vinculos]);
 
   const active = React.useMemo(() => {
     return options.find((o) => o.id === condominioAtivoId) || null;

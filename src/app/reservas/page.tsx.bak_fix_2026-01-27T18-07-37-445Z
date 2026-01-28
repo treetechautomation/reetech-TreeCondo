@@ -24,11 +24,15 @@ function moneyBRLFromCentavos(v?: number) {
 function formatCriadoEmBR(ts: any) {
   try {
     if (!ts) return "";
-    const d = typeof (ts as any)?.toDate === "function" ? (ts as any).toDate() : new Date(ts);
+    const d = typeof ts?.toDate === "function" ? ts.toDate() : new Date(ts);
     if (!(d instanceof Date) || isNaN(d.getTime())) return "";
-    const data = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    return `${data} às ${hora}`;
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } catch {
     return "";
   }
@@ -114,7 +118,7 @@ export default function ReservasPage() {
   const firestore = useFirestore();
   const podeVer = !isSessionLoading && !!session;
 
-  const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO" || role === "ZELADOR";
+  const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO";
   const isMoradorLike = role === "MORADOR" || role === "SINDICO" || isSuperAdmin;
 
   const [dateStr, setDateStr] = React.useState(() => toISODateLocal(new Date()));
@@ -444,7 +448,7 @@ React.useEffect(() => {
                         </div>
                         {r.criadoEm ? (
                           <div className="text-sm text-muted-foreground">
-                            Reservado em: {formatCriadoEmBR(r.criadoEm)}
+                            Feita em: {formatCriadoEmBR(r.criadoEm)}
                           </div>
                         ) : null}
                         <div className="text-sm text-muted-foreground">
@@ -462,7 +466,8 @@ React.useEffect(() => {
 
                   // MORADOR
                   if (meuUid && r.uid === meuUid) {
-                    return (
+                    const isAprovada = String(r.status) === "APROVADA";
+                     return (
                       <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="font-medium">
@@ -478,16 +483,19 @@ React.useEffect(() => {
                         </div>
                         {r.criadoEm ? (
                           <div className="text-sm text-muted-foreground">
-                            Reservado em: {formatCriadoEmBR(r.criadoEm)}
+                            Feita em: {formatCriadoEmBR(r.criadoEm)}
                           </div>
                         ) : null}
 
-                        <div className="flex items-center justify-end gap-2">
-  <Button asChild variant="outline">
-    <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
-  </Button>
-</div>
-<div className="text-xs text-muted-foreground">
+                        {isAprovada && (
+                            <div className="flex items-center justify-end gap-2">
+                                <Button asChild variant="outline">
+                                    <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
+                                </Button>
+                            </div>
+                        )}
+
+                        <div className="text-xs text-muted-foreground">
                           Reserva ID: {r.id}
                         </div>
                       </div>

@@ -1,15 +1,15 @@
 /* eslint-disable require-jsdoc, max-len */
 import * as admin from "firebase-admin";
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 
 // Triggers
-import {onMembroCreated} from "./triggers/onMembroCreated";
-export {onMembroCreated};
+import { onMembroCreated } from "./triggers/onMembroCreated";
+export { onMembroCreated };
 
 // Callables
-export {acceptInvite} from "./callables/acceptInvite";
-export {adminCreateMorador} from "./callables/adminCreateMorador";
-export {adminCreateMembro} from "./callables/adminCreateMembro";
+export { acceptInvite } from "./callables/acceptInvite";
+export { adminCreateMorador } from "./callables/adminCreateMorador";
+export { adminCreateMembro } from "./callables/adminCreateMembro";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,24 +34,28 @@ export const onConviteCreated = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
 
-    const convite = snap.data() as {nome: string;
+    const convite = snap.data() as {
+      nome: string;
       email: string;
       condominioId: string;
       tipo: string;
-      status?: string;};
+      status?: string;
+    };
 
     if (convite.status === "PROCESSADO") return;
 
     const tempPassword = generateTempPassword();
 
-    const userRecord = await admin.auth().createUser({email: convite.email,
+    const userRecord = await admin.auth().createUser({
+      email: convite.email,
       password: tempPassword,
       displayName: convite.nome,
-      emailVerified: false});
+      emailVerified: false,
+    });
 
     const uid = userRecord.uid;
 
-    await admin.auth().setCustomUserClaims(uid, {super_admin: false});
+    await admin.auth().setCustomUserClaims(uid, { super_admin: false });
 
     const userDocRef = db.collection("userCondominios").doc(uid);
     const vinculoRef = userDocRef.collection("vinculos").doc(convite.condominioId);
@@ -60,24 +64,32 @@ export const onConviteCreated = onDocumentCreated(
 
     const batch = db.batch();
 
-    batch.set(userDocRef, {nome: convite.nome,
+    batch.set(userDocRef, {
+      nome: convite.nome,
       email: convite.email,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()});
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    batch.set(vinculoRef, {condominioId: convite.condominioId,
+    batch.set(vinculoRef, {
+      condominioId: convite.condominioId,
       role: convite.tipo,
       status: "ATIVO",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()});
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    batch.set(membroRef, {nome: convite.nome,
+    batch.set(membroRef, {
+      nome: convite.nome,
       email: convite.email,
       role: convite.tipo,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()});
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    batch.update(snap.ref, {status: "PROCESSADO",
+    batch.update(snap.ref, {
+      status: "PROCESSADO",
       uidGerado: uid,
       senhaTemporaria: tempPassword,
-      processedAt: admin.firestore.FieldValue.serverTimestamp()});
+      processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
   }
@@ -93,9 +105,11 @@ async function notifyUser(uid: string, title: string, body: string, data?: Recor
   const tokens = await getUserTokens(uid);
   if (tokens.length === 0) return;
 
-  const res = await admin.messaging().sendEachForMulticast({tokens,
-    notification: {title, body},
-    data: data || {}});
+  const res = await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: { title, body },
+    data: data || {},
+  });
 
   // limpa tokens inválidos
   const invalid: string[] = [];
@@ -143,14 +157,16 @@ export const onThreadCreated = onDocumentCreated(
       String(uid),
       "Nova mensagem do condomínio",
       "Você foi acionado. Abra a conversa para responder.",
-      {url: "/anuncios",
+      {
+        url: "/anuncios",
         condominioId: String(event.params.condId),
-        threadId: String(event.params.threadId)}
+        threadId: String(event.params.threadId),
+      }
     );
 
     await snap.ref.set(
-      {notifiedAt: admin.firestore.FieldValue.serverTimestamp()},
-      {merge: true}
+      { notifiedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
     );
   }
 );
@@ -188,9 +204,11 @@ export const onMessageCreated = onDocumentCreated(
       String(uid),
       "Nova mensagem do condomínio",
       body,
-      {url: "/anuncios",
+      {
+        url: "/anuncios",
         condominioId: String(event.params.condId),
-        threadId: String(event.params.threadId)}
+        threadId: String(event.params.threadId),
+      }
     );
   }
 );
