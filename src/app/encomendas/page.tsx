@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -153,7 +154,6 @@ export default function EncomendasPage() {
 
     const base = collection(firestore, "condominios", String(condId), "encomendas");
 
-    // MODIFICAÇÃO: Removido orderBy para evitar índice composto. Ordenação será feita no cliente.
     const qWaiting = query(base, where("status", "==", "AGUARDANDO"));
     const qHistory = query(base, where("status", "==", "RETIRADA"));
 
@@ -163,7 +163,6 @@ export default function EncomendasPage() {
         const out: EncomendaDoc[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
         
-        // Ordena no cliente
         out.sort((a, b) => {
             const timeA = a.chegouEm?.toMillis?.() ?? 0;
             const timeB = b.chegouEm?.toMillis?.() ?? 0;
@@ -187,7 +186,6 @@ export default function EncomendasPage() {
         const out: EncomendaDoc[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
 
-        // Ordena no cliente
         out.sort((a, b) => {
             const timeA = a.retiradaEm?.toMillis?.() ?? 0;
             const timeB = b.retiradaEm?.toMillis?.() ?? 0;
@@ -197,7 +195,7 @@ export default function EncomendasPage() {
         setHistory(out);
       },
       (err) => {
-        console.error("[DIAGNÓSTICO] Erro ao carregar encomendas 'RETIRADA':", err);
+        console.error("[DIAGNÓSTICO] Erro ao carregar histórico de encomendas:", err);
         alert(`Erro ao carregar histórico de encomendas:\n${err.message}`);
         setHistory([]);
       }
@@ -232,7 +230,6 @@ export default function EncomendasPage() {
 
       setLastCreated({ codigo: resp?.codigo, pin: resp?.pin });
 
-      // limpa form (mantém o modal aberto pra mostrar código/pin)
       setUnidadeId("");
       setBlocoId("");
       setTransportadora("");
@@ -278,134 +275,134 @@ export default function EncomendasPage() {
     }
   }
 
-  const HeaderActions = () => (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          // força re-render/listeners já fazem, mas deixa UX ok
-          alert("✅ Atualiza em tempo real. Se algo travou, recarregue a página.");
-        }}
-      >
-        <RefreshCcw className="mr-2 h-4 w-4" />
-        Atualizar
-      </Button>
-
-      <Dialog open={openCreate} onOpenChange={(v) => {
-        setOpenCreate(v);
-        if (!v) setLastCreated(null);
-      }}>
-        <DialogTrigger asChild>
-          <Button size="sm" disabled={!isOperador}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline-block">Registrar Encomenda</span>
+  return (
+    <AppLayout
+      pageTitle="Gestão de Encomendas"
+      headerActions={
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              alert("✅ Atualiza em tempo real. Se algo travou, recarregue a página.");
+            }}
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Atualizar
           </Button>
-        </DialogTrigger>
 
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>Registrar Nova Encomenda</DialogTitle>
-            <DialogDescription>
-              Insira os dados da encomenda. O morador receberá um aviso no app (notificação interna).
-            </DialogDescription>
-          </DialogHeader>
+          <Dialog open={openCreate} onOpenChange={(v) => {
+            setOpenCreate(v);
+            if (!v) setLastCreated(null);
+          }}>
+            <DialogTrigger asChild>
+              <Button size="sm" disabled={!isOperador}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline-block">Registrar Encomenda</span>
+              </Button>
+            </DialogTrigger>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="unidadeId" className="text-right">Unidade</Label>
-              <Input
-                id="unidadeId"
-                placeholder="Ex: 101"
-                className="col-span-3"
-                value={unidadeId}
-                onChange={(e) => setUnidadeId(e.target.value)}
-              />
-            </div>
+            <DialogContent className="sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle>Registrar Nova Encomenda</DialogTitle>
+                <DialogDescription>
+                  Insira os dados da encomenda. O morador receberá um aviso no app (notificação interna).
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="blocoId" className="text-right">Bloco</Label>
-              <Input
-                id="blocoId"
-                placeholder="Opcional (Ex: A)"
-                className="col-span-3"
-                value={blocoId}
-                onChange={(e) => setBlocoId(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="transportadora" className="text-right">Transportadora</Label>
-              <Input
-                id="transportadora"
-                placeholder="Ex: Correios, Mercado Livre"
-                className="col-span-3"
-                value={transportadora}
-                onChange={(e) => setTransportadora(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="observacao" className="text-right">Obs</Label>
-              <Input
-                id="observacao"
-                placeholder="Opcional"
-                className="col-span-3"
-                value={observacao}
-                onChange={(e) => setObservacao(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pin" className="text-right">PIN</Label>
-              <Input
-                id="pin"
-                placeholder="Opcional (fallback). Se vazio, usa últimos 4 dígitos da unidade."
-                className="col-span-3"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-              />
-            </div>
-
-            {lastCreated?.codigo ? (
-              <div className="rounded-xl border bg-white/60 p-4 text-sm">
-                <div className="font-semibold mb-2">✅ Encomenda registrada!</div>
-                <div className="flex items-center gap-2">
-                  <QrCode className="h-4 w-4" />
-                  <span>Código (QR texto):</span>
-                  <code className="font-mono font-semibold">{lastCreated.codigo}</code>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="unidadeId" className="text-right">Unidade</Label>
+                  <Input
+                    id="unidadeId"
+                    placeholder="Ex: 101"
+                    className="col-span-3"
+                    value={unidadeId}
+                    onChange={(e) => setUnidadeId(e.target.value)}
+                  />
                 </div>
-                {lastCreated?.pin ? (
-                  <div className="mt-2 flex items-center gap-2">
-                    <KeyRound className="h-4 w-4" />
-                    <span>PIN (fallback):</span>
-                    <code className="font-mono font-semibold">{lastCreated.pin}</code>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="blocoId" className="text-right">Bloco</Label>
+                  <Input
+                    id="blocoId"
+                    placeholder="Opcional (Ex: A)"
+                    className="col-span-3"
+                    value={blocoId}
+                    onChange={(e) => setBlocoId(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="transportadora" className="text-right">Transportadora</Label>
+                  <Input
+                    id="transportadora"
+                    placeholder="Ex: Correios, Mercado Livre"
+                    className="col-span-3"
+                    value={transportadora}
+                    onChange={(e) => setTransportadora(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="observacao" className="text-right">Obs</Label>
+                  <Input
+                    id="observacao"
+                    placeholder="Opcional"
+                    className="col-span-3"
+                    value={observacao}
+                    onChange={(e) => setObservacao(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="pin" className="text-right">PIN</Label>
+                  <Input
+                    id="pin"
+                    placeholder="Opcional (fallback). Se vazio, usa últimos 4 dígitos da unidade."
+                    className="col-span-3"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                  />
+                </div>
+
+                {lastCreated?.codigo ? (
+                  <div className="rounded-xl border bg-white/60 p-4 text-sm">
+                    <div className="font-semibold mb-2">✅ Encomenda registrada!</div>
+                    <div className="flex items-center gap-2">
+                      <QrCode className="h-4 w-4" />
+                      <span>Código (QR texto):</span>
+                      <code className="font-mono font-semibold">{lastCreated.codigo}</code>
+                    </div>
+                    {lastCreated?.pin ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        <span>PIN (fallback):</span>
+                        <code className="font-mono font-semibold">{lastCreated.pin}</code>
+                      </div>
+                    ) : null}
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      MVP: QR por texto agora. Câmera fica para fase 2.
+                    </div>
                   </div>
                 ) : null}
-                <div className="mt-2 text-xs text-muted-foreground">
-                  MVP: QR por texto agora. Câmera fica para fase 2.
-                </div>
               </div>
-            ) : null}
-          </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={handleCreate}
-              disabled={savingCreate || !isOperador}
-            >
-              <PackageCheck className="mr-2 h-4 w-4" />
-              {savingCreate ? "Registrando..." : "Registrar e Notificar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-
-  return (
-    <AppLayout pageTitle="Gestão de Encomendas" headerActions={<HeaderActions />}>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={savingCreate || !isOperador}
+                >
+                  <PackageCheck className="mr-2 h-4 w-4" />
+                  {savingCreate ? "Registrando..." : "Registrar e Notificar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      }
+    >
       {!podeVer ? (
         <div className="rounded-2xl border bg-card p-6">
           <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
