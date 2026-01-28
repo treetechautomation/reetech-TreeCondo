@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
@@ -5,19 +6,24 @@ import { createHash, randomBytes } from "crypto";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
+// Helper for consistent error responses
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+// Helper to generate a SHA256 hash
 function sha256(v: string) {
-  return createHash("sha256").update(v).digest("hex");
+  return createHash("sha256").update(v, "utf8").digest("hex");
 }
 
-function randomCode(len = 10) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+// Helper to generate a random alphanumeric code
+function randomCode(len = 8) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed ambiguous chars like I, O, 0, 1
   const buf = randomBytes(len);
   let out = "";
-  for (let i = 0; i < len; i++) out += chars[buf[i] % chars.length];
+  for (let i = 0; i < len; i++) {
+    out += chars[buf[i] % chars.length];
+  }
   return out;
 }
 
@@ -26,99 +32,91 @@ export async function POST(req: Request) {
   const aauth = adminAuth();
 
   try {
+    // 1. Authenticate the request
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
+    if (!token) {
+      return jsonError("Token ausente (Authorization: Bearer ...)", 401);
+    }
     const decoded = await aauth.verifyIdToken(token);
-    const body = (await req.json().catch(() => ({}))) as any;
-    console.log("[DIAGNÓSTICO] API /api/encomendas/create - body recebido:", body);
-
+    
+    // 2. Parse and validate the request body
+    const body = await req.json().catch(() => ({}));
+    console.log("[API/encomendas/create] Body recebido:", body);
 
     const condominioId = String(body?.condominioId || "").trim();
-
-    // Aceita os nomes do seu front (unidadeId/blocoId/observacao)
-    const unidadeId = String(body?.unidadeId || body?.unidade || "").trim();
-    const blocoId = body?.blocoId ? String(body.blocoId).trim() : (body?.bloco ? String(body.bloco).trim() : "");
+    const unidadeId = String(body?.unidadeId || "").trim();
+    const blocoId = body?.blocoId ? String(body.blocoId).trim() : null;
     const transportadora = String(body?.transportadora || "").trim();
-    const observacao = body?.observacao ? String(body.observacao).trim() : "";
+    const observacao = body?.observacao ? String(body.observacao).trim() : null;
     const pinInput = body?.pin ? String(body.pin).trim() : "";
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
-    if (!unidadeId) return jsonError("Informe a unidade.", 400);
-    if (!transportadora) return jsonError("Informe a transportadora.", 400);
+    if (!unidadeId) return jsonError("unidadeId é obrigatório", 400);
+    if (!transportadora) return jsonError("transportadora é obrigatória", 400);
 
-    // QR por texto (MODELO 1)
+    // 3. Generate codes and PINs
     const codigo = `PKG-${randomCode(8)}`;
-    const pin = pinInput || codigo.slice(-4);
+    const codigoRetiradaHash = sha256(codigo);
+    const codigoRetiradaLast4 = codigo.slice(-4);
+    
+    const pin = pinInput || unidadeId.slice(-4).padStart(4, '0'); // Fallback to last 4 of unit ID
+    const pinHash = sha256(pin);
+    const pinLast4 = pin.slice(-4);
 
+    // 4. Run Firestore transaction to create encomenda and notification
     const encomendaRef = db.collection("condominios").doc(condominioId).collection("encomendas").doc();
-    const encomendaId = encomendaRef.id;
-
-    // Notificação interna (MODELO 1)
     const notifRef = db.collection("condominios").doc(condominioId).collection("notificacoes").doc();
-
+    
     await db.runTransaction(async (tx) => {
+      // Set Encomenda document
       tx.set(encomendaRef, {
         condominioId,
         status: "AGUARDANDO",
-
         unidadeId,
-        blocoId: blocoId || null,
+        blocoId,
         transportadora,
-        observacoes: observacao || null,
-
+        observacoes: observacao,
         chegouEm: FieldValue.serverTimestamp(),
-
-        // validação futura na retirada
-        codigoRetiradaHash: sha256(codigo),
-        codigoRetiradaLast4: codigo.slice(-4),
-
-        pinHash: sha256(pin),
-        pinLast4: pin.slice(-4),
-
+        codigoRetiradaHash,
+        codigoRetiradaLast4,
+        pinHash,
+        pinLast4,
         retiradaEm: null,
         retiradoPorUid: null,
-        retiradoPorNome: null,
-        retiradoPorDocumento: null,
-        retiradoPorTelefone: null,
-        retiradoPorTipo: null,
-
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
         criadoPorUid: decoded.uid,
         criadoPorEmail: (decoded.email || "").toLowerCase(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
+      // Set Notificação document
       tx.set(notifRef, {
-        // se você já tiver moradorUid pela unidade, depois a gente preenche targetUid.
-        targetUid: null,
-
-        tipo: "ENCOMENDA_CHEGOU",
+        targetUnidadeId: unidadeId,
         titulo: "📦 Encomenda recebida",
-        mensagem: `Chegou uma encomenda para ${blocoId ? `Bloco ${blocoId} • ` : ""}Unidade ${unidadeId}.`,
-        encomendaId,
-        condominioId,
-
+        mensagem: `Chegou uma encomenda da ${transportadora} para a sua unidade.`,
+        tipo: "ENCOMENDA",
+        encomendaId: encomendaRef.id,
         lida: false,
         lidaEm: null,
         arquivada: false,
-
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         createdByUid: decoded.uid,
       });
     });
 
-    console.log("[DIAGNÓSTICO] API /api/encomendas/create - sucesso:", { ok: true, encomendaId, codigo, pin });
+    console.log("[API/encomendas/create] Sucesso:", { ok: true, encomendaId: encomendaRef.id, codigo, pin });
+    
+    // 5. Return success response
     return NextResponse.json({
       ok: true,
-      encomendaId,
+      encomendaId: encomendaRef.id,
       codigo,
       pin,
     });
   } catch (err: any) {
-    console.error("[DIAGNÓSTICO] Erro na API /api/encomendas/create:", err);
-    return jsonError(err?.message || "Erro inesperado", 500);
+    console.error("[API/encomendas/create] Erro:", err);
+    return jsonError(err?.message || "Erro inesperado no servidor", 500);
   }
 }
