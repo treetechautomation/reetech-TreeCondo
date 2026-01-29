@@ -87,7 +87,7 @@ async function notifyUnidade(db: any, params: {
     const ref = db.collection("condominios").doc(condId).collection("notificacoes").doc();
     const title = "📦 Encomenda chegou";
       const bloco = (params.blocoId ?? null) ? String(params.blocoId).trim() : null;
-      const blocoTxt = bloco ? ("Bloco " + bloco + " • ") : "";
+      const blocoTxt = bloco ? ("Bloco " + bloco + " • ") : "" ("Bloco " + bloco + " • ") : "";
     const transp = params.transportadora ? (" (" + params.transportadora + ")") : "";
     const codigoTxt = params.codigo ? (" Código: " + params.codigo) : "";
     const message = `${blocoTxt}Unidade ${unidadeId}${transp}. Retire na portaria.${codigoTxt}`;

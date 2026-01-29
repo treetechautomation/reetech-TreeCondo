@@ -1,3 +1,4 @@
+
 {
   "indexes": [
     {
@@ -5,8 +6,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "retiradaEm", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        { "fieldPath": "chegouEm", "order": "DESCENDING" }
       ]
     },
     {
@@ -14,8 +14,45 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "chegouEm", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        { "fieldPath": "retiradaEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "encomendas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "unidadeIdNorm", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "chegouEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "encomendas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "unidadeIdNorm", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "retiradaEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "encomendas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "blocoIdNorm", "order": "ASCENDING" },
+        { "fieldPath": "unidadeIdNorm", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "chegouEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "encomendas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "blocoIdNorm", "order": "ASCENDING" },
+        { "fieldPath": "unidadeIdNorm", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "retiradaEm", "order": "DESCENDING" }
       ]
     }
   ],

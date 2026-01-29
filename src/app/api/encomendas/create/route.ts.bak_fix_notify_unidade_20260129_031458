@@ -36,48 +36,24 @@ async function notifyUnidade(db: any, params: {
   transportadora?: string | null;
   codigo?: string | null;
 }) {
-    function normUnidade(v: any) {
-      // "Apto 203" | "APARTAMENTO 203" | "203" -> "203"
-      return String(v || "")
-        .toLowerCase()
-        .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
-        .replace(/[^0-9a-z]/gi, "")
-        .trim();
-    }
-    function normBloco(v: any) {
-      // "Dalias" | "DALIAS" -> "dalias"
-      return String(v || "").toLowerCase().trim();
-    }
-
   const condId = params.condominioId;
   const unidadeId = String(params.unidadeId || "").trim();
   if (!condId || !unidadeId) return;
 
-  
-    const alvoUn = normUnidade(unidadeId);
-    const alvoBl = (params.blocoId ?? null) ? normBloco(params.blocoId) : null;
+  let q = db.collection("condominios").doc(condId).collection("membros")
+      .where("unidadeId", "==", unidadeId);
 
-    const snap = await db.collection("condominios").doc(condId).collection("membros").get();
+  const bloco = (params.blocoId ?? null) ? String(params.blocoId).trim() : null;
+  if (bloco) q = q.where("blocoId", "==", bloco);
 
+  const snap = await q.get();
 
-    
     const membros = snap.docs
       .map((d) => ({ id: d.id, ...(d.data() || {}) }))
-      .filter((m) => {
-        const st = String(m.status || "").toUpperCase();
-        if (!(st === "ATIVO" || st === "PENDENTE")) return false;
-
-        const unOk = normUnidade(m.unidadeId) === alvoUn;
-        if (!unOk) return false;
-
-        if (alvoBl) {
-          return normBloco(m.blocoId) === alvoBl;
-        }
-        return true;
-      });
+      .filter((m) => (String(m.status || "").toUpperCase() === "ATIVO" || String(m.status || "").toUpperCase() === "PENDENTE"));
 
     if (membros.length === 0) {
-    console.log("[encomendas/create] Nenhum morador (ATIVO/PENDENTE) encontrado para unidade:", unidadeId, "bloco:", (params.blocoId ?? null));
+    console.log("[encomendas/create] Nenhum morador (ATIVO/PENDENTE) encontrado para unidade:", unidadeId, "bloco:", bloco);
     return;
   }
 
@@ -86,14 +62,13 @@ async function notifyUnidade(db: any, params: {
       const uid = m.id;
     const ref = db.collection("condominios").doc(condId).collection("notificacoes").doc();
     const title = "📦 Encomenda chegou";
-      const bloco = (params.blocoId ?? null) ? String(params.blocoId).trim() : null;
-      const blocoTxt = bloco ? ("Bloco " + bloco + " • ") : "";
+    const blocoTxt = bloco ? ("Bloco " + bloco + " • ") : "";
     const transp = params.transportadora ? (" (" + params.transportadora + ")") : "";
     const codigoTxt = params.codigo ? (" Código: " + params.codigo) : "";
     const message = `${blocoTxt}Unidade ${unidadeId}${transp}. Retire na portaria.${codigoTxt}`;
 
     batch.set(ref, {
-tipo: "ENCOMENDA_CHEGOU",
+      tipo: "ENCOMENDA_CHEGOU",
       title,
       message,
         titulo: title,
@@ -107,8 +82,7 @@ tipo: "ENCOMENDA_CHEGOU",
       arquivada: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
-    
-      }, { merge: true });
+    }, { merge: true });
   });
 
   await batch.commit();
@@ -135,26 +109,12 @@ export async function POST(req: Request) {
     const condominioId = String(body?.condominioId || "").trim();
     const unidadeId = String(body?.unidadeId || "").trim();
     const blocoId = body?.blocoId ? String(body.blocoId).trim() : null;
-
-      function normUnidadeId(v: any) {
-        return String(v || "")
-          .toLowerCase()
-          .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
-          .replace(/[^0-9a-z]/gi, "")
-          .trim();
-      }
-      function normBlocoId(v: any) {
-        return String(v || "").toLowerCase().trim();
-      }
-
-      const unidadeIdNorm = normUnidadeId(unidadeId);
-      const blocoIdNorm = blocoId ? normBlocoId(blocoId) : null;
     const transportadora = String(body?.transportadora || "").trim();
     const observacao = body?.observacao ? String(body.observacao).trim() : null;
     const pinInput = body?.pin ? String(body.pin).trim() : "";
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
-    if (!unidadeIdNorm) return jsonError("unidadeId é obrigatório", 400);
+    if (!unidadeId) return jsonError("unidadeId é obrigatório", 400);
     if (!transportadora) return jsonError("transportadora é obrigatória", 400);
 
     // 3. Generate codes and PINs
@@ -171,12 +131,10 @@ export async function POST(req: Request) {
     await db.runTransaction(async (tx) => {
       // Set Encomenda document
       tx.set(encomendaRef, {
-          condominioId,
+        condominioId,
         status: "AGUARDANDO",
         unidadeId,
-          unidadeIdNorm,
         blocoId,
-          blocoIdNorm,
         transportadora,
         observacoes: observacao,
         chegouEm: FieldValue.serverTimestamp(),
@@ -190,8 +148,7 @@ export async function POST(req: Request) {
         criadoPorEmail: (decoded.email || "").toLowerCase(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      
-        });
+      });
       });
 
     console.log("[API/encomendas/create] Sucesso:", { ok: true, encomendaId: encomendaRef.id, codigo, pin });

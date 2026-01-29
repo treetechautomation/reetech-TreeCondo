@@ -107,6 +107,18 @@ async function apiPost(path: string, body: any) {
   return data;
 }
 
+function normUnidade(v: any) {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
+    .replace(/[^0-9a-z]/gi, "")
+    .trim();
+}
+
+function normBloco(v: any) {
+  return String(v || "").toLowerCase().trim();
+}
+
 export default function EncomendasPage() {
   const { session, isSessionLoading } = useSessionCtx();
   const { condominioAtivoId, vinculoAtivo } = useCondominio();
@@ -124,7 +136,8 @@ export default function EncomendasPage() {
     session?.superAdmin;
   
   const isMorador = role === "MORADOR";
-  const unidadeIdMorador = isMorador ? vinculoAtivo?.unidadeId : null;
+  const unidadeIdMorador = isMorador ? (vinculoAtivo as any)?.unidadeId : null;
+  const blocoIdMorador = isMorador ? (vinculoAtivo as any)?.blocoId : null;
 
   const podeVer = !isSessionLoading && !!session && !!condId && (isOperador || (isMorador && !!unidadeIdMorador));
 
@@ -163,57 +176,50 @@ export default function EncomendasPage() {
     setLoading(true);
     const base = collection(firestore, "condominios", condId, "encomendas");
     
-    // For residents, we do one query and filter locally to avoid needing a composite index.
-    if (isMorador && unidadeIdMorador) {
-        const q = query(base, where("unidadeId", "==", unidadeIdMorador));
-        const unsub = onSnapshot(q, (snap) => {
-            const allItems: EncomendaDoc[] = [];
-            snap.forEach(d => allItems.push({ id: d.id, ...d.data() as any }));
+    let qWaiting: Query;
+    let qHistory: Query;
 
-            const waitingItems = allItems
-                .filter(item => item.status === 'AGUARDANDO')
-                .sort((a,b) => (b.chegouEm?.toMillis() ?? 0) - (a.chegouEm?.toMillis() ?? 0));
-            
-            const historyItems = allItems
-                .filter(item => item.status === 'RETIRADA')
-                .sort((a,b) => (b.retiradaEm?.toMillis() ?? 0) - (a.retiradaEm?.toMillis() ?? 0));
-            
-            setWaiting(waitingItems);
-            setHistory(historyItems);
-            setLoading(false);
-        }, (err) => {
-            console.error("[Encomendas Morador] erro:", err);
-            setLoading(false);
-        });
-        return () => unsub();
+    if (isOperador) {
+        qWaiting = query(base, where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
+        qHistory = query(base, where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
+    } else if (isMorador && unidadeIdMorador) {
+        const unidadeNorm = normUnidade(unidadeIdMorador);
+        const blocoNorm = blocoIdMorador ? normBloco(blocoIdMorador) : null;
+
+        if (blocoNorm) {
+            qWaiting = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
+            qHistory = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
+        } else {
+            qWaiting = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
+            qHistory = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
+        }
+    } else {
+        setWaiting([]);
+        setHistory([]);
+        setLoading(false);
+        return;
     }
     
-    // For operators, we use indexed queries.
-    if (isOperador) {
-        const qWaiting = query(base, where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
-        const qHistory = query(base, where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
-        
-        const unsub1 = onSnapshot(qWaiting, (snap) => {
-            const out: EncomendaDoc[] = [];
-            snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
-            setWaiting(out);
-            setLoading(false);
-        }, (err) => {
-            console.error("[DIAGNÓSTICO Operador] Erro 'AGUARDANDO':", err);
-            setLoading(false);
-        });
+    const unsub1 = onSnapshot(qWaiting, (snap) => {
+        const out: EncomendaDoc[] = [];
+        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        setWaiting(out);
+        setLoading(false);
+    }, (err) => {
+        console.error("[Encomendas] erro 'AGUARDANDO':", err);
+        setLoading(false);
+    });
 
-        const unsub2 = onSnapshot(qHistory, (snap) => {
-            const out: EncomendaDoc[] = [];
-            snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
-            setHistory(out);
-        }, (err) => {
-            console.error("[DIAGNÓSTICO Operador] Erro 'RETIRADA':", err);
-        });
+    const unsub2 = onSnapshot(qHistory, (snap) => {
+        const out: EncomendaDoc[] = [];
+        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        setHistory(out);
+    }, (err) => {
+        console.error("[Encomendas] erro 'RETIRADA':", err);
+    });
 
-        return () => { unsub1(); unsub2(); };
-    }
-  }, [firestore, condId, podeVer, isMorador, isOperador, unidadeIdMorador]);
+    return () => { unsub1(); unsub2(); };
+  }, [firestore, condId, podeVer, isMorador, isOperador, unidadeIdMorador, blocoIdMorador]);
 
   async function handleCreate() {
     if (!condId) return;
@@ -443,7 +449,7 @@ export default function EncomendasPage() {
                         {isOperador && <TableHead>Unidade</TableHead>}
                         <TableHead>Transportadora</TableHead>
                         <TableHead>Chegada</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        {isOperador && <TableHead className="text-right">Ações</TableHead>}
                       </TableRow>
                     </TableHeader>
 
@@ -459,7 +465,7 @@ export default function EncomendasPage() {
                           )}
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
                           <TableCell>{fmtTS(pkg.chegouEm)}</TableCell>
-                          <TableCell className="text-right">
+                          {isOperador && <TableCell className="text-right">
                             <Button
                               variant="outline"
                               size="sm"
@@ -470,7 +476,7 @@ export default function EncomendasPage() {
                               <span className="hidden sm:inline-block">Registrar Retirada</span>
                               <span className="sm:hidden">Retirar</span>
                             </Button>
-                          </TableCell>
+                          </TableCell>}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -507,7 +513,7 @@ export default function EncomendasPage() {
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
                           <TableCell>{fmtTS(pkg.retiradaEm)}</TableCell>
                           <TableCell className="hidden md:table-cell font-mono text-xs">
-                            {pkg.retiradaPorUid ? pkg.retiradaPorUid.slice(0, 10) + "…" : "-"}
+                            {(pkg as any).retiradoPorNome || ((pkg.retiradaPorUid || '-').slice(0,10) + '...')}
                           </TableCell>
                         </TableRow>
                       ))}
