@@ -42,11 +42,12 @@ import { useFirestore, initializeFirebase } from "@/firebase";
 import {
   collection,
   onSnapshot,
-  orderBy,
   query,
   where,
   Timestamp,
   type Query,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 
 type EncomendaDoc = {
@@ -136,10 +137,8 @@ export default function EncomendasPage() {
     session?.superAdmin;
   
   const isMorador = role === "MORADOR";
-  const unidadeIdMorador = isMorador ? (vinculoAtivo as any)?.unidadeId : null;
-  const blocoIdMorador = isMorador ? (vinculoAtivo as any)?.blocoId : null;
-
-  const podeVer = !isSessionLoading && !!session && !!condId && (isOperador || (isMorador && !!unidadeIdMorador));
+  
+  const [moradorInfo, setMoradorInfo] = React.useState<{unidadeId: string | null, blocoId: string | null} | null>(null);
 
   const [waiting, setWaiting] = React.useState<EncomendaDoc[]>([]);
   const [history, setHistory] = React.useState<EncomendaDoc[]>([]);
@@ -164,6 +163,38 @@ export default function EncomendasPage() {
   const [pinInput, setPinInput] = React.useState("");
   const [savingRetirar, setSavingRetirar] = React.useState(false);
 
+  React.useEffect(() => {
+    if (!isMorador || !condId || !firestore || !session?.user?.uid) {
+        setMoradorInfo(null);
+        return;
+    }
+
+    let alive = true;
+    (async () => {
+        try {
+            const membroRef = doc(firestore, 'condominios', condId, 'membros', session.user.uid);
+            const membroSnap = await getDoc(membroRef);
+
+            if (alive && membroSnap.exists()) {
+                const data = membroSnap.data() as any;
+                setMoradorInfo({
+                    unidadeId: data.unidadeId || data.apartamento || null,
+                    blocoId: data.blocoId || data.bloco || null,
+                });
+            } else if (alive) {
+                setMoradorInfo(null);
+            }
+        } catch (e) {
+            console.error("Failed to fetch morador info:", e);
+            if (alive) setMoradorInfo(null);
+        }
+    })();
+    
+    return () => { alive = false; }
+  }, [isMorador, condId, firestore, session?.user?.uid]);
+
+  const podeVer = !isSessionLoading && !!session && !!condId && (isOperador || (isMorador && moradorInfo !== undefined));
+
   // listener firestore
   React.useEffect(() => {
     if (!condId || !firestore || !podeVer) {
@@ -176,22 +207,27 @@ export default function EncomendasPage() {
     setLoading(true);
     const base = collection(firestore, "condominios", condId, "encomendas");
     
-    let qWaiting: Query;
-    let qHistory: Query;
+    let qWaiting: Query | null = null;
+    let qHistory: Query | null = null;
 
     if (isOperador) {
-        qWaiting = query(base, where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
-        qHistory = query(base, where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
-    } else if (isMorador && unidadeIdMorador) {
-        const unidadeNorm = normUnidade(unidadeIdMorador);
-        const blocoNorm = blocoIdMorador ? normBloco(blocoIdMorador) : null;
+        qWaiting = query(base, where("status", "==", "AGUARDANDO"));
+        qHistory = query(base, where("status", "==", "RETIRADA"));
+    } else if (isMorador && moradorInfo) {
+        const unidadeNorm = normUnidade(moradorInfo.unidadeId);
+        const blocoNorm = moradorInfo.blocoId ? normBloco(moradorInfo.blocoId) : null;
 
         if (blocoNorm) {
-            qWaiting = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
-            qHistory = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
+            qWaiting = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"));
+            qHistory = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"));
+        } else if (unidadeNorm) {
+            qWaiting = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"));
+            qHistory = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"));
         } else {
-            qWaiting = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"), orderBy("chegouEm", "desc"));
-            qHistory = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"), orderBy("retiradaEm", "desc"));
+            setWaiting([]);
+            setHistory([]);
+            setLoading(false);
+            return;
         }
     } else {
         setWaiting([]);
@@ -203,6 +239,7 @@ export default function EncomendasPage() {
     const unsub1 = onSnapshot(qWaiting, (snap) => {
         const out: EncomendaDoc[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        out.sort((a,b) => (b.chegouEm?.toMillis() ?? 0) - (a.chegouEm?.toMillis() ?? 0));
         setWaiting(out);
         setLoading(false);
     }, (err) => {
@@ -213,13 +250,14 @@ export default function EncomendasPage() {
     const unsub2 = onSnapshot(qHistory, (snap) => {
         const out: EncomendaDoc[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        out.sort((a,b) => (b.retiradaEm?.toMillis() ?? 0) - (a.retiradaEm?.toMillis() ?? 0));
         setHistory(out);
     }, (err) => {
         console.error("[Encomendas] erro 'RETIRADA':", err);
     });
 
     return () => { unsub1(); unsub2(); };
-  }, [firestore, condId, podeVer, isMorador, isOperador, unidadeIdMorador, blocoIdMorador]);
+  }, [firestore, condId, podeVer, isMorador, isOperador, moradorInfo]);
 
   async function handleCreate() {
     if (!condId) return;
