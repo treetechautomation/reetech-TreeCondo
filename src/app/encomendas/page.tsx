@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { PlusCircle, QrCode, PackageCheck, Clock, History, KeyRound, RefreshCcw, Package, Info } from "lucide-react";
+import QRCode from "qrcode";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ import {
   type Query,
   doc,
   getDoc,
+  getDocs,
 } from "firebase/firestore";
 
 type EncomendaDoc = {
@@ -45,6 +47,8 @@ type EncomendaDoc = {
   status?: "AGUARDANDO" | "RETIRADA";
   unidadeId?: string;
   blocoId?: string | null;
+  unidadeIdNorm?: string;
+  blocoIdNorm?: string | null;
   transportadora?: string;
   observacao?: string | null;
   retiradaRecebedorNome?: string | null;
@@ -126,7 +130,7 @@ export default function EncomendasPage() {
   
   const isMorador = role === "MORADOR";
   
-  const [moradorInfo, setMoradorInfo] = React.useState<{unidadeId: string | null, blocoId: string | null} | null>(null);
+  const [moradorInfo, setMoradorInfo] = React.useState<{unidadeId: string | null, blocoId: string | null, unidadeIdNorm: string | null, blocoIdNorm: string | null} | null>(null);
 
   const [waiting, setWaiting] = React.useState<EncomendaDoc[]>([]);
   const [history, setHistory] = React.useState<EncomendaDoc[]>([]);
@@ -158,6 +162,22 @@ export default function EncomendasPage() {
   const [savingRetirar, setSavingRetirar] = React.useState(false);
   const [retMembrosUnidade, setRetMembrosUnidade] = React.useState<any[]>([]);
 
+  // QR Code Dialog state
+  const [qrCodeUrl, setQrCodeUrl] = React.useState<string>("");
+  const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
+
+  async function showQrCode(pkg: EncomendaDoc) {
+    if (!pkg.codigo) return;
+    try {
+        const url = await QRCode.toDataURL(pkg.codigo, { width: 300, margin: 2 });
+        setQrCodeUrl(url);
+        setSelectedPkgForQr(pkg);
+    } catch (err) {
+        console.error('Failed to generate QR code', err);
+        alert('Não foi possível gerar o QR Code.');
+    }
+  }
+  
   React.useEffect(() => {
     if (!isMorador || !condId || !firestore || !session?.user?.uid) {
         setMoradorInfo(null);
@@ -175,6 +195,8 @@ export default function EncomendasPage() {
                 setMoradorInfo({
                     unidadeId: data.unidadeId || data.apartamento || null,
                     blocoId: data.blocoId || data.bloco || null,
+                    unidadeIdNorm: data.unidadeIdNorm || normUnidade(data.unidadeId || data.apartamento),
+                    blocoIdNorm: data.blocoIdNorm || normBloco(data.blocoId || data.bloco)
                 });
             } else if (alive) {
                 setMoradorInfo(null);
@@ -209,15 +231,21 @@ export default function EncomendasPage() {
         qWaiting = query(base, where("status", "==", "AGUARDANDO"));
         qHistory = query(base, where("status", "==", "RETIRADA"));
     } else if (isMorador && moradorInfo) {
-        const unidadeNorm = normUnidade(moradorInfo.unidadeId);
-        const blocoNorm = moradorInfo.blocoId ? normBloco(moradorInfo.blocoId) : null;
+        const unidadeNorm = moradorInfo.unidadeIdNorm;
+        const blocoNorm = moradorInfo.blocoIdNorm;
 
-        if (blocoNorm) {
-            qWaiting = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"));
-            qHistory = query(base, where("blocoIdNorm", "==", blocoNorm), where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"));
-        } else if (unidadeNorm) {
-            qWaiting = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO"));
-            qHistory = query(base, where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA"));
+        if (unidadeNorm) {
+            const waitingConditions = [where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "AGUARDANDO")];
+            const historyConditions = [where("unidadeIdNorm", "==", unidadeNorm), where("status", "==", "RETIRADA")];
+
+            if (blocoNorm) {
+                waitingConditions.push(where("blocoIdNorm", "==", blocoNorm));
+                historyConditions.push(where("blocoIdNorm", "==", blocoNorm));
+            }
+            
+            qWaiting = query(base, ...waitingConditions);
+            qHistory = query(base, ...historyConditions);
+
         } else {
             setWaiting([]);
             setHistory([]);
@@ -253,6 +281,33 @@ export default function EncomendasPage() {
 
     return () => { unsub1(); unsub2(); };
   }, [firestore, condId, podeVer, isMorador, isOperador, moradorInfo]);
+
+  React.useEffect(() => {
+    if (!firestore || !condId || !retirarEncomenda?.unidadeIdNorm) {
+        setRetMembrosUnidade([]);
+        return;
+    }
+
+    const unidadeNorm = retirarEncomenda.unidadeIdNorm;
+    const blocoNorm = retirarEncomenda.blocoIdNorm;
+    
+    const membrosRef = collection(firestore, `condominios/${condId}/membros`);
+    
+    let q: Query;
+    if (blocoNorm) {
+        q = query(membrosRef, where("unidadeIdNorm", "==", unidadeNorm), where("blocoIdNorm", "==", blocoNorm));
+    } else {
+        q = query(membrosRef, where("unidadeIdNorm", "==", unidadeNorm));
+    }
+
+    getDocs(q).then(snap => {
+        const membros = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        setRetMembrosUnidade(membros);
+    }).catch(err => {
+        console.error("Erro ao buscar membros da unidade:", err);
+        setRetMembrosUnidade([]);
+    });
+  }, [firestore, condId, retirarEncomenda]);
 
   async function handleCreate() {
     if (!condId) return;
@@ -478,7 +533,7 @@ export default function EncomendasPage() {
                         {isOperador && <TableHead>Unidade</TableHead>}
                         <TableHead>Transportadora</TableHead>
                         <TableHead>Chegada</TableHead>
-                        {isOperador && <TableHead className="text-right">Ações</TableHead>}
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
 
@@ -494,18 +549,29 @@ export default function EncomendasPage() {
                           )}
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
                           <TableCell>{fmtTS(pkg.chegouEm)}</TableCell>
-                          {isOperador && <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!isOperador}
-                              onClick={() => openRetirada(pkg)}
-                            >
-                              <QrCode className="mr-2 h-4 w-4" />
-                              <span className="hidden sm:inline-block">Registrar Retirada</span>
-                              <span className="sm:hidden">Retirar</span>
-                            </Button>
-                          </TableCell>}
+                          <TableCell className="text-right">
+                            {isOperador ? (
+                                <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openRetirada(pkg)}
+                                >
+                                <QrCode className="mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline-block">Registrar Retirada</span>
+                                <span className="sm:hidden">Retirar</span>
+                                </Button>
+                            ) : (
+                                <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!pkg.codigo}
+                                onClick={() => showQrCode(pkg)}
+                                >
+                                <QrCode className="mr-2 h-4 w-4" />
+                                Ver Código
+                                </Button>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -565,6 +631,24 @@ export default function EncomendasPage() {
             </TabsContent>
           </Tabs>
 
+          <Dialog open={!!selectedPkgForQr} onOpenChange={(isOpen) => !isOpen && setSelectedPkgForQr(null)}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Código de Retirada</DialogTitle>
+                    <DialogDescription>
+                        Apresente este código ou QR code na portaria para retirar sua encomenda.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center justify-center p-4">
+                    {qrCodeUrl && <img src={qrCodeUrl} alt="QR Code" />}
+                    <code className="mt-4 text-lg font-bold tracking-wider">{selectedPkgForQr?.codigo}</code>
+                </div>
+                <DialogFooter>
+                    <Button onClick={() => setSelectedPkgForQr(null)}>Fechar</Button>
+                </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={openRetirar} onOpenChange={setOpenRetirar}>
             <DialogContent className="sm:max-w-[520px]">
               <DialogHeader>
@@ -599,9 +683,11 @@ export default function EncomendasPage() {
                     <h3 className="font-semibold">Modo Sem Celular</h3>
                      <div className="grid grid-cols-4 items-center gap-4">
                       <Label className="text-right">Morador</Label>
-                      <select className="col-span-3 rounded-md border px-2 py-1.5" onChange={(e) => setMoradorUidRetirada(e.target.value)}>
+                      <select className="col-span-3 rounded-md border px-2 py-1.5" value={moradorUidRetirada} onChange={(e) => setMoradorUidRetirada(e.target.value)}>
                         <option value="">Selecione quem está retirando</option>
-                        {/* Populate this dynamically */}
+                        {retMembrosUnidade.map((m: any) => (
+                          <option key={m.id} value={m.id}>{m.nome || m.email}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">

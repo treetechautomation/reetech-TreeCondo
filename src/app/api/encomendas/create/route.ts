@@ -145,6 +145,7 @@ export async function POST(req: Request) {
         transportadora,
         observacoes: observacao,
         chegouEm: FieldValue.serverTimestamp(),
+        codigo: codigo,
         codigoRetiradaHash,
         codigoRetiradaLast4,
         retiradaEm: null,
