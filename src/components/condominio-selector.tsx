@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -54,7 +55,7 @@ export function CondominioSelector() {
     const loadSuperOptions = async () => {
       try {
         setIsLoadingSuperOptions(true);
-        const qPub = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
+        const qPub = query(collection(firestore, "condominios"), orderBy("nome"));
         const snap = await getDocs(qPub);
         const list = snap.docs.map(d => {
           const data = d.data() as any;
@@ -62,7 +63,7 @@ export function CondominioSelector() {
         });
         setSuperOptions(list);
       } catch (e) {
-        console.error("[CondominioSelector] erro ao carregar condominiosPublicos (super admin):", e);
+        console.error("[CondominioSelector] erro ao carregar condominios (super admin):", e);
         setSuperOptions([]);
       } finally {
         setIsLoadingSuperOptions(false);
@@ -76,7 +77,6 @@ export function CondominioSelector() {
   const options = React.useMemo(() => {
     const isSuper = String(session?.role || "") === "SUPER_ADMIN" || session?.superAdmin === true;
 
-    // Base a partir dos vínculos (usuários normais)
     const base = (vinculos || [])
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
@@ -84,17 +84,16 @@ export function CondominioSelector() {
         nome: (v as any).condominioNome || v.condominioId,
       }));
 
-    // SUPER_ADMIN sem vínculos: usa lista pública
-    if (isSuper && base.length === 0) {
-      const seen = new Set<string>();
-      return (superOptions || []).filter((o) => {
-        if (seen.has(o.id)) return false;
-        seen.add(o.id);
-        return true;
-      });
+    if (isSuper) {
+        const allOptions = [...base, ...superOptions];
+        const seen = new Set<string>();
+        return allOptions.filter((o) => {
+            if (seen.has(o.id)) return false;
+            seen.add(o.id);
+            return true;
+        }).sort((a,b) => a.nome.localeCompare(b.nome));
     }
-
-    // Usuários com vínculos
+    
     const seen = new Set<string>();
     return base.filter((o) => {
       if (seen.has(o.id)) return false;
@@ -121,19 +120,19 @@ export function CondominioSelector() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
+        <Button variant="outline" role="combobox" aria-expanded={open} className="w-[220px] justify-between">
           <span className="truncate">
-            {active ? active.nome : "Selecione o condomínio"}
+            {active ? active.nome : "Selecione..."}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[var(--sidebar-width)] p-0" align="start">
+      <PopoverContent className="w-[220px] p-0" align="end">
         <Command
           filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}
         >
-          <CommandInput placeholder="Procurar condomínio..." />
+          <CommandInput placeholder="Procurar..." />
           <CommandList>
             <CommandEmpty>Nenhum condomínio encontrado.</CommandEmpty>
             <CommandGroup>
@@ -147,10 +146,8 @@ export function CondominioSelector() {
                     value={value}
                     disabled={selected}
                     onSelect={() => {
-                      // ✅ troca sempre para o id do item (nunca manda "")
                       setCondominioAtivoId(o.id);
 
-                      // reset local do layout
                       setBlocoAtivoId(null);
                       setUnidadeAtivaId(null);
 

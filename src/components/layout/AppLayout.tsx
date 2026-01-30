@@ -220,8 +220,11 @@ setPerms(p);
           {!hideSidebar && (
             <header className="sticky top-0 z-10 bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
               <div className="flex items-center justify-between px-6 py-4">
-                <div className="text-xl font-semibold text-slate-900">{pageTitle ?? ""}</div>
-                <div className="flex items-center gap-4">
+                 <div className="flex-1 min-w-0">
+                    <div className="text-xl font-semibold text-slate-900 truncate">{pageTitle ?? ""}</div>
+                 </div>
+                <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+                  {isSuper && <CondominioSelector />}
                   {headerActions ?? null}
                 </div>
               </div>

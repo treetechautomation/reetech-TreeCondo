@@ -106,36 +106,35 @@ export function useSessionBase() {
     }
 
     const isSuper = isSuperAdminUser(user, claims);
-    console.log('[useSession] Resolvendo condomínio ativo. isSuperAdmin:', isSuper, 'Vínculos:', vinculos.length);
-
-    // Para SUPER_ADMIN, a seleção é manual e persistida no localStorage, não baseada em vínculos.
-    if (isSuper) {
-        const savedCondo = typeof window !== 'undefined' ? window.localStorage.getItem(LS_CONDO) : null;
-        if (savedCondo && savedCondo !== activeCondominioId) {
-            setActiveCondominioId(savedCondo);
-        }
+    const savedCondo = typeof window !== 'undefined' ? window.localStorage.getItem(LS_CONDO) : null;
+    
+    // Se já existe um ativo e ele está na lista de vínculos, mantenha.
+    if (activeCondominioId && vinculos.some(v => v.condominioId === activeCondominioId)) {
         return;
     }
 
-    // Para usuários comuns, a lógica se baseia nos vínculos.
-    if (vinculos.length > 0) {
-        const savedCondo = typeof window !== 'undefined' ? window.localStorage.getItem(LS_CONDO) : null;
-        
-        const hasSavedCondoInVinculos = vinculos.some(v => v.condominioId === savedCondo);
-        const hasActiveCondoInVinculos = vinculos.some(v => v.condominioId === activeCondominioId);
-
-        if (activeCondominioId && hasActiveCondoInVinculos) {
-            // O condomínio ativo atual é válido, não faz nada.
-        } else if (savedCondo && hasSavedCondoInVinculos) {
-            setActiveCondominioId(savedCondo);
-        } else {
-            // Se nenhum salvo ou ativo é válido, define o primeiro da lista.
-            setActiveCondominioId(vinculos[0].condominioId);
-        }
-    } else {
-        // Se não tem vínculos, não tem condomínio ativo.
-        setActiveCondominioId(null);
+    // Se o salvo no LS for válido, usa ele.
+    if (savedCondo && vinculos.some(v => v.condominioId === savedCondo)) {
+        setActiveCondominioId(savedCondo);
+        return;
     }
+
+    // Se não, e se houver vínculos, pega o primeiro.
+    if (vinculos.length > 0) {
+        setActiveCondominioId(vinculos[0].condominioId);
+        return;
+    }
+
+    // Se é super admin e não tem vinculos, pode ser que ele selecione manualmente,
+    // então se tiver algo no LS, usamos.
+    if (isSuper && savedCondo) {
+        setActiveCondominioId(savedCondo);
+        return;
+    }
+
+    // Caso final: sem vínculos, sem seleção salva.
+    setActiveCondominioId(null);
+
   }, [user, isUserLoading, claims, isClaimsLoading, vinculos, isVinculosLoading, activeCondominioId]);
 
   const session: Session | null = useMemo(() => {
