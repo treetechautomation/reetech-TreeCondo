@@ -19,6 +19,7 @@ import { collection, onSnapshot, orderBy, query, where, type DocumentData } from
 import { hasRole } from "@/lib/acl";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCondominio } from "@/contexts/CondominioContext";
 
 type Incidente = {
   id: string;
@@ -68,17 +69,26 @@ async function apiPost(path: string, body: any) {
   return data;
 }
 
-const IncidenteItem = ({ incidente, session }: { incidente: Incidente; session: any }) => {
+const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
+  const { session } = useSessionCtx();
+  const firestore = useFirestore();
+  const { condominioAtivoId } = useCondominio();
+
   const [historico, setHistorico] = React.useState<Historico[]>([]);
   const [loadingHistorico, setLoadingHistorico] = React.useState(true);
   
-  const firestore = useFirestore();
-  const condominioAtivoId = session?.activeCondominioId;
-
   const isOwner = session?.user?.uid === incidente.criadoPorUid;
   const isOperator = hasRole(session, ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO", "PORTEIRO", "ZELADOR"]);
   const canRate = isOwner && incidente.status === 'FINALIZADO' && !incidente.avaliacao;
   
+  const statusConfig: Record<Incidente['status'], { label: string; className: string }> = {
+    ABERTO: { label: 'Aberto', className: 'border-transparent bg-blue-100 text-blue-800 hover:bg-blue-100' },
+    EM_ANDAMENTO: { label: 'Em Andamento', className: 'border-transparent bg-amber-100 text-amber-800 hover:bg-amber-100' },
+    RESOLVIDO: { label: 'Resolvido', className: 'border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100' },
+    FINALIZADO: { label: 'Finalizado', className: 'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-100' },
+  };
+  const currentStatusConfig = statusConfig[incidente.status] || { label: incidente.status.replace(/_/g, ' '), className: 'bg-gray-100 text-gray-800' };
+
   React.useEffect(() => {
     if (!firestore || !condominioAtivoId) return;
     const historicoRef = collection(firestore, `condominios/${condominioAtivoId}/incidentes/${incidente.id}/historico`);
@@ -119,7 +129,7 @@ const IncidenteItem = ({ incidente, session }: { incidente: Incidente; session: 
       </CardContent>
       <CardFooter className="flex-wrap gap-2 justify-between">
         <div className="flex items-center gap-2">
-            <Badge variant={incidente.status === 'ABERTO' ? 'default' : 'outline'}>{incidente.status}</Badge>
+            <Badge className={currentStatusConfig.className}>{currentStatusConfig.label}</Badge>
             {isOperator && (
                 <Select
                     value={incidente.status}
@@ -156,7 +166,7 @@ const IncidenteItem = ({ incidente, session }: { incidente: Incidente; session: 
 
 const CreateIncidenteDialog = () => {
     const { session } = useSessionCtx();
-    const condominioAtivoId = session?.activeCondominioId;
+    const { condominioAtivoId } = useCondominio();
     const [open, setOpen] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
     const [titulo, setTitulo] = React.useState("");
@@ -183,7 +193,7 @@ const CreateIncidenteDialog = () => {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button size="sm"><PlusCircle /> <span className="hidden sm:inline-block ml-2">Abrir Chamado</span></Button>
+                <Button size="sm" disabled={!condominioAtivoId}><PlusCircle /> <span className="hidden sm:inline-block ml-2">Abrir Chamado</span></Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
@@ -221,7 +231,7 @@ const CreateIncidenteDialog = () => {
 
 const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
     const { session } = useSessionCtx();
-    const condominioAtivoId = session?.activeCondominioId;
+    const { condominioAtivoId } = useCondominio();
     const [open, setOpen] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
     const [texto, setTexto] = React.useState("");
@@ -243,7 +253,10 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button variant="outline" size="sm"><MessageSquare className="mr-2" /> Comentar</Button></DialogTrigger>
             <DialogContent>
-                <DialogHeader><DialogTitle>Adicionar Comentário</DialogTitle><DialogDescription>Adicione um comentário ao chamado.</DialogDescription></DialogHeader>
+                <DialogHeader>
+                    <DialogTitle>Adicionar Comentário</DialogTitle>
+                    <DialogDescription>Adicione um comentário ao chamado "{incidente.titulo}".</DialogDescription>
+                </DialogHeader>
                 <Textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Digite seu comentário..." />
                 <DialogFooter>
                     <Button onClick={handleComment} disabled={saving}>{saving ? 'Enviando...' : 'Enviar'}</Button>
@@ -255,7 +268,7 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
 
 const RateDialog = ({ incidente }: { incidente: Incidente }) => {
     const { session } = useSessionCtx();
-    const condominioAtivoId = session?.activeCondominioId;
+    const { condominioAtivoId } = useCondominio();
     const [open, setOpen] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
     const [rating, setRating] = React.useState(0);
@@ -276,7 +289,10 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button variant="outline" size="sm"><Star className="mr-2" /> Avaliar</Button></DialogTrigger>
             <DialogContent>
-                <DialogHeader><DialogTitle>Avaliar Atendimento</DialogTitle><DialogDescription>Dê uma nota de 1 a 5 para o atendimento deste chamado.</DialogDescription></DialogHeader>
+                <DialogHeader>
+                    <DialogTitle>Avaliar Atendimento</DialogTitle>
+                    <DialogDescription>Dê uma nota de 1 a 5 para o atendimento deste chamado.</DialogDescription>
+                </DialogHeader>
                 <div className="flex justify-center py-4">
                     {[1, 2, 3, 4, 5].map(star => (
                         <button key={star} onClick={() => setRating(star)}>
@@ -296,7 +312,8 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
 export default function IncidentesPage() {
     const { session } = useSessionCtx();
     const firestore = useFirestore();
-    const condominioAtivoId = session?.activeCondominioId;
+    const { condominioAtivoId } = useCondominio();
+
     const [incidentes, setIncidentes] = React.useState<Incidente[]>([]);
     const [loading, setLoading] = React.useState(true);
 
@@ -369,7 +386,7 @@ export default function IncidentesPage() {
                         {incidentesAbertos.length === 0 ? (
                             <p className="col-span-full text-center p-6 bg-card rounded-lg">Nenhum chamado aberto encontrado.</p>
                         ) : (
-                            incidentesAbertos.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} session={session} />)
+                            incidentesAbertos.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} />)
                         )}
                     </div>
                 )}
@@ -381,7 +398,7 @@ export default function IncidentesPage() {
                         {incidentesFinalizados.length === 0 ? (
                             <p className="col-span-full text-center p-6 bg-card rounded-lg">Nenhum chamado finalizado encontrado.</p>
                         ) : (
-                            incidentesFinalizados.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} session={session} />)
+                            incidentesFinalizados.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} />)
                         )}
                     </div>
                 )}
