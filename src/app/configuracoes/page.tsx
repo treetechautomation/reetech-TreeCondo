@@ -2,13 +2,17 @@
 "use client";
 
 import * as React from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { Eye, EyeOff } from "lucide-react";
+
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSessionCtx } from "@/contexts/SessionContext";
+import { useFirestore, initializeFirebase } from "@/firebase";
+import { Skeleton } from "@/components/ui/skeleton";
 
 async function getIdTokenSafe() {
-  const { initializeFirebase } = await import("@/firebase");
   const { auth } = initializeFirebase() as any;
   const u = auth?.currentUser;
   if (!u) throw new Error("Sem usuário autenticado.");
@@ -18,11 +22,47 @@ async function getIdTokenSafe() {
 export default function ConfiguracoesPage() {
   const { session, isSessionLoading } = useSessionCtx();
   const condominioAtivoId = session?.activeCondominioId || null;
+  const uid = session?.user?.uid;
+  const firestore = useFirestore();
 
   const [pin, setPin] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+
+  const [pinLast4, setPinLast4] = React.useState<string | null>(null);
+  const [loadingPinStatus, setLoadingPinStatus] = React.useState(true);
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [showPin, setShowPin] = React.useState(false);
+
+  React.useEffect(() => {
+    async function fetchPinStatus() {
+      if (!firestore || !condominioAtivoId || !uid) {
+        setLoadingPinStatus(false);
+        setPinLast4(null);
+        return;
+      }
+      setLoadingPinStatus(true);
+      try {
+        const membroRef = doc(firestore, "condominios", condominioAtivoId, "membros", uid);
+        const snap = await getDoc(membroRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setPinLast4(data.encomendaPinLast4 || null);
+        } else {
+          setPinLast4(null);
+        }
+      } catch (error) {
+        console.error("Erro ao buscar status do PIN:", error);
+        setPinLast4(null);
+      } finally {
+        setLoadingPinStatus(false);
+      }
+    }
+
+    fetchPinStatus();
+  }, [firestore, condominioAtivoId, uid]);
+
 
   async function salvarPin() {
     setMsg(null);
@@ -53,9 +93,13 @@ export default function ConfiguracoesPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Erro ao salvar PIN.");
-
+      
+      setPinLast4(data.pinLast4);
       setPin("");
+      setIsEditing(false);
+      setShowPin(false);
       setMsg(`✅ PIN de encomendas salvo com sucesso. Final: ****${data.pinLast4}`);
+
     } catch (e: any) {
       setErr(e?.message || "Erro ao salvar.");
     } finally {
@@ -66,6 +110,63 @@ export default function ConfiguracoesPage() {
   if (isSessionLoading) {
     return <AppLayout>Carregando...</AppLayout>;
   }
+
+  const renderPinStatus = () => {
+    if (loadingPinStatus) {
+      return <Skeleton className="h-10 w-full" />;
+    }
+
+    if (isEditing) {
+      return (
+        <div className="space-y-4">
+            <div className="relative">
+                <Input
+                    type={showPin ? "text" : "password"}
+                    maxLength={8}
+                    placeholder="Defina seu PIN (4 a 8 números)"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                />
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute inset-y-0 right-0 h-full w-11"
+                    onClick={() => setShowPin(p => !p)}
+                >
+                    {showPin ? <EyeOff /> : <Eye />}
+                </Button>
+            </div>
+            <div className="flex gap-2">
+                <Button onClick={salvarPin} disabled={saving} className="flex-1">
+                    {saving ? "Salvando..." : "Salvar PIN"}
+                </Button>
+                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>
+                    Cancelar
+                </Button>
+            </div>
+        </div>
+      );
+    }
+
+    if (pinLast4) {
+      return (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Seu PIN está definido. Final: <span className="font-mono font-semibold text-foreground">****{pinLast4}</span>
+          </p>
+          <Button variant="secondary" onClick={() => setIsEditing(true)}>Alterar PIN</Button>
+        </div>
+      );
+    }
+
+    return (
+        <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Você ainda não tem um PIN de retirada.</p>
+            <Button onClick={() => setIsEditing(true)}>Definir PIN</Button>
+        </div>
+    );
+  };
 
   return (
     <AppLayout>
@@ -91,21 +192,12 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
 
-            <div className="grid gap-3">
-              <Input
-                type="password"
-                maxLength={8}
-                placeholder="Defina seu PIN (4 a 8 números)"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              />
-              <Button onClick={salvarPin} disabled={saving}>
-                {saving ? "Salvando..." : "Salvar PIN"}
-              </Button>
+            <div className="pt-2">
+              {renderPinStatus()}
             </div>
 
-            {msg && <div className="text-sm text-emerald-700">{msg}</div>}
-            {err && <div className="text-sm text-red-600">{err}</div>}
+            {err && <div className="text-sm text-red-600 mt-2">{err}</div>}
+            {msg && <div className="text-sm text-emerald-700 mt-2">{msg}</div>}
           </div>
         )}
       </div>
