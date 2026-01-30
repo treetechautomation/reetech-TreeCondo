@@ -6,16 +6,19 @@ import { createHash, randomBytes } from "crypto";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
+// Helper for consistent error responses
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+// Helper to generate a SHA256 hash
 function sha256(v: string) {
   return createHash("sha256").update(v, "utf8").digest("hex");
 }
 
+// Helper to generate a random alphanumeric code
 function randomCode(len = 8) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed ambiguous chars like I, O, 0, 1
   const buf = randomBytes(len);
   let out = "";
   for (let i = 0; i < len; i++) {
@@ -24,16 +27,6 @@ function randomCode(len = 8) {
   return out;
 }
 
-function normUnidade(v: any) {
-  return String(v || "")
-    .toLowerCase()
-    .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
-    .replace(/[^0-9a-z]/gi, "")
-    .trim();
-}
-function normBloco(v: any) {
-  return String(v || "").toLowerCase().trim();
-}
 
 async function notifyUnidade(db: any, params: {
   condominioId: string;
@@ -43,58 +36,79 @@ async function notifyUnidade(db: any, params: {
   transportadora?: string | null;
   codigo?: string | null;
 }) {
+    function normUnidade(v: any) {
+      // "Apto 203" | "APARTAMENTO 203" | "203" -> "203"
+      return String(v || "")
+        .toLowerCase()
+        .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
+        .replace(/[^0-9a-z]/gi, "")
+        .trim();
+    }
+    function normBloco(v: any) {
+      // "Dalias" | "DALIAS" -> "dalias"
+      return String(v || "").toLowerCase().trim();
+    }
+
   const condId = params.condominioId;
   const unidadeId = String(params.unidadeId || "").trim();
   if (!condId || !unidadeId) return;
 
-  const alvoUn = normUnidade(unidadeId);
-  const alvoBl = (params.blocoId ?? null) ? normBloco(params.blocoId) : null;
-
-  const membrosRef = db.collection("condominios").doc(condId).collection("membros");
   
-  let q = membrosRef.where("unidadeIdNorm", "==", alvoUn);
-  if (alvoBl) {
-    q = q.where("blocoIdNorm", "==", alvoBl);
-  }
-  
-  const snap = await q.get();
+    const alvoUn = normUnidade(unidadeId);
+    const alvoBl = (params.blocoId ?? null) ? normBloco(params.blocoId) : null;
 
-  const membros = snap.docs
-    .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
-    .filter((m: any) => {
-      const st = String(m.status || "").toUpperCase();
-      return (st === "ATIVO" || st === "PENDENTE");
-    });
+    const snap = await db.collection("condominios").doc(condId).collection("membros").get();
 
-  if (membros.length === 0) {
+
+    
+    const membros = snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() || {}) }))
+      .filter((m) => {
+        const st = String(m.status || "").toUpperCase();
+        if (!(st === "ATIVO" || st === "PENDENTE")) return false;
+
+        const unOk = normUnidade(m.unidadeId) === alvoUn;
+        if (!unOk) return false;
+
+        if (alvoBl) {
+          return normBloco(m.blocoId) === alvoBl;
+        }
+        return true;
+      });
+
+    if (membros.length === 0) {
     console.log("[encomendas/create] Nenhum morador (ATIVO/PENDENTE) encontrado para unidade:", unidadeId, "bloco:", (params.blocoId ?? null));
     return;
   }
 
   const batch = db.batch();
   membros.forEach((m: any) => {
-    const uid = m.id;
+      const uid = m.id;
     const ref = db.collection("condominios").doc(condId).collection("notificacoes").doc();
     const title = "📦 Encomenda chegou";
-    const transp = params.transportadora ? ` (${params.transportadora})` : "";
-    const message = `Sua encomenda${transp} chegou. Retire na portaria.`;
+      const bloco = (params.blocoId ?? null) ? String(params.blocoId).trim() : null;
+      const blocoTxt = bloco ? ("Bloco " + bloco + " • ") : "";
+    const transp = params.transportadora ? (" (" + params.transportadora + ")") : "";
+    const codigoTxt = params.codigo ? (" Código: " + params.codigo) : "";
+    const message = `${blocoTxt}Unidade ${unidadeId}${transp}. Retire na portaria.${codigoTxt}`;
 
     batch.set(ref, {
-      tipo: "ENCOMENDA_CHEGOU",
+tipo: "ENCOMENDA_CHEGOU",
       title,
       message,
-      titulo: title,
-      mensagem: message,
+        titulo: title,
+        mensagem: message,
       targetUid: uid,
       condominioId: condId,
       encomendaId: params.encomendaId,
-      unidadeId: params.unidadeId,
-      blocoId: params.blocoId ?? null,
+      unidadeId,
+      blocoId: bloco ?? null,
       lida: false,
       arquivada: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    
+      }, { merge: true });
   });
 
   await batch.commit();
@@ -106,13 +120,15 @@ export async function POST(req: Request) {
   const aauth = adminAuth();
 
   try {
+    // 1. Authenticate the request
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
     if (!token) {
       return jsonError("Token ausente (Authorization: Bearer ...)", 401);
     }
     const decoded = await aauth.verifyIdToken(token);
-
+    
+    // 2. Parse and validate the request body
     const body = await req.json().catch(() => ({}));
     console.log("[API/encomendas/create] Body recebido:", body);
 
@@ -120,61 +136,87 @@ export async function POST(req: Request) {
     const unidadeId = String(body?.unidadeId || "").trim();
     const blocoId = body?.blocoId ? String(body.blocoId).trim() : null;
 
-    const unidadeIdNorm = normUnidade(unidadeId);
-    const blocoIdNorm = blocoId ? normBloco(blocoId) : null;
+      function normUnidadeId(v: any) {
+        return String(v || "")
+          .toLowerCase()
+          .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
+          .replace(/[^0-9a-z]/gi, "")
+          .trim();
+      }
+      function normBlocoId(v: any) {
+        return String(v || "").toLowerCase().trim();
+      }
+
+      const unidadeIdNorm = normUnidadeId(unidadeId);
+      const blocoIdNorm = blocoId ? normBlocoId(blocoId) : null;
     const transportadora = String(body?.transportadora || "").trim();
     const observacao = body?.observacao ? String(body.observacao).trim() : null;
+    const pinInput = body?.pin ? String(body.pin).trim() : "";
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
     if (!unidadeIdNorm) return jsonError("unidadeId é obrigatório", 400);
     if (!transportadora) return jsonError("transportadora é obrigatória", 400);
 
+    // 3. Generate codes and PINs
     const codigo = `PKG-${randomCode(8)}`;
     const codigoRetiradaHash = sha256(codigo);
     const codigoRetiradaLast4 = codigo.slice(-4);
     
+    const pin = pinInput || unidadeId.slice(-4).padStart(4, '0'); // Fallback to last 4 of unit ID
+    const pinHash = sha256(pin);
+    const pinLast4 = pin.slice(-4);
+
+    // 4. Run Firestore transaction to create encomenda and notification
     const encomendaRef = db.collection("condominios").doc(condominioId).collection("encomendas").doc();
     await db.runTransaction(async (tx) => {
+      // Set Encomenda document
       tx.set(encomendaRef, {
-        condominioId,
+          condominioId,
         status: "AGUARDANDO",
         unidadeId,
-        unidadeIdNorm,
+          unidadeIdNorm,
         blocoId,
-        blocoIdNorm,
+          blocoIdNorm,
         transportadora,
         observacoes: observacao,
         chegouEm: FieldValue.serverTimestamp(),
         codigoRetiradaHash,
         codigoRetiradaLast4,
+        pinHash,
+        pinLast4,
         retiradaEm: null,
         retiradoPorUid: null,
         criadoPorUid: decoded.uid,
         criadoPorEmail: (decoded.email || "").toLowerCase(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+      
+        });
       });
-    });
 
-    console.log("[API/encomendas/create] Sucesso:", { ok: true, encomendaId: encomendaRef.id, codigo });
+    console.log("[API/encomendas/create] Sucesso:", { ok: true, encomendaId: encomendaRef.id, codigo, pin });
     
-    try {
-      await notifyUnidade(db, {
-        condominioId: String(condominioId),
-        unidadeId: String(unidadeId),
-        blocoId: blocoId ?? null,
-        encomendaId: String(encomendaRef.id),
-        transportadora: transportadora ?? null,
-        codigo: codigo ?? null,
-      });
-    } catch (e: any) {
-      console.error("[encomendas/create] falha ao criar notificações:", e?.message || e);
-    }
+    // 5. Return success response
+    
+      // ✅ Notificação interna (1 doc por morador da unidade)
+      try {
+        await notifyUnidade(db, {
+          condominioId: String(condominioId),
+          unidadeId: String(unidadeId),
+          blocoId: blocoId ?? null,
+          encomendaId: String(encomendaRef.id),
+          transportadora: transportadora ?? null,
+          codigo: codigo ?? null,
+        });
+      } catch (e: any) {
+        console.error("[encomendas/create] falha ao criar notificações:", e?.message || e);
+      }
 
-    return NextResponse.json({
+return NextResponse.json({
       ok: true,
       encomendaId: encomendaRef.id,
       codigo,
+      pin,
     });
   } catch (err: any) {
     console.error("[API/encomendas/create] Erro:", err);

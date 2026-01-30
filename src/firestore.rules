@@ -43,11 +43,15 @@ service cloud.firestore {
         (roleNoCondo(condominioId) in ["ADMIN", "SINDICO", "ADMIN_CONDOMINIO"])
       );
     }
-
     function isPorteiro(condominioId) {
       return isMembroAtivo(condominioId) && roleNoCondo(condominioId) == 'PORTEIRO';
     }
 
+
+    
+    function isZelador(condominioId) {
+      return isMembroAtivo(condominioId) && roleNoCondo(condominioId) == 'ZELADOR';
+    }
 
     // -------------------------
     // Coleções Globais
@@ -102,14 +106,51 @@ service cloud.firestore {
         allow read: if isSuper()
                     || (signedIn() && request.auth.uid == uid)
                     || canManageCondo(condominioId);
-
+        
         allow create, update, delete: if canManageCondo(condominioId);
+
+        // Morador pode atualizar seu próprio PIN
+        allow update: if signedIn() && request.auth.uid == uid
+                      && request.resource.data.diff(resource.data).changedKeys()
+                         .hasOnly(['encomendaPinHash', 'encomendaPinLast4', 'encomendaPinUpdatedAt', 'updatedAt']);
       }
 
       match /anuncios/{anuncioId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow create, update, delete: if canManageCondo(condominioId);
       }
+
+        // -------------------------
+        // Encomendas e Notificações (Privacidade por Unidade)
+        // -------------------------
+        match /encomendas/{encomendaId} {
+          function isMyUnidade() {
+            let membro = memberDoc(condominioId).data;
+            let encomenda = resource.data;
+            return membro.unidadeIdNorm == encomenda.unidadeIdNorm &&
+                   (encomenda.blocoIdNorm == null || membro.blocoIdNorm == encomenda.blocoIdNorm);
+          }
+
+          allow read: if isSuper() || canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId)
+                      || (isMembroAtivo(condominioId) && isMyUnidade());
+          
+          allow create: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
+
+          allow update: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
+
+          allow delete: if isSuper() || canManageCondo(condominioId);
+        }
+
+        match /notificacoes/{notificacaoId} {
+          function isForMe() {
+            return signedIn() && resource.data.targetUid == request.auth.uid;
+          }
+          
+          allow read: if isForMe();
+          allow create: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
+          allow update: if isForMe(); // para marcar como lida
+          allow delete: if isForMe();
+        }
 
       match /config/{docId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);

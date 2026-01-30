@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { useFirestore, initializeFirebase } from "@/firebase";
@@ -47,23 +48,25 @@ type EncomendaDoc = {
   blocoId?: string | null;
   transportadora?: string;
   observacao?: string | null;
-  retiradaRecebedorNome?: string | null;
-  retiradoPorNome?: string | null;
-  retiradaPorNome?: string | null;
-  retiradaPorEmail?: string | null;
-  retiradaPorUid?: string | null;
+
   moradorUid?: string | null;
-  codigo?: string;
+
+  codigo?: string; // QR texto (mostra no app)
   chegouEm?: any;
   retiradaEm?: any;
+
   criadoPorUid?: string;
+  retiradaPorUid?: string;
 };
 
 function fmtTS(v: any) {
   try {
     if (!v) return "-";
+    // Timestamp do firestore
     if (v instanceof Timestamp) return v.toDate().toLocaleString("pt-BR");
+    // serverTimestamp vindo como objeto
     if (typeof v?.toDate === "function") return v.toDate().toLocaleString("pt-BR");
+    // string/date
     const d = new Date(v);
     if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR");
     return "-";
@@ -138,6 +141,7 @@ export default function EncomendasPage() {
   const [blocoId, setBlocoId] = React.useState("");
   const [transportadora, setTransportadora] = React.useState("");
   const [observacao, setObservacao] = React.useState("");
+  const [pin, setPin] = React.useState("");
   const [savingCreate, setSavingCreate] = React.useState(false);
 
   // retorno do create
@@ -145,18 +149,18 @@ export default function EncomendasPage() {
 
   // dialog retirar
   const [openRetirar, setOpenRetirar] = React.useState(false);
-  const [retirarEncomenda, setRetirarEncomenda] = React.useState<EncomendaDoc | null>(null);
-  const [semCelular, setSemCelular] = React.useState(false);
-
+  const [retirarEncomendaId, setRetirarEncomendaId] = React.useState<string>("");
   const [codigoInput, setCodigoInput] = React.useState("");
-  const [pinMoradorInput, setPinMoradorInput] = React.useState("");
-  const [recebedorNome, setRecebedorNome] = React.useState("");
-  const [recebedorCpf, setRecebedorCpf] = React.useState("");
-  const [recebedorParentesco, setRecebedorParentesco] = React.useState("");
-  const [moradorUidRetirada, setMoradorUidRetirada] = React.useState("");
-  
+  const [pinInput, setPinInput] = React.useState("");
   const [savingRetirar, setSavingRetirar] = React.useState(false);
-  const [retMembrosUnidade, setRetMembrosUnidade] = React.useState<any[]>([]);
+
+    // --- Quem retirou (recebedor) ---
+    const [retRecebedorTipo, setRetRecebedorTipo] = React.useState<"MORADOR" | "TERCEIRO">("MORADOR");
+    const [retRecebedorUid, setRetRecebedorUid] = React.useState("");
+    const [retRecebedorNome, setRetRecebedorNome] = React.useState("");
+    const [retRecebedorCpf, setRetRecebedorCpf] = React.useState("");
+    const [retRecebedorParentesco, setRetRecebedorParentesco] = React.useState("");
+    const [retMembrosUnidade, setRetMembrosUnidade] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     if (!isMorador || !condId || !firestore || !session?.user?.uid) {
@@ -266,6 +270,7 @@ export default function EncomendasPage() {
         blocoId: blocoId.trim() ? blocoId.trim() : null,
         transportadora: transportadora.trim(),
         observacao: observacao.trim() ? observacao.trim() : null,
+        pin: pin.trim() ? pin.trim() : undefined,
       };
 
     console.log("[DIAGNÓSTICO] Enviando para /api/encomendas/create:", payload);
@@ -280,6 +285,7 @@ export default function EncomendasPage() {
       setBlocoId("");
       setTransportadora("");
       setObservacao("");
+      setPin("");
 
     } catch (e: any) {
       console.error("[DIAGNÓSTICO] Erro ao chamar API de criar encomenda:", e);
@@ -289,45 +295,42 @@ export default function EncomendasPage() {
     }
   }
 
-  function openRetirada(encomenda: EncomendaDoc) {
-      setRetirarEncomenda(encomenda);
-      setSemCelular(false);
+  function openRetirada(encomendaId: string) {
+      setRetirarEncomendaId(encomendaId);
       setCodigoInput("");
-      setPinMoradorInput("");
-      setRecebedorNome("");
-      setRecebedorCpf("");
-      setRecebedorParentesco("");
-      setMoradorUidRetirada("");
+      setPinInput("");
+
+      // reset recebedor
+      setRetRecebedorTipo("MORADOR");
+      setRetRecebedorUid("");
+      setRetRecebedorNome("");
+      setRetRecebedorCpf("");
+      setRetRecebedorParentesco("");
+      setRetMembrosUnidade([]);
+
       setOpenRetirar(true);
     }
 
   async function handleRetirar() {
-    if (!condId || !retirarEncomenda) return;
-    
-    const payload: any = {
-      condominioId: String(condId),
-      encomendaId: retirarEncomenda.id,
-    };
-
-    if (semCelular) {
-      if (!pinMoradorInput.trim() || !moradorUidRetirada.trim() || !recebedorNome.trim()) {
-        return alert("No modo 'Sem Celular', selecione o morador, informe o PIN dele e o nome de quem está retirando.");
-      }
-      payload.moradorUid = moradorUidRetirada;
-      payload.pinMorador = pinMoradorInput;
-      payload.recebedorNome = recebedorNome;
-      payload.recebedorCpf = recebedorCpf;
-      payload.recebedorParentesco = recebedorParentesco;
-    } else {
-      if (!codigoInput.trim()) {
-        return alert("Informe o código de retirada (PKG-...).");
-      }
-      payload.codigo = codigoInput;
-    }
+    if (!condId) return;
+    if (!retirarEncomendaId) return;
+    if (!codigoInput.trim() && !pinInput.trim()) return alert("Informe o código (PKG-...) ou o PIN.");
 
     setSavingRetirar(true);
     try {
-      await apiPost("/api/encomendas/retirar", payload);
+      await apiPost("/api/encomendas/retirar", {
+          condominioId: String(condId),
+        encomendaId: retirarEncomendaId,
+        codigo: codigoInput.trim() ? codigoInput.trim() : undefined,
+        pin: pinInput.trim() ? pinInput.trim() : undefined,
+          recebedor: {
+            tipo: retRecebedorTipo,
+            uid: retRecebedorTipo === "MORADOR" ? (retRecebedorUid || null) : null,
+            nome: (retRecebedorNome || "").trim(),
+            cpf: retRecebedorTipo === "TERCEIRO" ? String(retRecebedorCpf || "").replace(/\D/g, "") : null,
+            parentesco: retRecebedorTipo === "TERCEIRO" ? (retRecebedorParentesco || "").trim() : null,
+          }
+        });
 
       alert("✅ Retirada registrada!");
       setOpenRetirar(false);
@@ -371,11 +374,29 @@ export default function EncomendasPage() {
                 <DialogHeader>
                     <DialogTitle>Registrar Nova Encomenda</DialogTitle>
                     <DialogDescription>
-                    Insira os dados da encomenda. O morador receberá um aviso no app.
+                    Insira os dados da encomenda. O morador receberá um aviso no app (notificação interna).
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
+                  <div className="flex items-center justify-between rounded-lg border bg-white/60 p-3">
+                    <div>
+                      <div className="text-sm font-medium">Esqueceu o celular?</div>
+                      <div className="text-xs text-muted-foreground">
+                        Use o PIN do morador (cadastrado em Configurações) e registre quem está retirando.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`h-6 w-11 rounded-full transition ${semCelular ? "bg-emerald-500" : "bg-gray-300"}`}
+                      onClick={() => setSemCelular((v) => !v)}
+                      aria-label="Alternar modo sem celular"
+                    >
+                      <span
+                        className={`block h-5 w-5 rounded-full bg-white shadow transition translate-x-0 ${semCelular ? "translate-x-5" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="unidadeId" className="text-right">Unidade</Label>
                     <Input
@@ -420,6 +441,17 @@ export default function EncomendasPage() {
                     />
                     </div>
 
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="pin" className="text-right">PIN</Label>
+                    <Input
+                        id="pin"
+                        placeholder="Opcional (fallback). Se vazio, usa últimos 4 dígitos da unidade."
+                        className="col-span-3"
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                    />
+                    </div>
+
                     {lastCreated?.codigo ? (
                     <div className="rounded-xl border bg-white/60 p-4 text-sm">
                         <div className="font-semibold mb-2">✅ Encomenda registrada!</div>
@@ -427,6 +459,16 @@ export default function EncomendasPage() {
                         <QrCode className="h-4 w-4" />
                         <span>Código (QR texto):</span>
                         <code className="font-mono font-semibold">{lastCreated.codigo}</code>
+                        </div>
+                        {lastCreated?.pin ? (
+                        <div className="mt-2 flex items-center gap-2">
+                            <KeyRound className="h-4 w-4" />
+                            <span>PIN (fallback):</span>
+                            <code className="font-mono font-semibold">{lastCreated.pin}</code>
+                        </div>
+                        ) : null}
+                        <div className="mt-2 text-xs text-muted-foreground">
+                        MVP: QR por texto agora. Câmera fica para fase 2.
                         </div>
                     </div>
                     ) : null}
@@ -499,7 +541,7 @@ export default function EncomendasPage() {
                               variant="outline"
                               size="sm"
                               disabled={!isOperador}
-                              onClick={() => openRetirada(pkg)}
+                              onClick={() => openRetirada(pkg.id)}
                             >
                               <QrCode className="mr-2 h-4 w-4" />
                               <span className="hidden sm:inline-block">Registrar Retirada</span>
@@ -542,20 +584,22 @@ export default function EncomendasPage() {
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
                           <TableCell>{fmtTS(pkg.retiradaEm)}</TableCell>
                           <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span>
-                              {pkg.retiradaRecebedorNome
-                                ? pkg.retiradaRecebedorNome
-                                : (pkg.retiradoPorNome || "-")}
-                            </span>
-                            <span
-                              className="inline-flex items-center opacity-70"
-                              title={"Registrado por: " + (pkg.retiradoPorNome || pkg.retiradaPorNome || pkg.retiradaPorEmail || pkg.retiradaPorUid || "-")}
-                            >
-                              <Info className="h-4 w-4" />
-                            </span>
-                          </div>
-                        </TableCell>
+    <div className="flex items-center gap-2">
+      <span>
+        {pkg.retiradaRecebedorNome
+          ? pkg.retiradaRecebedorNome
+          : (pkg.retiradaPorNome || "-")}
+      </span>
+
+      {/* Tooltip simples (title nativo) */}
+      <span
+        className="inline-flex items-center opacity-70"
+        title={"Registrado por: " + (pkg.retiradoPorNome || pkg.retiradaPorNome || pkg.retiradaPorEmail || pkg.retiradaPorUid || "-")}
+      >
+        <Info className="h-4 w-4" />
+      </span>
+    </div>
+  </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -565,68 +609,42 @@ export default function EncomendasPage() {
             </TabsContent>
           </Tabs>
 
+          {/* Dialog retirada */}
           <Dialog open={openRetirar} onOpenChange={setOpenRetirar}>
-            <DialogContent className="sm:max-w-[520px]">
+            <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle>Registrar Retirada</DialogTitle>
                 <DialogDescription>
-                  Unidade: {retirarEncomenda?.unidadeId}
+                  Escolha o modo: <b>com celular</b> (código/QR) ou <b>sem celular</b> (PIN do morador + identificação).
                 </DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-4 py-4">
-                <div className="flex items-center justify-between rounded-lg border bg-white/60 p-3">
-                    <div>
-                        <div className="text-sm font-medium">Morador esqueceu o celular?</div>
-                        <div className="text-xs text-muted-foreground">
-                        Use o PIN pessoal do morador para validar a retirada.
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        className={`h-6 w-11 rounded-full transition ${semCelular ? "bg-emerald-500" : "bg-gray-300"}`}
-                        onClick={() => setSemCelular((v) => !v)}
-                        aria-label="Alternar modo sem celular"
-                    >
-                        <span
-                        className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${semCelular ? "translate-x-5" : "translate-x-1"}`}
-                        />
-                    </button>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="codigo" className="text-right">Código</Label>
+                  <Input
+                    id="codigo"
+                    placeholder="Ex: PKG-7Q9K2M"
+                    className="col-span-3"
+                    value={codigoInput}
+                    onChange={(e) => setCodigoInput(e.target.value)}
+                  />
                 </div>
-                
-                {semCelular ? (
-                  <div className="space-y-4 rounded-md border border-amber-300 bg-amber-50 p-4">
-                    <h3 className="font-semibold">Modo Sem Celular</h3>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                      <Label className="text-right">Morador</Label>
-                      <select className="col-span-3 rounded-md border px-2 py-1.5" onChange={(e) => setMoradorUidRetirada(e.target.value)}>
-                        <option value="">Selecione quem está retirando</option>
-                        {/* Populate this dynamically */}
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="pinMorador" className="text-right">PIN</Label>
-                      <Input id="pinMorador" placeholder="PIN pessoal do morador" className="col-span-3" value={pinMoradorInput} onChange={(e) => setPinMoradorInput(e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="recebedorNome" className="text-right">Recebedor</Label>
-                      <Input id="recebedorNome" placeholder="Nome de quem está retirando" className="col-span-3" value={recebedorNome} onChange={(e) => setRecebedorNome(e.target.value)} />
-                    </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="recebedorCpf" className="text-right">CPF</Label>
-                      <Input id="recebedorCpf" placeholder="CPF de quem retira" className="col-span-3" value={recebedorCpf} onChange={(e) => setRecebedorCpf(e.target.value)} />
-                    </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="recebedorParentesco" className="text-right">Relação</Label>
-                      <Input id="recebedorParentesco" placeholder="Ex: Cônjuge, Filho, Visitante" className="col-span-3" value={recebedorParentesco} onChange={(e) => setRecebedorParentesco(e.target.value)} />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="codigo" className="text-right">Código</Label>
-                    <Input id="codigo" placeholder="Ex: PKG-7Q9K2M" className="col-span-3" value={codigoInput} onChange={(e) => setCodigoInput(e.target.value)} />
-                  </div>
-                )}
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="pinRet" className="text-right">PIN</Label>
+                  <Input
+                    id="pinRet"
+                    placeholder="Fallback (ex: 1234)"
+                    className="col-span-3"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value)}
+                  />
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Se o morador esquecer o celular: use o PIN. Depois a gente cria um painel do síndico para definir PIN por unidade.
+                </div>
               </div>
 
               <DialogFooter>

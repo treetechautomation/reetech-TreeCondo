@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
@@ -26,6 +25,7 @@ function normBloco(v: any) {
   return String(v || "").toLowerCase().trim();
 }
 
+// cria 1 notificação por morador (targetUid)
 async function notifyUnidade(db: any, params: {
   condominioId: string;
   unidadeId: string;
@@ -41,21 +41,17 @@ async function notifyUnidade(db: any, params: {
 
   const alvoUn = normUnidade(unidadeId);
   const alvoBl = (params.blocoId ?? null) ? normBloco(params.blocoId) : null;
-  
-  const membrosRef = db.collection("condominios").doc(condId).collection("membros");
-  
-  let q = membrosRef.where("unidadeIdNorm", "==", alvoUn);
-  if (alvoBl) {
-    q = q.where("blocoIdNorm", "==", alvoBl);
-  }
 
-  const snap = await q.get();
+  const snap = await db.collection("condominios").doc(condId).collection("membros").get();
 
   const membros = snap.docs
     .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
     .filter((m: any) => {
       const st = String(m.status || "").toUpperCase();
-      return st === "ATIVO" || st === "PENDENTE";
+      if (!(st === "ATIVO" || st === "PENDENTE")) return false;
+      if (normUnidade(m.unidadeId) !== alvoUn) return false;
+      if (alvoBl && normBloco(m.blocoId) !== alvoBl) return false;
+      return true;
     });
 
   if (membros.length === 0) {
@@ -74,11 +70,14 @@ async function notifyUnidade(db: any, params: {
       message: params.message,
       titulo: params.title,
       mensagem: params.message,
+
       targetUid: uid,
       condominioId: condId,
       encomendaId: params.encomendaId,
+
       unidadeId: params.unidadeId,
       blocoId: params.blocoId ?? null,
+
       lida: false,
       arquivada: false,
       createdAt: FieldValue.serverTimestamp(),
@@ -104,22 +103,32 @@ export async function POST(req: Request) {
 
     const condominioId = String(body?.condominioId || "").trim();
     const encomendaId = String(body?.encomendaId || "").trim();
-    
-    // Modo COM celular
+
     const codigo = body?.codigo ? String(body.codigo).trim() : "";
-    
-    // Modo SEM celular
-    const moradorUid = body?.moradorUid ? String(body.moradorUid).trim() : "";
-    const pinMorador = body?.pinMorador ? String(body.pinMorador).trim() : "";
+      const pin = body?.pin ? String(body.pin).trim() : "";
+
+      // ✅ Sem celular (PIN do morador)
+      const moradorUid = body?.moradorUid ? String(body.moradorUid).trim() : "";
+      const pinMorador = body?.pinMorador ? String(body.pinMorador).trim() : "";
+
+      // Dados de quem retirou (para auditoria)
+      const recebedorNome = body?.recebedorNome ? String(body.recebedorNome).trim() : "";
+      const recebedorCpf = body?.recebedorCpf ? String(body.recebedorCpf).trim() : "";
+      const recebedorParentesco = body?.recebedorParentesco ? String(body.recebedorParentesco).trim() : "";
+
+    // opcional: quando for retirada sem celular, você pode mandar info do recebedor
     const recebedorNome = body?.recebedorNome ? String(body.recebedorNome).trim() : "";
     const recebedorCpf = body?.recebedorCpf ? String(body.recebedorCpf).trim() : "";
     const recebedorParentesco = body?.recebedorParentesco ? String(body.recebedorParentesco).trim() : "";
 
+    // opcional: se o porteiro selecionar o morador que está retirando (melhor!)
+    const moradorUid = body?.moradorUid ? String(body.moradorUid).trim() : "";
+
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
     if (!encomendaId) return jsonError("encomendaId é obrigatório", 400);
-    if (!codigo && !(moradorUid && pinMorador)) {
-        return jsonError("Informe o código da encomenda (PKG-...) ou use o modo 'Sem Celular' com PIN do morador.", 400);
-    }
+    if (!codigo && !pin && !(moradorUid && pinMorador)) {
+        return jsonError("Informe o código (PKG-...), ou o PIN do pacote, ou o PIN do morador (sem celular).", 400);
+      }
 
     const ref = db.collection("condominios").doc(condominioId).collection("encomendas").doc(encomendaId);
     const snap = await ref.get();
@@ -130,33 +139,55 @@ export async function POST(req: Request) {
       return jsonError("Essa encomenda já foi retirada.", 400);
     }
 
-    let okCodigo = false;
+    // validação do código
+    const okCodigo = codigo ? sha256(codigo) === String(data?.codigoRetiradaHash || "") : false;
+
+    // validação do PIN (prioridade: PIN do morador selecionado, senão fallback pinHash do doc encomenda)
     let okPin = false;
 
-    if (codigo) {
-      okCodigo = sha256(codigo) === String(data?.codigoRetiradaHash || "");
-    }
+    if (pin) {
+      const pinDigits = pin.replace(/\D/g, "");
+      const pinHash = sha256(pinDigits);
 
-    if (moradorUid && pinMorador) {
-        const pinDigits = pinMorador.replace(/\D/g, "");
-        const pinHash = sha256(pinDigits);
-        
+      if (moradorUid) {
         const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(moradorUid);
         const msnap = await mref.get();
-        const membroPinHash = msnap.exists ? String(msnap.data()?.encomendaPinHash || "") : "";
-        
-        if (membroPinHash && membroPinHash === pinHash) {
-            okPin = true;
-        }
+        const mh = msnap.exists ? String(msnap.data()?.encomendaPinHash || "") : "";
+        if (mh && mh === pinHash) okPin = true;
+      }
+
+      // fallback: valida pelo pinHash antigo do doc encomenda (MVP antigo)
+      if (!okPin && String(data?.pinHash || "")) {
+        okPin = pinHash === String(data?.pinHash || "");
+      }
     }
 
-    if (!okCodigo && !okPin) {
-        return jsonError("Código ou PIN inválido.", 403);
-    }
+    if (!okCodigo && !okPin && !okMoradorPin) {
+        return jsonError("Código/PIN inválido.", 403);
+      }
 
+    // Registrado por = porteiro (quem fez a operação)
     const registradoPorUid = decoded.uid;
     const registradoPorNome = (decoded.name || decoded.email || "Porteiro").toString();
 
+    // Retirada por = recebedor (morador/terceiro)
+    // Se veio moradorUid e você quiser o nome real do morador, puxa do membros
+    let retiradaRecebedorUid: string | null = null;
+    let retiradaRecebedorNome = recebedorNome || "Não informado";
+    let retiradaRecebedorTipo: "MORADOR" | "TERCEIRO" = recebedorNome ? "TERCEIRO" : "MORADOR";
+
+    if (moradorUid) {
+      const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(moradorUid);
+      const msnap = await mref.get();
+      if (msnap.exists) {
+        const md = msnap.data() as any;
+        retiradaRecebedorUid = moradorUid;
+        retiradaRecebedorNome = String(md?.nome || md?.name || md?.email || "Morador").trim();
+        retiradaRecebedorTipo = "MORADOR";
+      }
+    }
+
+    // CPF: não salvar puro (sensível). Salva hash + last4
     const cpfDigits = recebedorCpf.replace(/\D/g, "");
     const retiradaRecebedorCpfHash = cpfDigits ? sha256(cpfDigits) : null;
     const retiradaRecebedorCpfLast4 = cpfDigits ? cpfDigits.slice(-4) : null;
@@ -166,17 +197,39 @@ export async function POST(req: Request) {
         status: "RETIRADA",
         retiradaEm: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+
+        // registrado por (porteiro)
         registradoPorUid,
         registradoPorNome,
-        retiradaRecebedorNome: recebedorNome || null,
+
+        // recebedor (quem levou)
+        retiradaRecebedorUid: retiradaRecebedorUid ?? null,
+        retiradaRecebedorNome,
+        retiradaRecebedorTipo,
         retiradaRecebedorParentesco: recebedorParentesco || null,
         retiradaRecebedorCpfHash,
         retiradaRecebedorCpfLast4,
-        retiradoPorUid: registradoPorUid, // compatibilidade
-        retiradoPorNome: registradoPorNome, // compatibilidade
+
+        // mantém campos antigos por compat (se a UI ainda usa)
+        retiradoPorUid: registradoPorUid,
+        retiradoPorNome: registradoPorNome,
       });
+
+      // notifica todos da unidade
+      const title = "✅ Encomenda retirada";
+      const message = `Sua encomenda da ${data.transportadora || "transportadora"} foi retirada por ${retiradaRecebedorNome}.`;
+
+      // (depois o create já está salvando unidadeIdNorm/blocoIdNorm, aqui usamos os campos originais)
+      // usa blocoId do doc encomenda se existir
+      // NOTE: data.blocoId pode estar null
+      // unidadeId também pode ter "apto 203" etc, mas notifyUnidade já normaliza.
+      // ok.
+      // notificação: 1 doc por morador (targetUid)
+      // fora da transaction (mas aqui pode ficar dentro também; melhor fora para simplicidade)
+      // => então só registra depois da tx
     });
 
+    // fora da transaction: escreve notificações
     try {
       await notifyUnidade(db, {
         condominioId,
@@ -184,7 +237,7 @@ export async function POST(req: Request) {
         blocoId: data?.blocoId ?? null,
         tipo: "ENCOMENDA_RETIRADA",
         title: "✅ Encomenda retirada",
-        message: `Sua encomenda da ${data?.transportadora || "transportadora"} foi retirada por ${recebedorNome || "você"}.`,
+        message: `Sua encomenda da ${data?.transportadora || "transportadora"} foi retirada por ${retiradaRecebedorNome}.`,
         encomendaId,
       });
     } catch (e: any) {
