@@ -18,6 +18,7 @@ import { useFirestore, initializeFirebase } from "@/firebase";
 import { collection, onSnapshot, orderBy, query, where, type DocumentData } from "firebase/firestore";
 import { hasRole } from "@/lib/acl";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Incidente = {
   id: string;
@@ -70,15 +71,13 @@ async function apiPost(path: string, body: any) {
 const IncidenteItem = ({ incidente, session }: { incidente: Incidente; session: any }) => {
   const [historico, setHistorico] = React.useState<Historico[]>([]);
   const [loadingHistorico, setLoadingHistorico] = React.useState(true);
-  const [commentOpen, setCommentOpen] = React.useState(false);
-  const [rateOpen, setRateOpen] = React.useState(false);
-
+  
   const firestore = useFirestore();
   const condominioAtivoId = session?.activeCondominioId;
 
   const isOwner = session?.user?.uid === incidente.criadoPorUid;
   const isOperator = hasRole(session, ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO", "PORTEIRO", "ZELADOR"]);
-  const canRate = isOwner && (incidente.status === 'RESOLVIDO' || incidente.status === 'FINALIZADO') && !incidente.avaliacao;
+  const canRate = isOwner && incidente.status === 'FINALIZADO' && !incidente.avaliacao;
   
   React.useEffect(() => {
     if (!firestore || !condominioAtivoId) return;
@@ -145,10 +144,10 @@ const IncidenteItem = ({ incidente, session }: { incidente: Incidente; session: 
         <div className="flex items-center gap-2">
             {canRate ? <RateDialog incidente={incidente} /> : (incidente.avaliacao && 
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    Avaliação: {[...Array(5)].map((_, i) => <Star key={i} className={cn(i < incidente.avaliacao! ? "text-yellow-400 fill-yellow-400" : "", "h-4 w-4")} />)}
+                    Avaliação: {[...Array(5)].map((_, i) => <Star key={i} className={cn("h-4 w-4", i < incidente.avaliacao! ? "text-yellow-400 fill-yellow-400" : "text-gray-300")} />)}
                 </div>
             )}
-            <CommentDialog incidente={incidente} />
+            {(isOwner || isOperator) && <CommentDialog incidente={incidente} />}
         </div>
       </CardFooter>
     </Card>
@@ -244,7 +243,7 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button variant="outline" size="sm"><MessageSquare className="mr-2" /> Comentar</Button></DialogTrigger>
             <DialogContent>
-                <DialogHeader><DialogTitle>Adicionar Comentário</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Adicionar Comentário</DialogTitle><DialogDescription>Adicione um comentário ao chamado.</DialogDescription></DialogHeader>
                 <Textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Digite seu comentário..." />
                 <DialogFooter>
                     <Button onClick={handleComment} disabled={saving}>{saving ? 'Enviando...' : 'Enviar'}</Button>
@@ -277,7 +276,7 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button variant="outline" size="sm"><Star className="mr-2" /> Avaliar</Button></DialogTrigger>
             <DialogContent>
-                <DialogHeader><DialogTitle>Avaliar Atendimento</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Avaliar Atendimento</DialogTitle><DialogDescription>Dê uma nota de 1 a 5 para o atendimento deste chamado.</DialogDescription></DialogHeader>
                 <div className="flex justify-center py-4">
                     {[1, 2, 3, 4, 5].map(star => (
                         <button key={star} onClick={() => setRating(star)}>
@@ -309,6 +308,11 @@ export default function IncidentesPage() {
             setIncidentes([]);
             return;
         }
+        
+        if (!session?.user?.uid) {
+            setLoading(false);
+            return;
+        }
 
         setLoading(true);
         const incidentesRef = collection(firestore, `condominios/${condominioAtivoId}/incidentes`);
@@ -331,6 +335,16 @@ export default function IncidentesPage() {
         return () => unsub();
     }, [firestore, condominioAtivoId, session?.user?.uid, isOperator]);
 
+    const incidentesAbertos = React.useMemo(() =>
+        incidentes.filter(inc => inc.status !== 'FINALIZADO'),
+        [incidentes]
+    );
+
+    const incidentesFinalizados = React.useMemo(() =>
+        incidentes.filter(inc => inc.status === 'FINALIZADO'),
+        [incidentes]
+    );
+
     if (!condominioAtivoId) {
         return (
             <AppLayout pageTitle="Chamados e Incidentes" headerActions={<CreateIncidenteDialog />}>
@@ -343,15 +357,36 @@ export default function IncidentesPage() {
     
   return (
     <AppLayout pageTitle="Chamados e Incidentes" headerActions={<CreateIncidenteDialog />}>
-        {loading ? <p>Carregando chamados...</p> : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {incidentes.length === 0 ? (
-                    <p className="col-span-full text-center p-6">Nenhum chamado encontrado.</p>
-                ) : (
-                    incidentes.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} session={session} />)
+        <Tabs defaultValue="abertos" className="space-y-4">
+            <TabsList>
+                <TabsTrigger value="abertos">Chamados Abertos</TabsTrigger>
+                <TabsTrigger value="historico">Histórico (Finalizados)</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="abertos">
+                {loading ? <p>Carregando chamados...</p> : (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {incidentesAbertos.length === 0 ? (
+                            <p className="col-span-full text-center p-6 bg-card rounded-lg">Nenhum chamado aberto encontrado.</p>
+                        ) : (
+                            incidentesAbertos.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} session={session} />)
+                        )}
+                    </div>
                 )}
-            </div>
-        )}
+            </TabsContent>
+
+            <TabsContent value="historico">
+                {loading ? <p>Carregando histórico...</p> : (
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {incidentesFinalizados.length === 0 ? (
+                            <p className="col-span-full text-center p-6 bg-card rounded-lg">Nenhum chamado finalizado encontrado.</p>
+                        ) : (
+                            incidentesFinalizados.map(incidente => <IncidenteItem key={incidente.id} incidente={incidente} session={session} />)
+                        )}
+                    </div>
+                )}
+            </TabsContent>
+        </Tabs>
     </AppLayout>
   );
 }
