@@ -148,7 +148,6 @@ export async function POST(req: Request) {
         codigo: codigo,
         codigoRetiradaHash,
         codigoRetiradaLast4,
-          codigoRetirada: codigo,
         retiradaEm: null,
         retiradoPorUid: null,
         criadoPorUid: decoded.uid,

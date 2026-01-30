@@ -152,6 +152,41 @@ service cloud.firestore {
           allow delete: if isForMe();
         }
 
+      // --- REGRAS DE INCIDENTES ---
+      match /incidentes/{incidenteId} {
+        
+        function isOwner() {
+          return signedIn() && resource.data.criadoPorUid == request.auth.uid;
+        }
+
+        // Leitura: Gestores podem ler tudo. Moradores podem ler apenas os seus.
+        allow get: if canManageCondo(condominioId) || (isMembroAtivo(condominioId) && isOwner());
+        allow list: if canManageCondo(condominioId) || isMembroAtivo(condominioId); // Filtro é feito no client-side query
+
+        // Escrita: Morador pode criar. Gestores podem criar em nome de outros (via API).
+        allow create: if signedIn() && 
+                         (request.resource.data.criadoPorUid == request.auth.uid || canManageCondo(condominioId));
+
+        // Update: Gestores podem mudar o status. Dono pode avaliar.
+        allow update: if (canManageCondo(condominioId) && 
+                         request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'updatedAt']))
+                      || 
+                      (isOwner() && 
+                         request.resource.data.diff(resource.data).changedKeys().hasOnly(['avaliacao', 'updatedAt']) &&
+                         (resource.data.status == 'RESOLVIDO' || resource.data.status == 'FINALIZADO'));
+        
+        // Deletar: Apenas gestores.
+        allow delete: if canManageCondo(condominioId);
+
+        match /historico/{histId} {
+          // Leitura: quem pode ler o incidente, pode ler o histórico.
+          allow read: if canManageCondo(condominioId) || isOwner();
+
+          // Escrita: Gestores ou o dono do incidente podem adicionar ao histórico.
+          allow create: if canManageCondo(condominioId) || isOwner();
+        }
+      }
+
       match /config/{docId} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);

@@ -171,9 +171,9 @@ export default function EncomendasPage() {
   const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
 
   async function showQrCode(pkg: EncomendaDoc) {
-    if (!pkg.codigoRetirada) return;
+    if (!pkg.codigo) return;
     try {
-        const url = await QRCode.toDataURL(pkg.codigoRetirada, { width: 300, margin: 2 });
+        const url = await QRCode.toDataURL(pkg.codigo, { width: 300, margin: 2 });
         setQrCodeUrl(url);
         setSelectedPkgForQr(pkg);
         setIsQrDialogOpen(true);
@@ -573,7 +573,7 @@ export default function EncomendasPage() {
                                 <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={!pkg.codigoRetirada && !pkg.codigoRetiradaLast4}
+                                disabled={!pkg.codigo}
                                 onClick={() => showQrCode(pkg)}
                                 >
                                 <QrCode className="mr-2 h-4 w-4" />
