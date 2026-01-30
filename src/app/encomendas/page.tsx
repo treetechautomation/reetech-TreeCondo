@@ -163,6 +163,7 @@ export default function EncomendasPage() {
   const [retMembrosUnidade, setRetMembrosUnidade] = React.useState<any[]>([]);
 
   // QR Code Dialog state
+  const [isQrDialogOpen, setIsQrDialogOpen] = React.useState(false);
   const [qrCodeUrl, setQrCodeUrl] = React.useState<string>("");
   const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
 
@@ -172,6 +173,7 @@ export default function EncomendasPage() {
         const url = await QRCode.toDataURL(pkg.codigo, { width: 300, margin: 2 });
         setQrCodeUrl(url);
         setSelectedPkgForQr(pkg);
+        setIsQrDialogOpen(true);
     } catch (err) {
         console.error('Failed to generate QR code', err);
         alert('Não foi possível gerar o QR Code.');
@@ -631,7 +633,7 @@ export default function EncomendasPage() {
             </TabsContent>
           </Tabs>
 
-          <Dialog open={!!selectedPkgForQr} onOpenChange={(isOpen) => !isOpen && setSelectedPkgForQr(null)}>
+          <Dialog open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Código de Retirada</DialogTitle>
@@ -644,7 +646,7 @@ export default function EncomendasPage() {
                     <code className="mt-4 text-lg font-bold tracking-wider">{selectedPkgForQr?.codigo}</code>
                 </div>
                 <DialogFooter>
-                    <Button onClick={() => setSelectedPkgForQr(null)}>Fechar</Button>
+                    <Button onClick={() => setIsQrDialogOpen(false)}>Fechar</Button>
                 </DialogFooter>
             </DialogContent>
           </Dialog>
