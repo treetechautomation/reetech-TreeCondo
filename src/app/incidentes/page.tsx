@@ -17,6 +17,7 @@ import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore, initializeFirebase } from "@/firebase";
 import { collection, onSnapshot, orderBy, query, where, type DocumentData } from "firebase/firestore";
 import { hasRole } from "@/lib/acl";
+import { cn } from "@/lib/utils";
 
 type Incidente = {
   id: string;
@@ -144,7 +145,7 @@ const IncidenteItem = ({ incidente, session }: { incidente: Incidente; session: 
         <div className="flex items-center gap-2">
             {canRate ? <RateDialog incidente={incidente} /> : (incidente.avaliacao && 
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    Avaliação: {[...Array(5)].map((_, i) => <Star key={i} className={i < incidente.avaliacao! ? "text-yellow-400 fill-yellow-400" : ""} />)}
+                    Avaliação: {[...Array(5)].map((_, i) => <Star key={i} className={cn(i < incidente.avaliacao! ? "text-yellow-400 fill-yellow-400" : "", "h-4 w-4")} />)}
                 </div>
             )}
             <CommentDialog incidente={incidente} />
