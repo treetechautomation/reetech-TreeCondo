@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from 'next/link';
 import { PlusCircle, QrCode, PackageCheck, Clock, History, KeyRound, RefreshCcw, Package, Info } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -40,6 +41,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  orderBy,
 } from "firebase/firestore";
 
 type EncomendaDoc = {
@@ -158,6 +160,7 @@ export default function EncomendasPage() {
   const [recebedorCpf, setRecebedorCpf] = React.useState("");
   const [recebedorParentesco, setRecebedorParentesco] = React.useState("");
   const [moradorUidRetirada, setMoradorUidRetirada] = React.useState("");
+  const [retirarError, setRetirarError] = React.useState<string | null>(null);
   
   const [savingRetirar, setSavingRetirar] = React.useState(false);
   const [retMembrosUnidade, setRetMembrosUnidade] = React.useState<any[]>([]);
@@ -355,12 +358,15 @@ export default function EncomendasPage() {
       setRecebedorCpf("");
       setRecebedorParentesco("");
       setMoradorUidRetirada("");
+      setRetirarError(null);
       setOpenRetirar(true);
     }
 
   async function handleRetirar() {
     if (!condId || !retirarEncomenda) return;
     
+    setRetirarError(null);
+
     const payload: any = {
       condominioId: String(condId),
       encomendaId: retirarEncomenda.id,
@@ -368,7 +374,8 @@ export default function EncomendasPage() {
 
     if (semCelular) {
       if (!pinMoradorInput.trim() || !moradorUidRetirada.trim() || !recebedorNome.trim()) {
-        return alert("No modo 'Sem Celular', selecione o morador, informe o PIN dele e o nome de quem está retirando.");
+        setRetirarError("No modo 'Sem Celular', selecione o morador, informe o PIN e o nome de quem está retirando.");
+        return;
       }
       payload.moradorUid = moradorUidRetirada;
       payload.pinMorador = pinMoradorInput;
@@ -377,7 +384,8 @@ export default function EncomendasPage() {
       payload.recebedorParentesco = recebedorParentesco;
     } else {
       if (!codigoInput.trim()) {
-        return alert("Informe o código de retirada (PKG-...).");
+        setRetirarError("Informe o código de retirada (PKG-...).");
+        return;
       }
       payload.codigo = codigoInput;
     }
@@ -385,12 +393,11 @@ export default function EncomendasPage() {
     setSavingRetirar(true);
     try {
       await apiPost("/api/encomendas/retirar", payload);
-
       alert("✅ Retirada registrada!");
       setOpenRetirar(false);
     } catch (e: any) {
       console.error("[encomendas] erro retirar:", e);
-      alert(e?.message || "Erro ao registrar retirada.");
+      setRetirarError(e?.message || "Erro ao registrar retirada.");
     } finally {
       setSavingRetirar(false);
     }
@@ -715,6 +722,18 @@ export default function EncomendasPage() {
                     <Input id="codigo" placeholder="Ex: PKG-7Q9K2M" className="col-span-3" value={codigoInput} onChange={(e) => setCodigoInput(e.target.value)} />
                   </div>
                 )}
+
+                 {retirarError && (
+                    <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                        <p className="font-bold">Erro</p>
+                        <p>{retirarError}</p>
+                        {retirarError.includes("bloqueado") && (
+                        <Link href="/configuracoes" className="mt-2 inline-block font-bold underline hover:text-red-700">
+                            Ir para Configurações para redefinir o PIN
+                        </Link>
+                        )}
+                    </div>
+                    )}
               </div>
 
               <DialogFooter>

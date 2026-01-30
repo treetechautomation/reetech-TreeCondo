@@ -105,10 +105,8 @@ export async function POST(req: Request) {
     const condominioId = String(body?.condominioId || "").trim();
     const encomendaId = String(body?.encomendaId || "").trim();
     
-    // Modo COM celular
     const codigo = body?.codigo ? String(body.codigo).trim() : "";
     
-    // Modo SEM celular
     const moradorUid = body?.moradorUid ? String(body.moradorUid).trim() : "";
     const pinMorador = body?.pinMorador ? String(body.pinMorador).trim() : "";
     const recebedorNome = body?.recebedorNome ? String(body.recebedorNome).trim() : "";
@@ -117,10 +115,7 @@ export async function POST(req: Request) {
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
     if (!encomendaId) return jsonError("encomendaId é obrigatório", 400);
-    if (!codigo && !(moradorUid && pinMorador)) {
-        return jsonError("Informe o código da encomenda (PKG-...) ou use o modo 'Sem Celular' com PIN do morador.", 400);
-    }
-
+    
     const ref = db.collection("condominios").doc(condominioId).collection("encomendas").doc(encomendaId);
     const snap = await ref.get();
     if (!snap.exists) return jsonError("Encomenda não encontrada.", 404);
@@ -129,54 +124,71 @@ export async function POST(req: Request) {
     if (String(data?.status || "") === "RETIRADA") {
       return jsonError("Essa encomenda já foi retirada.", 400);
     }
-
-    let okCodigo = false;
-    let okPin = false;
-
-    if (codigo) {
-      okCodigo = sha256(codigo) === String(data?.codigoRetiradaHash || "");
-    }
-
+    
+    // Modo SEM Celular (PIN)
     if (moradorUid && pinMorador) {
         const pinDigits = pinMorador.replace(/\D/g, "");
-        const pinHash = sha256(pinDigits);
-        
-        const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(moradorUid);
-        const msnap = await mref.get();
-        const membroPinHash = msnap.exists ? String(msnap.data()?.encomendaPinHash || "") : "";
-        
-        if (membroPinHash && membroPinHash === pinHash) {
-            okPin = true;
+        if (pinDigits.length < 4) return jsonError("PIN inválido.", 400);
+        if (!recebedorNome) return jsonError("O nome de quem retira é obrigatório.", 400);
+
+        const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(moradorUid);
+        const membroSnap = await membroRef.get();
+        if (!membroSnap.exists) return jsonError("Morador selecionado não encontrado.", 404);
+
+        const membroData = membroSnap.data() as any;
+        const failedAttempts = membroData.encomendaPinFailedAttempts || 0;
+
+        if (failedAttempts >= 6) {
+            return jsonError("PIN bloqueado por excesso de tentativas. O morador precisa redefinir o PIN na tela de Configurações.", 429);
         }
+
+        const pinHash = sha256(pinDigits);
+        if (pinHash !== membroData.encomendaPinHash) {
+            const newAttempts = failedAttempts + 1;
+            await membroRef.update({ encomendaPinFailedAttempts: newAttempts });
+            const attemptsLeft = 6 - newAttempts;
+            const errorMsg = attemptsLeft > 0
+                ? `PIN inválido. Você tem mais ${attemptsLeft} tentativas.`
+                : "PIN inválido. Seu PIN foi bloqueado.";
+            return jsonError(errorMsg, 403);
+        }
+
+        // PIN correto, prossegue
+        await db.runTransaction(async (tx) => {
+            if (failedAttempts > 0) {
+                tx.update(membroRef, { encomendaPinFailedAttempts: 0 });
+            }
+            tx.update(ref, {
+                status: "RETIRADA",
+                retiradaEm: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+                registradoPorUid: decoded.uid,
+                registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+                retiradaRecebedorNome: recebedorNome,
+                retiradaRecebedorCpfHash: recebedorCpf ? sha256(recebedorCpf.replace(/\D/g, "")) : null,
+                retiradaRecebedorCpfLast4: recebedorCpf ? recebedorCpf.replace(/\D/g, "").slice(-4) : null,
+                retiradaRecebedorParentesco: recebedorParentesco || "Não informado",
+            });
+        });
+
+    // Modo COM Celular (Código/QR)
+    } else if (codigo) {
+        if (sha256(codigo) !== String(data?.codigoRetiradaHash || "")) {
+            return jsonError("Código de retirada inválido.", 403);
+        }
+        await ref.update({
+            status: "RETIRADA",
+            retiradaEm: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            registradoPorUid: decoded.uid,
+            registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+            retiradaRecebedorNome: recebedorNome || "Próprio morador",
+        });
+    } else {
+        return jsonError("Informe o código da encomenda (PKG-...) ou use o modo 'Sem Celular' com PIN do morador.", 400);
     }
-
-    if (!okCodigo && !okPin) {
-        return jsonError("Código ou PIN inválido.", 403);
-    }
-
-    const registradoPorUid = decoded.uid;
-    const registradoPorNome = (decoded.name || decoded.email || "Porteiro").toString();
-
-    const cpfDigits = recebedorCpf.replace(/\D/g, "");
-    const retiradaRecebedorCpfHash = cpfDigits ? sha256(cpfDigits) : null;
-    const retiradaRecebedorCpfLast4 = cpfDigits ? cpfDigits.slice(-4) : null;
-
-    await db.runTransaction(async (tx) => {
-      tx.update(ref, {
-        status: "RETIRADA",
-        retiradaEm: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        registradoPorUid,
-        registradoPorNome,
-        retiradaRecebedorNome: recebedorNome || null,
-        retiradaRecebedorParentesco: recebedorParentesco || null,
-        retiradaRecebedorCpfHash,
-        retiradaRecebedorCpfLast4,
-        retiradoPorUid: registradoPorUid, // compatibilidade
-        retiradoPorNome: registradoPorNome, // compatibilidade
-      });
-    });
-
+    
+    // Notificação de retirada
     try {
       await notifyUnidade(db, {
         condominioId,
@@ -190,8 +202,9 @@ export async function POST(req: Request) {
     } catch (e: any) {
       console.error("[encomendas/retirar] falha ao notificar:", e?.message || e);
     }
-
+    
     return NextResponse.json({ ok: true });
+
   } catch (err: any) {
     console.error("[API encomendas/retirar] erro:", err);
     return jsonError(err?.message || "Erro inesperado", 500);
