@@ -17,7 +17,7 @@ export function useVeiculos(
   const firestore = useFirestore();
   
   const veiculosQuery = useMemoFirebase(() => {
-    if (!condominioId || !blocoId || !unidadeId) return null;
+    if (!firestore || !condominioId || !blocoId || !unidadeId) return null;
     const veiculosCollectionRef = getVeiculosRef(firestore, condominioId, blocoId, unidadeId);
     return query(veiculosCollectionRef, orderBy("modelo", "asc"));
   }, [condominioId, blocoId, unidadeId, firestore]);

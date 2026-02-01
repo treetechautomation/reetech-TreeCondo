@@ -20,7 +20,7 @@ export function useFornecedores(condominioId: string | null) {
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   const fornecedoresQuery = useMemoFirebase(() => {
-    if (!condominioId) return null;
+    if (!firestore || !condominioId) return null;
     const fornecedoresCollectionRef = getFornecedoresRef(firestore, condominioId);
     return query(fornecedoresCollectionRef, orderBy("nome", "asc"));
   }, [condominioId, firestore]);

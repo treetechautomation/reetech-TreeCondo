@@ -20,7 +20,7 @@ export function usePets(
   const firestore = useFirestore();
   
   const petsQuery = useMemoFirebase(() => {
-    if (!condominioId || !blocoId || !unidadeId) return null;
+    if (!firestore || !condominioId || !blocoId || !unidadeId) return null;
     const petsCollectionRef = getPetsRef(firestore, condominioId, blocoId, unidadeId);
     return query(petsCollectionRef, orderBy("nome", "asc"));
   }, [condominioId, blocoId, unidadeId, firestore]);
