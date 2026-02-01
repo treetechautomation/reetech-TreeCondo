@@ -35,6 +35,7 @@ async function checkPermissions(
   const isOperator = [
     "SUPER_ADMIN",
     "ADMIN_CONDOMINIO",
+    "ADMIN",
     "SINDICO",
     "PORTEIRO",
     "ZELADOR",

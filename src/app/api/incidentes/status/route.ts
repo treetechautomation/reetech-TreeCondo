@@ -14,12 +14,17 @@ async function checkPermissions(
     .collection("membros")
     .doc(uid);
   const membroSnap = await membroRef.get();
+  if (!membroSnap.exists()) {
+    throw new Error("Usuário não é membro deste condomínio.");
+  }
+  
   const membroData = membroSnap.data();
   const role = membroData?.role;
 
   const isOperator = [
     "SUPER_ADMIN",
     "ADMIN_CONDOMINIO",
+    "ADMIN",
     "SINDICO",
     "PORTEIRO",
     "ZELADOR",

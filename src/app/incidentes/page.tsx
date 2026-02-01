@@ -114,12 +114,13 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
   const isOperator = hasRole(session, [
     'SUPER_ADMIN',
     'ADMIN_CONDOMINIO',
+    'ADMIN',
     'SINDICO',
     'PORTEIRO',
     'ZELADOR',
   ]);
   const canRate =
-    isOwner && incidente.status === 'FINALIZADO' && !incidente.avaliacao;
+    isOwner && !isOperator && incidente.status === 'FINALIZADO' && !incidente.avaliacao;
 
   const statusConfig: Record<
     Incidente['status'],
@@ -412,7 +413,7 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
         <DialogHeader>
           <DialogTitle>Adicionar Comentário</DialogTitle>
           <DialogDescription>
-            Adicione um comentário ao chamado "{incidente.titulo}".
+            Adicione uma atualização ou resposta ao chamado "{incidente.titulo}".
           </DialogDescription>
         </DialogHeader>
         <Textarea
@@ -500,6 +501,7 @@ export default function IncidentesPage() {
   const isOperator = hasRole(session, [
     'SUPER_ADMIN',
     'ADMIN_CONDOMINIO',
+    'ADMIN',
     'SINDICO',
     'PORTEIRO',
     'ZELADOR',
@@ -591,9 +593,9 @@ export default function IncidentesPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {incidentesAbertos.length === 0 ? (
-                <p className="col-span-full text-center p-6 border-black/5 bg-white/55 backdrop-blur-xl shadow-sm rounded-2xl">
+                <div className="col-span-full text-center p-6 border-black/5 bg-white/55 backdrop-blur-xl shadow-sm rounded-2xl">
                   Nenhum chamado aberto encontrado.
-                </p>
+                </div>
               ) : (
                 incidentesAbertos.map((incidente) => (
                   <IncidenteItem key={incidente.id} incidente={incidente} />

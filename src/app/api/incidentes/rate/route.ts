@@ -9,6 +9,26 @@ async function checkPermissions(
   incidenteId: string,
   uid: string
 ) {
+  const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
+  const membroSnap = await membroRef.get();
+  if (!membroSnap.exists()) {
+    throw new Error("Usuário não é membro deste condomínio.");
+  }
+  const membroData = membroSnap.data();
+  const role = membroData?.role;
+  const isOperator = [
+    "SUPER_ADMIN",
+    "ADMIN_CONDOMINIO",
+    "ADMIN",
+    "SINDICO",
+    "PORTEIRO",
+    "ZELADOR",
+  ].includes(role);
+
+  if (isOperator) {
+    throw new Error("Operadores não podem avaliar chamados.");
+  }
+
   const incidenteRef = db
     .collection("condominios")
     .doc(condominioId)
@@ -16,7 +36,7 @@ async function checkPermissions(
     .doc(incidenteId);
   const incidenteSnap = await incidenteRef.get();
 
-  if (!incidenteSnap.exists) {
+  if (!incidenteSnap.exists()) {
     throw new Error("Incidente não encontrado.");
   }
 
@@ -25,10 +45,14 @@ async function checkPermissions(
     throw new Error("Você não pode avaliar um incidente que não abriu.");
   }
   
-  const status = incidenteData?.status;
-  if (status !== 'RESOLVIDO' && status !== 'FINALIZADO') {
-    throw new Error("Você só pode avaliar incidentes resolvidos ou finalizados.");
+  if (incidenteData?.status !== 'FINALIZADO') {
+    throw new Error("Você só pode avaliar incidentes finalizados.");
   }
+  
+  if (incidenteData?.avaliacao) {
+    throw new Error("Este chamado já foi avaliado.");
+  }
+
 
   return { incidenteRef };
 }
