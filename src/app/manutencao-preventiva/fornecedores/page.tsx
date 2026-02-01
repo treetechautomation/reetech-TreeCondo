@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useFornecedores } from "@/hooks/useFornecedores";
 import {
-  useFornecedores,
   criarFornecedor,
   atualizarFornecedor,
   deletarFornecedor,
