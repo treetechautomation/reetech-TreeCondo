@@ -92,6 +92,19 @@ service cloud.firestore {
       allow read: if isSuper() || isMembroAtivo(condominioId);
       allow create, update, delete: if isSuper();
       
+      // --- REGRAS DE MANUTENÇÃO PREVENTIVA ---
+      match /manutencoesPreventivas/{rotinaId} {
+        allow read: if isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+
+        match /execucoes/{execucaoId} {
+          allow read: if isMembroAtivo(condominioId);
+          allow create: if canManageCondo(condominioId);
+          allow update: if canManageCondo(condominioId) || isZelador(condominioId) || isPorteiro(condominioId);
+          allow delete: if canManageCondo(condominioId);
+        }
+      }
+
       // -------------------------
       // Áreas Reserváveis
       // - leitura: qualquer membro ativo do condomínio

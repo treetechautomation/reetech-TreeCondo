@@ -18,6 +18,7 @@ export type MenuKey =
   | "documentos"
   | "enquetes"
   | "reunioes"
+  | "manutencao_preventiva"
   | "configuracoes"
   | "administrador_global";
 
@@ -38,6 +39,7 @@ export const MENU_LABELS: Record<MenuKey, string> = {
   documentos: "Documentos",
   enquetes: "Enquetes",
   reunioes: "Reuniões",
+  manutencao_preventiva: "Manutenção Preventiva",
   configuracoes: "Configurações",
   administrador_global: "Administrador Global",
 };
@@ -62,6 +64,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
     documentos: true,
     enquetes: true,
     reunioes: true,
+    manutencao_preventiva: true,
     configuracoes: true,
     administrador_global: false,
   },
@@ -80,6 +83,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
     documentos: true,
     enquetes: true,
     reunioes: true,
+    manutencao_preventiva: true,
     configuracoes: true,
     administrador_global: false,
   },
@@ -98,6 +102,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
     documentos: true,
     enquetes: true,
     reunioes: true,
+    manutencao_preventiva: true,
     configuracoes: true,
     administrador_global: false,
   },
@@ -113,6 +118,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
     condominios: false,
     cadastros: false,
     acesso: false,
+    manutencao_preventiva: true,
     configuracoes: false,
     administrador_global: false,
   },
@@ -130,6 +136,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
     reunioes: false,
     condominios: false,
     cadastros: false,
+    manutencao_preventiva: true,
     configuracoes: false,
     administrador_global: false,
   },
@@ -148,6 +155,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
     reunioes: false,
     condominios: false,
     cadastros: false,
+    manutencao_preventiva: true,
     configuracoes: false,
     administrador_global: false,
   },

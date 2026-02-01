@@ -378,6 +378,53 @@
         }
       ]
     },
+    "ManutencaoPreventiva": {
+      "title": "Manutenção Preventiva",
+      "description": "Uma rotina de manutenção preventiva recorrente.",
+      "type": "object",
+      "properties": {
+        "titulo": { "type": "string", "description": "Título da rotina de manutenção." },
+        "categoria": { "type": "string", "enum": ["DEDETIZACAO", "CAIXA_DAGUA", "ELEVADOR", "EXTINTORES", "OUTROS"], "description": "Categoria da manutenção." },
+        "descricao": { "type": "string", "description": "Descrição detalhada da manutenção." },
+        "recorrenciaTipo": { "type": "string", "enum": ["SEMANAL", "MENSAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL", "CUSTOM"], "description": "Tipo de recorrência." },
+        "recorrenciaIntervalo": { "type": "number", "description": "Intervalo da recorrência (ex: 6 para semestral)." },
+        "diaPreferencial": { "type": ["number", "null"], "description": "Dia do mês preferencial para execução." },
+        "dataInicio": { "type": "string", "format": "date-time", "description": "Data de início da rotina." },
+        "proximaExecucaoEm": { "type": "string", "format": "date-time", "description": "Data da próxima execução calculada." },
+        "alertasDiasAntes": { "type": "array", "items": { "type": "number" }, "description": "Dias antes da próxima execução para enviar alertas." },
+        "status": { "type": "string", "enum": ["ATIVA", "PAUSADA", "ENCERRADA"], "description": "Status da rotina." },
+        "fornecedorId": { "type": ["string", "null"], "description": "ID do fornecedor associado." },
+        "responsavel": { "type": "string", "enum": ["SINDICO", "ZELADOR", "TERCEIRO"], "description": "Responsável pela execução." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["titulo", "categoria", "recorrenciaTipo", "dataInicio", "proximaExecucaoEm", "status"]
+    },
+    "ExecucaoManutencao": {
+      "title": "Execução de Manutenção",
+      "description": "Registro de uma execução de uma rotina de manutenção.",
+      "type": "object",
+      "properties": {
+        "dataProgramada": { "type": "string", "format": "date-time" },
+        "dataConcluida": { "type": ["string", "null"], "format": "date-time" },
+        "status": { "type": "string", "enum": ["PENDENTE", "CONCLUIDA", "ATRASADA", "CANCELADA"] },
+        "checklist": { "type": "array", "items": { "type": "string" } },
+        "observacoes": { "type": "string" },
+        "criadoPorUid": { "type": "string" },
+        "criadoPorNome": { "type": "string" },
+        "anexos": { "type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "url": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string" }
+            }
+        }},
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dataProgramada", "status"]
+    },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" } } },
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" } } },
     "Reuniao": { "title": "Reuniao", "type": "object", "properties": { "title": { "type": "string" } } },
@@ -470,6 +517,22 @@
           "entityName": "Fornecedor",
           "schema": { "$ref": "#/entities/Fornecedor" },
           "description": "Fornecedores de serviços para o condomínio."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/manutencoesPreventivas/{rotinaId}",
+        "definition": {
+          "entityName": "ManutencaoPreventiva",
+          "schema": { "$ref": "#/entities/ManutencaoPreventiva" },
+          "description": "Rotinas de manutenção preventiva do condomínio."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/manutencoesPreventivas/{rotinaId}/execucoes/{execucaoId}",
+        "definition": {
+          "entityName": "ExecucaoManutencao",
+          "schema": { "$ref": "#/entities/ExecucaoManutencao" },
+          "description": "Histórico de execuções de uma rotina de manutenção."
         }
       },
        {

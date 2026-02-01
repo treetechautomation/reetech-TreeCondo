@@ -34,6 +34,7 @@ const NAV_ITEMS: NavDef[] = [
   { href: "/documentos", label: "Documentos", key: "documentos" },
   { href: "/enquetes", label: "Enquetes", key: "enquetes" },
   { href: "/reunioes", label: "Reuniões", key: "reunioes" },
+  { href: "/manutencao-preventiva", label: "Manutenção Preventiva", key: "manutencao_preventiva" },
   { href: "/configuracoes", label: "Configurações", key: "configuracoes" },
   { href: "/administrador-global", label: "Administrador Global", key: "administrador_global" },
 ];
