@@ -1,17 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { useFornecedores } from "@/hooks/useFornecedores";
 import {
-  criarFornecedor,
-  atualizarFornecedor,
-  deletarFornecedor,
-  type Fornecedor,
-  type NewFornecedorPayload,
-  type UpdateFornecedorPayload,
-} from "@/firebase/firestore/fornecedores.service";
-import { useFirestore } from "@/firebase";
-import { useCondominio } from "@/contexts/CondominioContext";
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+
 import AppLayout from "@/components/layout/AppLayout";
 import {
   Card,
@@ -40,19 +41,25 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useFirestore } from "@/firebase";
+import { useCondominio } from "@/contexts/CondominioContext";
+
+type Fornecedor = {
+  id: string;
+  nome: string;
+  servico: string;
+  telefone?: string;
+  email?: string;
+};
 
 export default function FornecedoresPage() {
   const firestore = useFirestore();
   const { condominioAtivoId } = useCondominio();
   const { toast } = useToast();
 
-  const {
-    data: fornecedores,
-    loading,
-    error,
-  } = useFornecedores(condominioAtivoId);
+  const [fornecedores, setFornecedores] = React.useState<Fornecedor[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -60,15 +67,35 @@ export default function FornecedoresPage() {
 
   const [nome, setNome] = React.useState("");
   const [servico, setServico] = React.useState("");
-  const [contato, setContato] = React.useState("");
-  const [ativo, setAtivo] = React.useState(true);
+  const [telefone, setTelefone] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  
+  React.useEffect(() => {
+    if (!firestore || !condominioAtivoId) {
+      setFornecedores([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const ref = collection(firestore, `condominios/${condominioAtivoId}/manutencaoFornecedores`);
+    const q = query(ref, orderBy("nome", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setFornecedores(snap.docs.map(d => ({ id: d.id, ...d.data() } as Fornecedor)));
+      setLoading(false);
+    }, (err) => {
+      console.error(err);
+      toast({ variant: "destructive", title: "Erro ao carregar fornecedores." });
+      setLoading(false);
+    });
+    return unsub;
+  }, [firestore, condominioAtivoId, toast]);
 
   const openDialog = (item: Fornecedor | null) => {
     setCurrent(item);
     setNome(item?.nome ?? "");
     setServico(item?.servico ?? "");
-    setContato(item?.contato ?? "");
-    setAtivo(item ? item.ativo : true);
+    setTelefone(item?.telefone ?? "");
+    setEmail(item?.email ?? "");
     setOpen(true);
   };
 
@@ -84,13 +111,13 @@ export default function FornecedoresPage() {
     }
     setSaving(true);
     try {
+      const collectionRef = collection(firestore, `condominios/${condominioAtivoId}/manutencaoFornecedores`);
       if (current) {
-        const payload: UpdateFornecedorPayload = { nome, servico, contato, ativo };
-        await atualizarFornecedor(firestore, condominioAtivoId, current.id, payload);
+        const docRef = doc(collectionRef, current.id);
+        await updateDoc(docRef, { nome, servico, telefone, email, updatedAt: serverTimestamp() });
         toast({ title: "Fornecedor atualizado!" });
       } else {
-        const payload: NewFornecedorPayload = { nome, servico, contato, ativo };
-        await criarFornecedor(firestore, condominioAtivoId, payload);
+        await addDoc(collectionRef, { nome, servico, telefone, email, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
         toast({ title: "Fornecedor criado com sucesso!" });
       }
       setOpen(false);
@@ -109,7 +136,7 @@ export default function FornecedoresPage() {
     if (!firestore || !condominioAtivoId) return;
     if (!confirm("Tem certeza que deseja excluir este fornecedor?")) return;
     try {
-      await deletarFornecedor(firestore, condominioAtivoId, id);
+      await deleteDoc(doc(firestore, `condominios/${condominioAtivoId}/manutencaoFornecedores`, id));
       toast({ title: "Fornecedor excluído." });
     } catch (e: any) {
       toast({
@@ -122,7 +149,7 @@ export default function FornecedoresPage() {
 
   return (
     <AppLayout
-      pageTitle="Fornecedores"
+      pageTitle="Fornecedores de Manutenção"
       headerActions={
         <Button onClick={() => openDialog(null)}>Novo Fornecedor</Button>
       }
@@ -131,7 +158,7 @@ export default function FornecedoresPage() {
         <CardHeader>
           <CardTitle>Gestão de Fornecedores</CardTitle>
           <CardDescription>
-            Cadastre e gerencie os fornecedores de serviço do condomínio.
+            Cadastre e gerencie os fornecedores para as rotinas de manutenção.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -139,16 +166,14 @@ export default function FornecedoresPage() {
             <p>Selecione um condomínio para ver os fornecedores.</p>
           ) : loading ? (
             <p>Carregando...</p>
-          ) : error ? (
-            <p className="text-destructive">Erro: {error.message}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Serviço</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -164,8 +189,8 @@ export default function FornecedoresPage() {
                     <TableRow key={item.id}>
                       <TableCell>{item.nome}</TableCell>
                       <TableCell>{item.servico}</TableCell>
-                      <TableCell>{item.contato || "-"}</TableCell>
-                      <TableCell>{item.ativo ? "Ativo" : "Inativo"}</TableCell>
+                      <TableCell>{item.telefone || "-"}</TableCell>
+                      <TableCell>{item.email || "-"}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
                           variant="outline"
@@ -197,7 +222,7 @@ export default function FornecedoresPage() {
               {current ? "Editar Fornecedor" : "Novo Fornecedor"}
             </DialogTitle>
             <DialogDescription>
-              Preencha os dados do fornecedor.
+              Preencha os dados do fornecedor de manutenção.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -214,16 +239,21 @@ export default function FornecedoresPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="contato">Contato (Telefone/Email)</Label>
+              <Label htmlFor="telefone">Telefone</Label>
               <Input
-                id="contato"
-                value={contato}
-                onChange={(e) => setContato(e.target.value)}
+                id="telefone"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Switch id="ativo" checked={ativo} onCheckedChange={setAtivo} />
-              <Label htmlFor="ativo">Ativo</Label>
+             <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>

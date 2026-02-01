@@ -47,8 +47,6 @@ service cloud.firestore {
       return isMembroAtivo(condominioId) && roleNoCondo(condominioId) == 'PORTEIRO';
     }
 
-
-    
     function isZelador(condominioId) {
       return isMembroAtivo(condominioId) && roleNoCondo(condominioId) == 'ZELADOR';
     }
@@ -93,17 +91,23 @@ service cloud.firestore {
       allow create, update, delete: if isSuper();
       
       // --- REGRAS DE MANUTENÇÃO PREVENTIVA ---
-      match /manutencoesPreventivas/{rotinaId} {
+      match /manutencaoRotinas/{rotinaId} {
         allow read: if isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
-
-        match /execucoes/{execucaoId} {
+      }
+      
+      match /manutencaoExecucoes/{execucaoId} {
           allow read: if isMembroAtivo(condominioId);
           allow create: if canManageCondo(condominioId);
           allow update: if canManageCondo(condominioId) || isZelador(condominioId) || isPorteiro(condominioId);
           allow delete: if canManageCondo(condominioId);
-        }
       }
+
+      match /manutencaoFornecedores/{fornecedorId} {
+        allow read: if isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+
 
       // -------------------------
       // Áreas Reserváveis

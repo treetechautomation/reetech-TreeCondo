@@ -1,90 +1,94 @@
 "use client";
 
 import * as React from "react";
-import AppLayout from "@/components/layout/AppLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
-
-import { useSessionCtx } from "@/contexts/SessionContext";
-import { useFirestore } from "@/firebase";
 import {
-  addDoc,
   collection,
   onSnapshot,
   orderBy,
   query,
+  addDoc,
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
 
+import AppLayout from "@/components/layout/AppLayout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { useFirestore } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
+
 type Rotina = {
   id: string;
   titulo: string;
-  descricao?: string;
   categoria: string;
-  recorrencia: string;
   dataInicio?: any;
-  responsavelTipo: string;
-  fornecedorNome?: string;
   status: string;
-  createdAt?: any;
-  updatedAt?: any;
+  fornecedorNome?: string;
 };
-
-function toISODateInput(v: any) {
-  const d =
-    v?.toDate ? v.toDate() :
-    v instanceof Date ? v :
-    null;
-  if (!d) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 function formatDateBR(v: any) {
-  const d =
-    v?.toDate ? v.toDate() :
-    v instanceof Date ? v :
-    null;
-  if (!d) return "-";
-  return d.toLocaleDateString("pt-BR");
+  if (!v?.toDate) return "-";
+  return v.toDate().toLocaleDateString("pt-BR");
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  ATIVA: "bg-green-100 text-green-800",
-  ATRASADA: "bg-red-100 text-red-800",
-  PAUSADA: "bg-yellow-100 text-yellow-800",
-  ENCERRADA: "bg-gray-100 text-gray-800",
-};
 
 export default function RotinasManutencaoPage() {
   const { session } = useSessionCtx();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const condominioId = session?.activeCondominioId ?? null;
+  const uid = session?.user?.uid;
 
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [rotinas, setRotinas] = React.useState<Rotina[]>([]);
 
-  // form
+  // form state
   const [titulo, setTitulo] = React.useState("");
   const [descricao, setDescricao] = React.useState("");
-  const [categoria, setCategoria] = React.useState<string>("");
-  const [recorrencia, setRecorrencia] = React.useState<string>("");
-  const [dataInicio, setDataInicio] = React.useState<string>("");
-  const [responsavelTipo, setResponsavelTipo] = React.useState<string>("");
-  const [fornecedorNome, setFornecedorNome] = React.useState<string>("");
-  const [status, setStatus] = React.useState<string>("ATIVA");
+  const [categoria, setCategoria] = React.useState("");
+  const [recorrencia, setRecorrencia] = React.useState("");
+  const [dataInicio, setDataInicio] = React.useState("");
+  const [responsavelTipo, setResponsavelTipo] = React.useState("");
+  const [fornecedorNome, setFornecedorNome] = React.useState("");
+  const [status, setStatus] = React.useState("ATIVA");
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!firestore || !condominioId) {
@@ -92,64 +96,70 @@ export default function RotinasManutencaoPage() {
       setLoading(false);
       return;
     }
-
     setLoading(true);
-    const ref = collection(firestore, "condominios", condominioId, "manutencoesPreventivas");
-    const qy = query(ref, orderBy("createdAt", "desc"));
-
+    const ref = collection(firestore, `condominios/${condominioId}/manutencaoRotinas`);
+    const qy = query(ref, orderBy("updatedAt", "desc"));
     const unsub = onSnapshot(
       qy,
       (snap) => {
-        const items: Rotina[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        setRotinas(items);
+        setRotinas(
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))
+        );
         setLoading(false);
       },
       (err) => {
         console.error("Erro ao buscar rotinas:", err);
-        setRotinas([]);
+        toast({ variant: "destructive", title: "Erro ao carregar rotinas." });
         setLoading(false);
       }
     );
+    return unsub;
+  }, [firestore, condominioId, toast]);
 
-    return () => unsub();
-  }, [firestore, condominioId]);
+  const handleCreate = async () => {
+    if (!firestore || !condominioId || !uid) return;
+    if (!titulo || !categoria || !recorrencia || !dataInicio || !responsavelTipo) {
+      toast({ variant: "destructive", title: "Preencha todos os campos obrigatórios." });
+      return;
+    }
+    setSaving(true);
+    try {
+      const [y, m, d] = dataInicio.split("-").map(Number);
+      const dtInicio = Timestamp.fromDate(new Date(y, m - 1, d));
+      
+      const rotinaPayload = {
+        titulo, descricao, categoria, recorrenciaTipo: recorrencia, dataInicio: dtInicio,
+        responsavel: responsavelTipo, fornecedorNome, status,
+        alertasDiasAntes: [30, 15, 7],
+        proximaExecucaoEm: dtInicio, // Primeira execução é na data de início
+        createdByUid: uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
 
-  async function handleCreate() {
-    if (!firestore || !condominioId) return;
-
-    if (!titulo.trim()) return alert("Informe o título.");
-    if (!categoria) return alert("Selecione a categoria.");
-    if (!recorrencia) return alert("Selecione a recorrência.");
-    if (!dataInicio) return alert("Selecione a data de início.");
-    if (!responsavelTipo) return alert("Selecione o responsável.");
-
-    const [y, m, d] = dataInicio.split("-").map(Number);
-    const dt = new Date(y || 2000, (m ? m - 1 : 0), d || 1, 12, 0, 0, 0);
-
-    await addDoc(collection(firestore, "condominios", condominioId, "manutencoesPreventivas"), {
-      titulo: titulo.trim(),
-      descricao: descricao.trim() || "",
-      categoria,
-      recorrencia,
-      dataInicio: Timestamp.fromDate(dt),
-      responsavelTipo,
-      fornecedorNome: fornecedorNome.trim() || "",
-      status,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    // reset
-    setTitulo("");
-    setDescricao("");
-    setCategoria("");
-    setRecorrencia("");
-    setDataInicio("");
-    setResponsavelTipo("");
-    setFornecedorNome("");
-    setStatus("ATIVA");
-    setOpen(false);
-  }
+      const rotinaRef = await addDoc(collection(firestore, `condominios/${condominioId}/manutencaoRotinas`), rotinaPayload);
+      
+      // Cria a primeira execução
+      await addDoc(collection(firestore, `condominios/${condominioId}/manutencaoExecucoes`), {
+        rotinaId: rotinaRef.id,
+        titulo,
+        categoria,
+        fornecedorNome,
+        status: "PROGRAMADA",
+        dataProgramada: dtInicio,
+        createdAt: serverTimestamp(),
+      });
+      
+      toast({ title: "Rotina criada com sucesso!" });
+      setOpen(false);
+      // Reset form
+      setTitulo(""); setDescricao(""); setCategoria(""); setRecorrencia(""); setDataInicio(""); setResponsavelTipo(""); setFornecedorNome(""); setStatus("ATIVA");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao criar rotina", description: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AppLayout
@@ -159,97 +169,29 @@ export default function RotinasManutencaoPage() {
           <DialogTrigger asChild>
             <Button>Nova Rotina</Button>
           </DialogTrigger>
-
           <DialogContent className="sm:max-w-[640px]" aria-describedby="nova-rotina-desc">
             <DialogHeader>
               <DialogTitle>Nova Rotina de Manutenção</DialogTitle>
-              <DialogDescription id="nova-rotina-desc">
-                Crie uma tarefa de manutenção preventiva recorrente.
-              </DialogDescription>
+              <DialogDescription id="nova-rotina-desc">Crie uma tarefa de manutenção preventiva recorrente.</DialogDescription>
             </DialogHeader>
-
             <div className="grid gap-4 py-4">
-              <div className="space-y-1">
-                <Label htmlFor="titulo">Título</Label>
-                <Input id="titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex: Limpeza Semestral da Caixa d'água" />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="descricao">Descrição</Label>
-                <Textarea id="descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Detalhes sobre a tarefa..." />
-              </div>
-
+              <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título (Ex: Limpeza Semestral da Caixa d'água)" />
+              <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição (opcional)" />
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label>Categoria</Label>
-                  <Select value={categoria} onValueChange={setCategoria}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DEDETIZACAO">Dedetização</SelectItem>
-                      <SelectItem value="CAIXA_DAGUA">Caixa d'água</SelectItem>
-                      <SelectItem value="ELEVADOR">Elevador</SelectItem>
-                      <SelectItem value="EXTINTORES">Extintores</SelectItem>
-                      <SelectItem value="OUTROS">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Recorrência</Label>
-                  <Select value={recorrencia} onValueChange={setRecorrencia}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SEMANAL">Semanal</SelectItem>
-                      <SelectItem value="MENSAL">Mensal</SelectItem>
-                      <SelectItem value="TRIMESTRAL">Trimestral</SelectItem>
-                      <SelectItem value="SEMESTRAL">Semestral</SelectItem>
-                      <SelectItem value="ANUAL">Anual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={categoria} onValueChange={setCategoria}><SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger><SelectContent><SelectItem value="DEDETIZACAO">Dedetização</SelectItem><SelectItem value="CAIXA_DAGUA">Caixa d'água</SelectItem><SelectItem value="ELEVADOR">Elevador</SelectItem><SelectItem value="EXTINTORES">Extintores</SelectItem><SelectItem value="OUTROS">Outros</SelectItem></SelectContent></Select>
+                <Select value={recorrencia} onValueChange={setRecorrencia}><SelectTrigger><SelectValue placeholder="Recorrência" /></SelectTrigger><SelectContent><SelectItem value="SEMANAL">Semanal</SelectItem><SelectItem value="MENSAL">Mensal</SelectItem><SelectItem value="TRIMESTRAL">Trimestral</SelectItem><SelectItem value="SEMESTRAL">Semestral</SelectItem><SelectItem value="ANUAL">Anual</SelectItem></SelectContent></Select>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="dataInicio">Data de Início</Label>
-                  <Input id="dataInicio" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Responsável</Label>
-                  <Select value={responsavelTipo} onValueChange={setResponsavelTipo}>
-                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SINDICO">Síndico</SelectItem>
-                      <SelectItem value="ZELADOR">Zelador</SelectItem>
-                      <SelectItem value="TERCEIRO">Terceiro (Fornecedor)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div><Label>Data de Início</Label><Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} /></div>
+                <Select value={responsavelTipo} onValueChange={setResponsavelTipo}><SelectTrigger><SelectValue placeholder="Responsável" /></SelectTrigger><SelectContent><SelectItem value="SINDICO">Síndico</SelectItem><SelectItem value="ZELADOR">Zelador</SelectItem><SelectItem value="TERCEIRO">Terceiro (Fornecedor)</SelectItem></SelectContent></Select>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="fornecedorNome">Fornecedor (opcional)</Label>
-                  <Input id="fornecedorNome" value={fornecedorNome} onChange={(e) => setFornecedorNome(e.target.value)} placeholder="Ex: Pest Control" />
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Status</Label>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ATIVA">ATIVA</SelectItem>
-                      <SelectItem value="PAUSADA">PAUSADA</SelectItem>
-                      <SelectItem value="ENCERRADA">ENCERRADA</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Input value={fornecedorNome} onChange={(e) => setFornecedorNome(e.target.value)} placeholder="Fornecedor (opcional)" />
+                <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ATIVA">ATIVA</SelectItem><SelectItem value="PAUSADA">PAUSADA</SelectItem><SelectItem value="ENCERRADA">ENCERRADA</SelectItem></SelectContent></Select>
               </div>
             </div>
-
             <DialogFooter>
-              <Button type="button" onClick={handleCreate}>Salvar Rotina</Button>
+              <Button type="button" onClick={handleCreate} disabled={saving}>{saving ? "Salvando..." : "Salvar Rotina"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -260,11 +202,8 @@ export default function RotinasManutencaoPage() {
           <CardTitle>Rotinas</CardTitle>
           <CardDescription>Gerencie as rotinas de manutenção preventiva do condomínio.</CardDescription>
         </CardHeader>
-
         <CardContent>
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Carregando rotinas...</div>
-          ) : (
+          {loading ? <p>Carregando...</p> : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -276,24 +215,15 @@ export default function RotinasManutencaoPage() {
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
-
               <TableBody>
                 {rotinas.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
-                      Nenhuma rotina cadastrada.
-                    </TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center">Nenhuma rotina cadastrada.</TableCell></TableRow>
                 ) : rotinas.map((rotina) => (
                   <TableRow key={rotina.id}>
-                    <TableCell className="font-medium">{rotina.titulo}</TableCell>
+                    <TableCell>{rotina.titulo}</TableCell>
                     <TableCell><Badge variant="secondary">{rotina.categoria}</Badge></TableCell>
                     <TableCell>{formatDateBR(rotina.dataInicio)}</TableCell>
-                    <TableCell>
-                      <Badge className={STATUS_COLORS[rotina.status] || "bg-gray-100 text-gray-800"}>
-                        {rotina.status}
-                      </Badge>
-                    </TableCell>
+                    <TableCell><Badge>{rotina.status}</Badge></TableCell>
                     <TableCell>{rotina.fornecedorNome || "-"}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" asChild>

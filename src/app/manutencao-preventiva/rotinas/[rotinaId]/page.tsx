@@ -2,16 +2,6 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import AppLayout from "@/components/layout/AppLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { File } from "lucide-react";
-
-import { useSessionCtx } from "@/contexts/SessionContext";
-import { useFirestore } from "@/firebase";
 import {
   addDoc,
   collection,
@@ -22,25 +12,29 @@ import {
   query,
   serverTimestamp,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
-function formatDateBR(v: any) {
-  const d =
-    v?.toDate ? v.toDate() :
-    v instanceof Date ? v :
-    null;
-  if (!d) return "-";
-  return d.toLocaleDateString("pt-BR");
-}
+import AppLayout from "@/components/layout/AppLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { File } from "lucide-react";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { useFirestore } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 type Rotina = {
+  id: string;
   titulo: string;
   descricao?: string;
   categoria: string;
-  recorrencia: string;
+  recorrenciaTipo: string;
   status: string;
-  responsavelTipo: string;
+  responsavel: string;
   fornecedorNome?: string;
   dataInicio?: any;
 };
@@ -57,97 +51,90 @@ type Execucao = {
   categoria?: string;
 };
 
+function formatDateBR(v: any) {
+  if (!v?.toDate) return "-";
+  return v.toDate().toLocaleDateString("pt-BR");
+}
+
+function calculateNextExecution(startDate: Date, recurrence: string): Date {
+  const nextDate = new Date(startDate);
+  switch (recurrence) {
+    case "SEMANAL": nextDate.setDate(nextDate.getDate() + 7); break;
+    case "MENSAL": nextDate.setMonth(nextDate.getMonth() + 1); break;
+    case "TRIMESTRAL": nextDate.setMonth(nextDate.getMonth() + 3); break;
+    case "SEMESTRAL": nextDate.setMonth(nextDate.getMonth() + 6); break;
+    case "ANUAL": nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+  }
+  return nextDate;
+}
+
 export default function RotinaDetalhePage() {
   const params = useParams<{ rotinaId: string }>();
   const rotinaId = params?.rotinaId;
-
   const { session } = useSessionCtx();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const condominioId = session?.activeCondominioId ?? null;
 
   const [rotina, setRotina] = React.useState<Rotina | null>(null);
   const [loadingRotina, setLoadingRotina] = React.useState(true);
-
   const [execucoes, setExecucoes] = React.useState<Execucao[]>([]);
   const [loadingExec, setLoadingExec] = React.useState(true);
 
-  // carrega rotina
   React.useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      if (!firestore || !condominioId || !rotinaId) {
-        setRotina(null);
-        setLoadingRotina(false);
-        return;
-      }
-      setLoadingRotina(true);
-      try {
-        const ref = doc(firestore, "condominios", condominioId, "manutencaoRotinas", String(rotinaId));
-        const snap = await getDoc(ref);
-        if (!cancelled) setRotina(snap.exists() ? (snap.data() as any) : null);
-      } catch (e) {
-        console.error("Erro ao carregar rotina:", e);
-        if (!cancelled) setRotina(null);
-      } finally {
-        if (!cancelled) setLoadingRotina(false);
-      }
-    }
-
-    load();
-    return () => { cancelled = true; };
+    if (!firestore || !condominioId || !rotinaId) return;
+    const unsub = onSnapshot(doc(firestore, `condominios/${condominioId}/manutencaoRotinas`, rotinaId), (snap) => {
+      setRotina(snap.exists() ? { id: snap.id, ...snap.data() } as Rotina : null);
+      setLoadingRotina(false);
+    });
+    return unsub;
   }, [firestore, condominioId, rotinaId]);
 
-  // lista execuções
   React.useEffect(() => {
-    if (!firestore || !condominioId || !rotinaId) {
-      setExecucoes([]);
-      setLoadingExec(false);
-      return;
-    }
-
-    setLoadingExec(true);
-    const ref = collection(firestore, "condominios", condominioId, "manutencaoExecucoes");
-    const qy = query(
-      ref,
-      where("rotinaId", "==", String(rotinaId)),
+    if (!firestore || !condominioId || !rotinaId) return;
+    const q = query(
+      collection(firestore, `condominios/${condominioId}/manutencaoExecucoes`),
+      where("rotinaId", "==", rotinaId),
       orderBy("dataProgramada", "desc")
     );
-
-    const unsub = onSnapshot(
-      qy,
-      (snap) => {
-        const items: Execucao[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        setExecucoes(items);
-        setLoadingExec(false);
-      },
-      (err) => {
-        console.error("Erro ao buscar execuções:", err);
-        setExecucoes([]);
-        setLoadingExec(false);
-      }
-    );
-
-    return () => unsub();
+    const unsub = onSnapshot(q, (snap) => {
+      setExecucoes(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Execucao)));
+      setLoadingExec(false);
+    });
+    return unsub;
   }, [firestore, condominioId, rotinaId]);
 
-  // ação rápida: criar execução (para testar calendário)
-  async function criarExecucaoTeste() {
-    if (!firestore || !condominioId || !rotinaId || !rotina) return;
+  const handleConcluir = async (execucao: Execucao) => {
+    if (!firestore || !condominioId || !rotina) return;
+    try {
+      // 1. Marca execução como concluída
+      const execRef = doc(firestore, `condominios/${condominioId}/manutencaoExecucoes`, execucao.id);
+      await updateDoc(execRef, { status: "CONCLUIDA", dataConcluida: serverTimestamp() });
 
-    const dt = new Date();
-    dt.setHours(12, 0, 0, 0);
+      // 2. Calcula e cria a próxima execução
+      const dataBase = execucao.dataProgramada?.toDate() ?? new Date();
+      const proximaData = calculateNextExecution(dataBase, rotina.recorrenciaTipo);
+      
+      const proximaExecPayload = {
+        rotinaId: rotina.id,
+        titulo: rotina.titulo,
+        categoria: rotina.categoria,
+        fornecedorNome: rotina.fornecedorNome,
+        status: "PROGRAMADA",
+        dataProgramada: Timestamp.fromDate(proximaData),
+        createdAt: serverTimestamp(),
+      };
+      await addDoc(collection(firestore, `condominios/${condominioId}/manutencaoExecucoes`), proximaExecPayload);
+      
+      // 3. Atualiza a próxima data na rotina principal
+      const rotinaRef = doc(firestore, `condominios/${condominioId}/manutencaoRotinas`, rotina.id);
+      await updateDoc(rotinaRef, { proximaExecucaoEm: Timestamp.fromDate(proximaData), updatedAt: serverTimestamp() });
 
-    await addDoc(collection(firestore, "condominios", condominioId, "manutencaoExecucoes"), {
-      rotinaId: String(rotinaId),
-      titulo: rotina.titulo,
-      categoria: rotina.categoria,
-      fornecedorNome: rotina.fornecedorNome || "",
-      status: "AGENDADA",
-      dataProgramada: Timestamp.fromDate(dt),
-      createdAt: serverTimestamp(),
-    });
-  }
+      toast({ title: "Execução concluída e próxima agendada!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao concluir execução", description: e.message });
+    }
+  };
 
   return (
     <AppLayout pageTitle="Detalhe da Rotina">
@@ -158,88 +145,44 @@ export default function RotinaDetalhePage() {
           <TabsTrigger value="documentos">Documentos</TabsTrigger>
           <TabsTrigger value="fornecedor">Fornecedor</TabsTrigger>
         </TabsList>
-
         <TabsContent value="resumo" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>{loadingRotina ? "Carregando..." : (rotina?.titulo || "Rotina não encontrada")}</CardTitle>
-              <CardDescription>Rotina ID: {String(rotinaId)}</CardDescription>
+              <CardDescription>Rotina ID: {rotinaId}</CardDescription>
             </CardHeader>
-
             <CardContent className="space-y-4">
-              {!rotina ? (
-                <div className="text-sm text-muted-foreground">Nenhuma rotina encontrada.</div>
-              ) : (
+              {!rotina ? <p>Nenhuma rotina encontrada.</p> : (
                 <>
                   <div className="grid md:grid-cols-3 gap-4 text-sm">
-                    <div><span className="font-semibold text-muted-foreground">Categoria:</span> <Badge variant="secondary">{rotina.categoria}</Badge></div>
-                    <div><span className="font-semibold text-muted-foreground">Status:</span> <Badge variant="outline">{rotina.status}</Badge></div>
-                    <div><span className="font-semibold text-muted-foreground">Recorrência:</span> {rotina.recorrencia}</div>
-                    <div><span className="font-semibold text-muted-foreground">Início:</span> {formatDateBR(rotina.dataInicio)}</div>
-                    <div><span className="font-semibold text-muted-foreground">Responsável:</span> {rotina.responsavelTipo}</div>
-                    <div><span className="font-semibold text-muted-foreground">Fornecedor:</span> {rotina.fornecedorNome || "-"}</div>
+                    <div><span className="font-semibold">Categoria:</span> <Badge variant="secondary">{rotina.categoria}</Badge></div>
+                    <div><span className="font-semibold">Status:</span> <Badge>{rotina.status}</Badge></div>
+                    <div><span className="font-semibold">Recorrência:</span> {rotina.recorrenciaTipo}</div>
+                    <div><span className="font-semibold">Início:</span> {formatDateBR(rotina.dataInicio)}</div>
+                    <div><span className="font-semibold">Responsável:</span> {rotina.responsavel}</div>
+                    <div><span className="font-semibold">Fornecedor:</span> {rotina.fornecedorNome || "-"}</div>
                   </div>
-
-                  {rotina.descricao ? (
-                    <div>
-                      <h4 className="font-semibold text-muted-foreground">Descrição</h4>
-                      <p>{rotina.descricao}</p>
-                    </div>
-                  ) : null}
-
-                  <div>
-                    <Button variant="secondary" onClick={criarExecucaoTeste}>
-                      Criar execução de teste (hoje)
-                    </Button>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      (Use isso só pra validar calendário; depois removemos ou trocamos por “Agendar execução”.)
-                    </div>
-                  </div>
+                  {rotina.descricao && <div><h4 className="font-semibold">Descrição</h4><p>{rotina.descricao}</p></div>}
                 </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="execucoes">
           <Card>
-            <CardHeader>
-              <CardTitle>Histórico de Execuções</CardTitle>
-              <CardDescription>Acompanhe as manutenções realizadas.</CardDescription>
-            </CardHeader>
-
+            <CardHeader><CardTitle>Histórico de Execuções</CardTitle></CardHeader>
             <CardContent>
-              {loadingExec ? (
-                <div className="text-sm text-muted-foreground">Carregando execuções...</div>
-              ) : (
+              {loadingExec ? <p>Carregando...</p> : (
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data Programada</TableHead>
-                      <TableHead>Data Conclusão</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Responsável</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-
+                  <TableHeader><TableRow><TableHead>Data Programada</TableHead><TableHead>Data Conclusão</TableHead><TableHead>Status</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {execucoes.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-sm text-muted-foreground">
-                          Nenhuma execução registrada.
-                        </TableCell>
-                      </TableRow>
-                    ) : execucoes.map((ex) => (
+                    {execucoes.length === 0 ? <TableRow><TableCell colSpan={4}>Nenhuma execução.</TableCell></TableRow> : execucoes.map((ex) => (
                       <TableRow key={ex.id}>
                         <TableCell>{formatDateBR(ex.dataProgramada)}</TableCell>
                         <TableCell>{formatDateBR(ex.dataConcluida)}</TableCell>
+                        <TableCell><Badge variant={ex.status === "CONCLUIDA" ? "default" : "secondary"}>{ex.status}</Badge></TableCell>
                         <TableCell>
-                          <Badge variant={ex.status === "CONCLUIDA" ? "default" : "secondary"}>{ex.status}</Badge>
-                        </TableCell>
-                        <TableCell>{ex.responsavelNome || ex.fornecedorNome || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="outline" size="sm" disabled>Ver detalhes</Button>
+                          {ex.status !== "CONCLUIDA" && <Button size="sm" onClick={() => handleConcluir(ex)}>Marcar como concluída</Button>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -249,31 +192,16 @@ export default function RotinaDetalhePage() {
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="documentos">
           <Card>
-            <CardHeader>
-              <CardTitle>Documentos e Anexos</CardTitle>
-              <CardDescription>Vamos ligar essa aba no Firestore/Storage depois (upload + lista).</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                <File className="h-5 w-5" />
-                Ainda não implementado (sem mocks).
-              </div>
-            </CardContent>
+            <CardHeader><CardTitle>Documentos</CardTitle></CardHeader>
+            <CardContent className="text-sm text-muted-foreground"><File className="inline-block mr-2" /> (Em breve)</CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="fornecedor">
           <Card>
-            <CardHeader>
-              <CardTitle>Fornecedor Associado</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <p><span className="font-semibold text-muted-foreground">Nome:</span> {rotina?.fornecedorNome || "-"}</p>
-              <p className="text-xs text-muted-foreground mt-2">Depois ligamos isso ao módulo /fornecedores.</p>
-            </CardContent>
+            <CardHeader><CardTitle>Fornecedor Associado</CardTitle></CardHeader>
+            <CardContent>{rotina?.fornecedorNome || "Nenhum fornecedor associado."}</CardContent>
           </Card>
         </TabsContent>
       </Tabs>

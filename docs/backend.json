@@ -275,6 +275,21 @@
       },
       "required": ["nome", "servico", "ativo", "createdAt"]
     },
+    "ManutencaoFornecedor": {
+      "title": "Fornecedor de Manutenção",
+      "description": "Representa uma empresa ou pessoa que presta serviços de manutenção para o condomínio.",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "servico": { "type": "string", "description": "Descrição do serviço prestado." },
+        "telefone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "documentos": { "type": "array", "items": { "type": "object", "properties": { "url": { "type": "string" }, "name": { "type": "string" } } } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nome", "servico"]
+    },
     "Veiculo": {
       "title": "Veiculo",
       "description": "Representa um veículo pertencente a uma unidade.",
@@ -378,8 +393,8 @@
         }
       ]
     },
-    "ManutencaoPreventiva": {
-      "title": "Manutenção Preventiva",
+    "ManutencaoRotina": {
+      "title": "Rotina de Manutenção",
       "description": "Uma rotina de manutenção preventiva recorrente.",
       "type": "object",
       "properties": {
@@ -395,23 +410,29 @@
         "status": { "type": "string", "enum": ["ATIVA", "PAUSADA", "ENCERRADA"], "description": "Status da rotina." },
         "fornecedorId": { "type": ["string", "null"], "description": "ID do fornecedor associado." },
         "responsavel": { "type": "string", "enum": ["SINDICO", "ZELADOR", "TERCEIRO"], "description": "Responsável pela execução." },
+        "createdByUid": { "type": "string", "description": "UID do usuário que criou a rotina." },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["titulo", "categoria", "recorrenciaTipo", "dataInicio", "proximaExecucaoEm", "status"]
+      "required": ["titulo", "categoria", "recorrenciaTipo", "dataInicio", "proximaExecucaoEm", "status", "createdByUid"]
     },
-    "ExecucaoManutencao": {
+    "ManutencaoExecucao": {
       "title": "Execução de Manutenção",
       "description": "Registro de uma execução de uma rotina de manutenção.",
       "type": "object",
       "properties": {
+        "rotinaId": { "type": "string", "description": "ID da rotina de manutenção pai." },
+        "titulo": { "type": "string", "description": "Título da rotina (cache)." },
+        "categoria": { "type": "string", "description": "Categoria da rotina (cache)." },
         "dataProgramada": { "type": "string", "format": "date-time" },
         "dataConcluida": { "type": ["string", "null"], "format": "date-time" },
-        "status": { "type": "string", "enum": ["PENDENTE", "CONCLUIDA", "ATRASADA", "CANCELADA"] },
+        "status": { "type": "string", "enum": ["PROGRAMADA", "ALERTA_30", "ALERTA_15", "ALERTA_7", "CONCLUIDA", "ATRASADA", "CANCELADA"] },
         "checklist": { "type": "array", "items": { "type": "string" } },
-        "observacoes": { "type": "string" },
+        "notas": { "type": "string", "description": "Observações sobre a execução." },
         "criadoPorUid": { "type": "string" },
         "criadoPorNome": { "type": "string" },
+        "fornecedorId": { "type": ["string", "null"], "description": "ID do fornecedor (cache)." },
+        "fornecedorNome": { "type": ["string", "null"], "description": "Nome do fornecedor (cache)." },
         "anexos": { "type": "array", "items": {
             "type": "object",
             "properties": {
@@ -423,7 +444,7 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["dataProgramada", "status"]
+      "required": ["rotinaId", "dataProgramada", "status"]
     },
     "Anuncio": { "title": "Anuncio", "type": "object", "properties": { "title": { "type": "string" } } },
     "Reserva": { "title": "Reserva", "type": "object", "properties": { "area": { "type": "string" } } },
@@ -520,19 +541,27 @@
         }
       },
       {
-        "path": "/condominios/{condominioId}/manutencoesPreventivas/{rotinaId}",
+        "path": "/condominios/{condominioId}/manutencaoRotinas/{rotinaId}",
         "definition": {
-          "entityName": "ManutencaoPreventiva",
-          "schema": { "$ref": "#/entities/ManutencaoPreventiva" },
+          "entityName": "ManutencaoRotina",
+          "schema": { "$ref": "#/entities/ManutencaoRotina" },
           "description": "Rotinas de manutenção preventiva do condomínio."
         }
       },
       {
-        "path": "/condominios/{condominioId}/manutencoesPreventivas/{rotinaId}/execucoes/{execucaoId}",
+        "path": "/condominios/{condominioId}/manutencaoExecucoes/{execucaoId}",
         "definition": {
-          "entityName": "ExecucaoManutencao",
-          "schema": { "$ref": "#/entities/ExecucaoManutencao" },
+          "entityName": "ManutencaoExecucao",
+          "schema": { "$ref": "#/entities/ManutencaoExecucao" },
           "description": "Histórico de execuções de uma rotina de manutenção."
+        }
+      },
+      {
+        "path": "/condominios/{condominioId}/manutencaoFornecedores/{fornecedorId}",
+        "definition": {
+          "entityName": "ManutencaoFornecedor",
+          "schema": { "$ref": "#/entities/ManutencaoFornecedor" },
+          "description": "Fornecedores de serviços de manutenção."
         }
       },
        {
