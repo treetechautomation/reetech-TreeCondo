@@ -11,10 +11,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Calendar, HardHat, Users } from "lucide-react";
+import { FileText, Calendar, Users, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
 export default function ManutencaoPreventivaPage() {
-  const cards = [
+  const summaryCards = [
+    { title: "Próximas 7 dias", value: "3", icon: <Clock className="h-4 w-4 text-muted-foreground" /> },
+    { title: "Atrasadas", value: "1", icon: <AlertTriangle className="h-4 w-4 text-muted-foreground" /> },
+    { title: "Concluídas no mês", value: "5", icon: <CheckCircle className="h-4 w-4 text-muted-foreground" /> },
+  ];
+
+  const navCards = [
     {
       title: "Rotinas",
       description: "Cadastre e gerencie as manutenções recorrentes.",
@@ -38,25 +44,31 @@ export default function ManutencaoPreventivaPage() {
   return (
     <AppLayout pageTitle="Manutenção Preventiva">
       <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+            {summaryCards.map(card => (
+                 <Card key={card.title}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+                        {card.icon}
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{card.value}</div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+
         <Card className="border-black/5 bg-white/60 backdrop-blur-md">
           <CardHeader>
-            <CardTitle>Plano de Manutenção Preventiva</CardTitle>
+            <CardTitle>Acesso Rápido</CardTitle>
             <CardDescription>
-              Gerencie as rotinas de manutenção para garantir o bom funcionamento do
-              condomínio e a segurança de todos.
+              Navegue pelas seções do módulo de manutenção.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Utilize os módulos abaixo para cadastrar rotinas (como limpeza de
-              caixa d'água, manutenção de elevadores), visualizar o calendário
-              de execuções e gerenciar os fornecedores.
-            </p>
-          </CardContent>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card) => (
+          {navCards.map((card) => (
             <Card
               key={card.href}
               className="border-black/5 bg-white/60 backdrop-blur-md hover:bg-white/80 transition-all"
