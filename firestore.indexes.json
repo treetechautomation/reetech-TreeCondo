@@ -149,6 +149,34 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "incidentes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "criadoPorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "manutencaoExecucoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "rotinaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dataProgramada",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
