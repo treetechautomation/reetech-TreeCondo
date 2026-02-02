@@ -45,6 +45,8 @@ import {
 } from "firebase/firestore";
 
 type EncomendaDoc = {
+  codigoRetirada?: string;
+  codigoRetiradaLast4?: string;
   id: string;
   status?: "AGUARDANDO" | "RETIRADA";
   unidadeId?: string;

@@ -87,6 +87,15 @@
       ]
     },
     {
+      "collectionGroup": "manutencaoExecucoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "rotinaId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dataProgramada", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "incidentes",
       "queryScope": "COLLECTION",
       "fields": [
