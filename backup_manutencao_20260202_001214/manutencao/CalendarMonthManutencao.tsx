@@ -124,14 +124,8 @@ export function CalendarMonthManutencao({ firestore, condominioId, selectedDateS
     return cells;
   }, [yyyy, mm0]);
 
-  const prevMonth = () => {
-    const newDate = new Date(yyyy, mm0 - 1, 1);
-    onSelectDateStr(toISODateLocal(newDate));
-  };
-  const nextMonth = () => {
-    const newDate = new Date(yyyy, mm0 + 1, 1);
-    onSelectDateStr(toISODateLocal(newDate));
-  };
+  const prevMonth = () => setMonthCursor(new Date(yyyy, mm0 - 1, 1));
+  const nextMonth = () => setMonthCursor(new Date(yyyy, mm0 + 1, 1));
 
   return (
     <div className="w-full rounded-2xl border bg-background/40 p-3">
