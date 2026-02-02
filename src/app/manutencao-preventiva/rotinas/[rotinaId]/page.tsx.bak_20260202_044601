@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   addDoc,
   collection,
@@ -15,8 +14,6 @@ import {
   Timestamp,
   updateDoc,
   where,
-  getDocs,
-  limit,
 } from "firebase/firestore";
 
 import AppLayout from "@/components/layout/AppLayout";
@@ -108,99 +105,36 @@ export default function RotinaDetalhePage() {
   }, [firestore, condominioId, rotinaId]);
 
   const handleConcluir = async (execucao: Execucao) => {
-  if (!firestore || !condominioId || !rotina) return;
+    if (!firestore || !condominioId || !rotina) return;
+    try {
+      // 1. Marca execução como concluída
+      const execRef = doc(firestore, `condominios/${condominioId}/manutencaoExecucoes`, execucao.id);
+      await updateDoc(execRef, { status: "CONCLUIDA", dataConcluida: serverTimestamp() });
 
-  // evita clique duplo / loop
-  if (String(execucao.status || "").toUpperCase() === "CONCLUIDA") {
-    toast({ title: "Essa execução já está concluída." });
-    return;
-  }
+      // 2. Calcula e cria a próxima execução
+      const dataBase = execucao.dataProgramada?.toDate() ?? new Date();
+      const proximaData = calculateNextExecution(dataBase, rotina.recorrenciaTipo);
+      
+      const proximaExecPayload = {
+        rotinaId: rotina.id,
+        titulo: rotina.titulo,
+        categoria: rotina.categoria,
+        fornecedorNome: rotina.fornecedorNome,
+        status: "PROGRAMADA",
+        dataProgramada: Timestamp.fromDate(proximaData),
+        createdAt: serverTimestamp(),
+      };
+      await addDoc(collection(firestore, `condominios/${condominioId}/manutencaoExecucoes`), proximaExecPayload);
+      
+      // 3. Atualiza a próxima data na rotina principal
+      const rotinaRef = doc(firestore, `condominios/${condominioId}/manutencaoRotinas`, rotina.id);
+      await updateDoc(rotinaRef, { proximaExecucaoEm: Timestamp.fromDate(proximaData), updatedAt: serverTimestamp() });
 
-  try {
-    // 1) Marca execução como concluída
-    const execRef = doc(firestore, `condominios/${condominioId}/manutencaoExecucoes`, execucao.id);
-    await updateDoc(execRef, { status: "CONCLUIDA", dataConcluida: serverTimestamp() });
-
-    // 2) Calcula a próxima execução (garantindo que seja futura)
-    const dataBase = execucao.dataProgramada?.toDate?.() ?? new Date();
-
-    function bump(d: Date, tipo: string) {
-      const t = String(tipo || "").toUpperCase();
-      const nd = new Date(d.getTime());
-      if (t === "SEMANAL") nd.setDate(nd.getDate() + 7);
-      else if (t === "MENSAL") nd.setMonth(nd.getMonth() + 1);
-      else if (t === "TRIMESTRAL") nd.setMonth(nd.getMonth() + 3);
-      else if (t === "SEMESTRAL") nd.setMonth(nd.getMonth() + 6);
-      else if (t === "ANUAL") nd.setFullYear(nd.getFullYear() + 1);
-      else nd.setMonth(nd.getMonth() + 1); // default
-      return nd;
+      toast({ title: "Execução concluída e próxima agendada!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao concluir execução", description: e.message });
     }
-
-    let proximaData = calculateNextExecution(dataBase, rotina.recorrenciaTipo);
-
-    if (!(proximaData instanceof Date) || isNaN(proximaData.getTime())) {
-      proximaData = bump(dataBase, rotina.recorrenciaTipo);
-    }
-
-    // garante que avance (evita repetir o mesmo dia)
-    let guard = 0;
-    while (proximaData.getTime() <= dataBase.getTime() && guard < 24) {
-      proximaData = bump(proximaData, rotina.recorrenciaTipo);
-      guard++;
-    }
-
-    // normaliza para 00:00 (trabalhar por dia)
-    proximaData = new Date(
-      proximaData.getFullYear(),
-      proximaData.getMonth(),
-      proximaData.getDate(),
-      0, 0, 0, 0
-    );
-
-    // 3) DEDUPE: se já existe PROGRAMADA igual, não cria outra
-    const execCol = collection(firestore, `condominios/${condominioId}/manutencaoExecucoes`);
-    const qDup = query(
-      execCol,
-      where("rotinaId", "==", rotina.id),
-      where("status", "==", "PROGRAMADA"),
-      where("dataProgramada", "==", Timestamp.fromDate(proximaData)),
-      limit(1)
-    );
-
-    const dupSnap = await getDocs(qDup);
-
-    // Atualiza a rotina com a próxima data (consistência)
-    const rotinaRef = doc(firestore, `condominios/${condominioId}/manutencaoRotinas`, rotina.id);
-    await updateDoc(rotinaRef, { proximaExecucaoEm: Timestamp.fromDate(proximaData), updatedAt: serverTimestamp() });
-
-    if (!dupSnap.empty) {
-      toast({ title: "Execução concluída. Próxima já existia (evitei duplicar)." });
-      return;
-    }
-
-    const proximaExecPayload = {
-      rotinaId: rotina.id,
-      titulo: rotina.titulo,
-      categoria: rotina.categoria,
-      fornecedorNome: rotina.fornecedorNome,
-      status: "PROGRAMADA",
-      dataProgramada: Timestamp.fromDate(proximaData),
-      createdAt: serverTimestamp(),
-    };
-
-    await addDoc(execCol, proximaExecPayload);
-
-    toast({ title: "Execução concluída e próxima agendada!" });
-  } catch (e: any) {
-    toast({
-      variant: "destructive",
-      title: "Erro ao concluir execução",
-      description: e?.message || String(e),
-    });
-  }
-};
-
-
+  };
 
   return (
     <AppLayout pageTitle="Detalhe da Rotina">

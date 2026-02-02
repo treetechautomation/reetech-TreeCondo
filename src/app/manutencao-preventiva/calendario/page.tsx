@@ -47,7 +47,7 @@ export default function CalendarioManutencaoPage() {
 
   return (
     <AppLayout pageTitle="Calendário de Manutenções">
-      <Card>
+      <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
         <CardHeader>
           <CardTitle>Calendário de Manutenções</CardTitle>
           <CardDescription>Visualize as manutenções programadas do condomínio.</CardDescription>
