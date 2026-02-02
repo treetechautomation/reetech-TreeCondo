@@ -6,21 +6,16 @@ import { FieldValue } from "firebase-admin/firestore";
 async function checkPermissions(
   db: FirebaseFirestore.Firestore,
   condominioId: string,
+  incidenteId: string,
   uid: string
 ) {
-  const membroRef = db
-    .collection("condominios")
-    .doc(condominioId)
-    .collection("membros")
-    .doc(uid);
+  const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
   const membroSnap = await membroRef.get();
-  if (!membroSnap.exists) {
+  if (!membroSnap.exists()) {
     throw new Error("Usuário não é membro deste condomínio.");
   }
-  
   const membroData = membroSnap.data();
   const role = membroData?.role;
-
   const isOperator = [
     "SUPER_ADMIN",
     "ADMIN_CONDOMINIO",
@@ -30,10 +25,36 @@ async function checkPermissions(
     "ZELADOR",
   ].includes(role);
 
-  if (!isOperator) {
-    throw new Error("Sem permissão para alterar o status do incidente.");
+  if (isOperator) {
+    throw new Error("Operadores não podem avaliar chamados.");
   }
-  return { membroData };
+
+  const incidenteRef = db
+    .collection("condominios")
+    .doc(condominioId)
+    .collection("incidentes")
+    .doc(incidenteId);
+  const incidenteSnap = await incidenteRef.get();
+
+  if (!incidenteSnap.exists()) {
+    throw new Error("Incidente não encontrado.");
+  }
+
+  const incidenteData = incidenteSnap.data();
+  if (incidenteData?.criadoPorUid !== uid) {
+    throw new Error("Você não pode avaliar um incidente que não abriu.");
+  }
+  
+  if (incidenteData?.status !== 'FINALIZADO') {
+    throw new Error("Você só pode avaliar incidentes finalizados.");
+  }
+  
+  if (incidenteData?.avaliacao) {
+    throw new Error("Este chamado já foi avaliado.");
+  }
+
+
+  return { incidenteRef };
 }
 
 export async function POST(req: Request) {
@@ -48,35 +69,28 @@ export async function POST(req: Request) {
     const uid = decodedToken.uid;
 
     const body = await req.json();
-    const { condominioId, incidenteId, status } = body;
+    const { condominioId, incidenteId, avaliacao } = body;
 
-    const validStatus = ["ABERTO", "EM_ANDAMENTO", "RESOLVIDO", "FINALIZADO"];
-    if (!condominioId || !incidenteId || !status || !validStatus.includes(status)) {
-      return NextResponse.json({ ok: false, error: "Dados incompletos ou status inválido." }, { status: 400 });
+    if (!condominioId || !incidenteId || !avaliacao || typeof avaliacao !== 'number' || avaliacao < 1 || avaliacao > 5) {
+      return NextResponse.json({ ok: false, error: "Dados incompletos ou avaliação inválida (deve ser de 1 a 5)." }, { status: 400 });
     }
 
     const db = adminDb();
-    const { membroData } = await checkPermissions(db, condominioId, uid);
-
-    const incidenteRef = db
-      .collection("condominios")
-      .doc(condominioId)
-      .collection("incidentes")
-      .doc(incidenteId);
-
+    const { incidenteRef } = await checkPermissions(db, condominioId, incidenteId, uid);
+    
     const historicoRef = incidenteRef.collection("historico").doc();
     const batch = db.batch();
 
     batch.update(incidenteRef, {
-      status,
+      avaliacao,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
     batch.set(historicoRef, {
       tipo: "SISTEMA",
-      mensagem: `Status alterado para ${status}.`,
+      mensagem: `Morador avaliou com ${avaliacao} estrela(s).`,
       autorUid: uid,
-      autorNome: membroData?.nome || "Sistema",
+      autorNome: "Sistema",
       createdAt: FieldValue.serverTimestamp(),
     });
 
@@ -84,7 +98,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error("Erro ao alterar status do incidente:", error);
+    console.error("Erro ao avaliar incidente:", error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }

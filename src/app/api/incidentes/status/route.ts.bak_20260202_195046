@@ -14,7 +14,7 @@ async function checkPermissions(
     .collection("membros")
     .doc(uid);
   const membroSnap = await membroRef.get();
-  if (!membroSnap.exists) {
+  if (!membroSnap.exists()) {
     throw new Error("Usuário não é membro deste condomínio.");
   }
   

@@ -157,6 +157,23 @@ service cloud.firestore {
         allow write: if canManageCondo(condominioId);
       }
 
+      // --- ENQUETES / VOTAÇÕES ---
+      match /enquetes/{enqueteId} {
+        allow read: if isMembroAtivo(condominioId);
+        allow create, update, delete: if canManageCondo(condominioId);
+
+        match /opcoes/{opcaoId} {
+          allow read: if isMembroAtivo(condominioId);
+          allow create, update, delete: if canManageCondo(condominioId);
+        }
+
+        match /votos/{uid} {
+          allow read: if isMembroAtivo(condominioId) && request.auth.uid == uid;
+          allow create: if isMembroAtivo(condominioId) && request.auth.uid == uid;
+          allow update, delete: if false;
+        }
+      }
+
       // --- REGRAS DE RESERVAS E CONVIDADOS ---
       match /reservas/{reservaId} {
         function isOwner() {

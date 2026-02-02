@@ -11,7 +11,7 @@ async function checkPermissions(
 ) {
   const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
   const membroSnap = await membroRef.get();
-  if (!membroSnap.exists()) {
+  if (!membroSnap.exists) {
     throw new Error("Usuário não é membro deste condomínio.");
   }
   const membroData = membroSnap.data();
@@ -36,7 +36,7 @@ async function checkPermissions(
     .doc(incidenteId);
   const incidenteSnap = await incidenteRef.get();
 
-  if (!incidenteSnap.exists()) {
+  if (!incidenteSnap.exists) {
     throw new Error("Incidente não encontrado.");
   }
 
