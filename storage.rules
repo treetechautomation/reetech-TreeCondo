@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service firebase.storage {
@@ -25,17 +26,19 @@ service firebase.storage {
     }
 
     function isOperador(condId) {
-      return isMembroAtivo(condId) && (
-        isSuper() ||
-        membroDoc(condId).role in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"]
+      // Super Admin pode fazer tudo, ou um membro ativo do condomínio com uma função de operador.
+      return isSuper() || (
+        isMembroAtivo(condId) &&
+        membroDoc(condId).role in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"]
       );
     }
 
     match /condominios/{condId}/documentos/{docId}/{fileName} {
-      allow read: if isMembroAtivo(condId);
+      allow read: if isMembroAtivo(condId) || isSuper();
       allow write: if isOperador(condId);
     }
 
+    // Bloqueia todas as outras rotas por padrão
     match /{path=**} {
       allow read, write: if false;
     }
