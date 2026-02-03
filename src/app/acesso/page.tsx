@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function AcessoPage() {
   return (
     <AppLayout pageTitle="Acesso">
-      <Card>
+      <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
         <CardHeader>
           <CardTitle>Gestão de Acesso</CardTitle>
           <CardDescription>
