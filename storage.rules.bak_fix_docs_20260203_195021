@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOperador() {
+      return signedIn() &&
+        (
+          request.auth.token.super_admin == true ||
+          request.auth.token.superAdmin == true ||
+          request.auth.token.role in ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"]
+        );
+    }
+
+    function isMembroAtivo(condId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid)).data.status == "ATIVO";
+    }
+
+    // documentos do condomínio
+    match /condominios/{condId}/documentos/{docId}/{fileName} {
+      allow read: if isMembroAtivo(condId) || isOperador();
+      allow write: if isOperador();
+    }
+
+    // default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

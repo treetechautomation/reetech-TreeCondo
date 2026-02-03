@@ -1,0 +1,401 @@
+"use client";
+
+import * as React from "react";
+import { Eye, Download, Upload } from "lucide-react";
+
+import AppLayout from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+import { useToast } from "@/hooks/use-toast";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { useFirestore } from "@/firebase";
+
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  type Firestore,
+} from "firebase/firestore";
+
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytesResumable,
+  getDownloadURL,
+} from "firebase/storage";
+
+type CategoriaDoc = "BALANCETES" | "ATAS" | "REGIMENTO";
+
+type DocItem = {
+  id: string;
+  categoria: CategoriaDoc;
+  nome: string;
+  storagePath: string;
+  contentType?: string;
+  tamanhoBytes?: number;
+  publicacaoEm?: any; // Timestamp
+  createdAt?: any;
+  updatedAt?: any;
+  createdByUid?: string;
+  createdByNome?: string;
+};
+
+function isOperator(role?: string | null) {
+  const r = String(role || "").toUpperCase();
+  return ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"].includes(r);
+}
+
+function formatDateBR(ts: any) {
+  if (!ts?.toDate) return "-";
+  const d = ts.toDate() as Date;
+  return d.toLocaleDateString("pt-BR");
+}
+
+function formatSize(bytes?: number) {
+  if (!bytes || !Number.isFinite(bytes)) return "-";
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  const kb = bytes / 1024;
+  return `${kb.toFixed(0)} KB`;
+}
+
+export default function DocumentosPage() {
+  const firestore = useFirestore();
+  const { session } = useSessionCtx();
+  const { toast } = useToast();
+
+  const condominioId = session?.activeCondominioId ?? null;
+  const uid = session?.user?.uid ?? null;
+  const role = session?.role ?? null;
+
+  const canManage = isOperator(role);
+
+  const [tab, setTab] = React.useState<CategoriaDoc>("BALANCETES");
+  const [loading, setLoading] = React.useState(true);
+  const [docs, setDocs] = React.useState<DocItem[]>([]);
+
+  // Upload dialog
+  const [openUpload, setOpenUpload] = React.useState(false);
+  const [categoria, setCategoria] = React.useState<CategoriaDoc>("BALANCETES");
+  const [nome, setNome] = React.useState("");
+  const [publicacao, setPublicacao] = React.useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`; // input date
+  });
+  const [file, setFile] = React.useState<File | null>(null);
+  const [progress, setProgress] = React.useState<number>(0);
+  const [uploading, setUploading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!firestore || !condominioId) {
+      setDocs([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const ref = collection(firestore, `condominios/${condominioId}/documentos`);
+    const qy = query(ref, orderBy("publicacaoEm", "desc"));
+
+    const unsub = onSnapshot(
+      qy,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as DocItem[];
+        setDocs(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("[documentos] erro onSnapshot:", err);
+        setDocs([]);
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [firestore, condominioId]);
+
+
+  async function openDoc(item: DocItem) {
+      if (!item.storagePath || String(item.storagePath).trim() === "") {
+        toast({ variant: "destructive", title: "Erro ao abrir", description: "Documento sem caminho no Storage (storagePath vazio). Reenvie o arquivo." });
+        return;
+      }
+    
+    try {
+      const storage = getStorage();
+      const url = await getDownloadURL(storageRef(storage, item.storagePath));
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao abrir", description: String(e?.message || e) });
+    }
+  }
+
+  async function downloadDoc(item: DocItem) {
+      if (!item.storagePath || String(item.storagePath).trim() === "") {
+        toast({ variant: "destructive", title: "Erro ao baixar", description: "Documento sem caminho no Storage (storagePath vazio). Reenvie o arquivo." });
+        return;
+      }
+    
+    try {
+      const storage = getStorage();
+      const url = await getDownloadURL(storageRef(storage, item.storagePath));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.nome || "documento";
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao baixar", description: String(e?.message || e) });
+    }
+  }
+
+  async function handleUpload() {
+    if (!firestore || !condominioId) {
+      toast({ variant: "destructive", title: "Selecione um condomínio" });
+      return;
+    }
+    if (!file) {
+      toast({ variant: "destructive", title: "Selecione um arquivo" });
+      return;
+    }
+    const nomeOk = nome.trim();
+    if (!nomeOk) {
+      toast({ variant: "destructive", title: "Informe o nome do arquivo" });
+      return;
+    }
+
+    const [y, m, d] = publicacao.split("-").map(Number);
+    const pubDate = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0, 0); // 12h evita bugs de fuso
+
+    try {
+      setUploading(true);
+      setProgress(0);
+
+      // 1) cria doc no Firestore para obter docId
+      const col = collection(firestore, `condominios/${condominioId}/documentos`);
+      const createdByNome =
+        (session as any)?.user?.nome ||
+        (session as any)?.user?.displayName ||
+        session?.user?.email ||
+        "";
+
+      const docRef = await addDoc(col, {
+        categoria,
+        nome: nomeOk,
+        storagePath: "", // preenchido depois do upload
+        contentType: file.type || "application/octet-stream",
+        tamanhoBytes: file.size,
+        publicacaoEm: Timestamp.fromDate(pubDate),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdByUid: uid,
+        createdByNome,
+      });
+
+      // 2) upload no Storage
+      const storage = getStorage();
+      const ext = (() => {
+        const n = file.name || "";
+        const i = n.lastIndexOf(".");
+        return i >= 0 ? n.slice(i) : "";
+      })();
+
+      const path = `condominios/${condominioId}/documentos/${docRef.id}/${nomeOk}${ext}`;
+      const sref = storageRef(storage, path);
+
+      const task = uploadBytesResumable(sref, file, { contentType: file.type });
+
+      await new Promise<void>((resolve, reject) => {
+        task.on(
+          "state_changed",
+          (snap) => {
+            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+            setProgress(pct);
+          },
+          reject,
+          () => resolve()
+        );
+      });
+
+      // 3) atualiza doc com storagePath final
+      await updateDoc(doc(firestore, `condominios/${condominioId}/documentos/${docRef.id}`), {
+        storagePath: path,
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({ title: "Documento enviado!" });
+
+      // reset
+      setOpenUpload(false);
+      setNome("");
+      setFile(null);
+      setProgress(0);
+      setCategoria(tab);
+    } catch (e: any) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Erro ao enviar", description: String(e?.message || e) });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <AppLayout
+      pageTitle="Documentos do Condomínio"
+      headerActions={
+        canManage ? (
+          <Dialog open={openUpload} onOpenChange={setOpenUpload}>
+            <DialogTrigger asChild>
+              <Button size="sm" onClick={() => { setCategoria(tab); setOpenUpload(true); }}>
+                <Upload className="mr-2" />
+                Carregar Documento
+              </Button>
+            </DialogTrigger>
+
+            <DialogContent className="sm:max-w-[560px]">
+              <DialogHeader>
+                <DialogTitle>Carregar Documento</DialogTitle>
+                <DialogDescription>
+                  Envie um arquivo e organize por categoria (Balancetes, Atas ou Regimento).
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 py-2">
+                <div className="grid gap-1">
+                  <Label>Categoria</Label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value as CategoriaDoc)}
+                  >
+                    <option value="BALANCETES">Balancetes</option>
+                    <option value="ATAS">Atas</option>
+                    <option value="REGIMENTO">Regimento</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Nome do arquivo</Label>
+                  <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Balancete Mensal - Junho 2024" />
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Publicação</Label>
+                  <Input type="date" value={publicacao} onChange={(e) => setPublicacao(e.target.value)} />
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Arquivo</Label>
+                  <Input
+                    type="file"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                  />
+                  {uploading && (
+                    <div className="text-xs text-muted-foreground">Enviando... {progress}%</div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button onClick={handleUpload} disabled={uploading}>
+                  {uploading ? "Enviando..." : "Enviar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null
+      }
+    >
+      <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+        <CardHeader>
+          <CardTitle>Documentos do Condomínio</CardTitle>
+          <CardDescription>Organize arquivos importantes por categoria.</CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          {!condominioId && (
+            <div className="p-4 text-sm text-muted-foreground">
+              Selecione um condomínio para ver os documentos.
+            </div>
+          )}
+
+          <Tabs value={tab} onValueChange={(v) => setTab(v as CategoriaDoc)}>
+            <TabsList>
+              <TabsTrigger value="BALANCETES">Balancetes</TabsTrigger>
+              <TabsTrigger value="ATAS">Atas</TabsTrigger>
+              <TabsTrigger value="REGIMENTO">Regimento</TabsTrigger>
+            </TabsList>
+
+            {(["BALANCETES", "ATAS", "REGIMENTO"] as CategoriaDoc[]).map((cat) => {
+              const list = docs.filter((d) => d.categoria === cat);
+              return (
+              <TabsContent key={cat} value={cat} className="mt-4">
+                <div className="w-full overflow-x-auto">
+                  <div className="min-w-[720px]">
+                    <div className="grid grid-cols-[1fr,160px,120px,140px] px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                      <div>Nome do Arquivo</div>
+                      <div className="text-right">Publicação</div>
+                      <div className="text-right">Tamanho</div>
+                      <div className="text-right">Ações</div>
+                    </div>
+
+                    {loading ? (
+                      <div className="p-4 text-sm text-muted-foreground">Carregando...</div>
+                    ) : list.length === 0 ? (
+                      <div className="p-4 text-sm text-muted-foreground">Nenhum documento nesta categoria.</div>
+                    ) : (
+                      list.map((it) => (
+                        <div
+                          key={it.id}
+                          className="grid grid-cols-[1fr,160px,120px,140px] items-center px-3 py-4 border-b last:border-b-0"
+                        >
+                          <div className="text-sm">{it.nome}</div>
+                          <div className="text-right text-sm text-muted-foreground">{formatDateBR(it.publicacaoEm)}</div>
+                          <div className="text-right text-sm text-muted-foreground">{formatSize(it.tamanhoBytes)}</div>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="icon" onClick={() => openDoc(it)} title="Ver">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" onClick={() => downloadDoc(it)} title="Baixar">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+              );
+            })}
+            </Tabs>
+        </CardContent>
+      </Card>
+    </AppLayout>
+  );
+}

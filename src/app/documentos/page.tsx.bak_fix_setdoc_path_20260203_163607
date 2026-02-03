@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Eye, Download, Upload, Trash2 } from "lucide-react";
+import { Eye, Download, Upload } from "lucide-react";
 
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
+
 import { useToast } from "@/hooks/use-toast";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
@@ -32,9 +32,8 @@ import {
   query,
   serverTimestamp,
   Timestamp,
-  deleteDoc,
-  setDoc,
   updateDoc,
+  type Firestore,
 } from "firebase/firestore";
 
 import {
@@ -42,7 +41,6 @@ import {
   ref as storageRef,
   uploadBytesResumable,
   getDownloadURL,
-  deleteObject,
 } from "firebase/storage";
 
 type CategoriaDoc = "BALANCETES" | "ATAS" | "REGIMENTO";
@@ -138,11 +136,12 @@ export default function DocumentosPage() {
     return () => unsub();
   }, [firestore, condominioId]);
 
+
   async function openDoc(item: DocItem) {
-    if (!item.storagePath || String(item.storagePath).trim() === "") {
-      toast({ variant: "destructive", title: "Erro ao abrir", description: "Documento sem caminho no Storage (storagePath vazio). Reenvie o arquivo." });
-      return;
-    }
+      if (!item.storagePath || String(item.storagePath).trim() === "") {
+        toast({ variant: "destructive", title: "Erro ao abrir", description: "Documento sem caminho no Storage (storagePath vazio). Reenvie o arquivo." });
+        return;
+      }
     
     try {
       const storage = getStorage();
@@ -154,10 +153,10 @@ export default function DocumentosPage() {
   }
 
   async function downloadDoc(item: DocItem) {
-    if (!item.storagePath || String(item.storagePath).trim() === "") {
-      toast({ variant: "destructive", title: "Erro ao baixar", description: "Documento sem caminho no Storage (storagePath vazio). Reenvie o arquivo." });
-      return;
-    }
+      if (!item.storagePath || String(item.storagePath).trim() === "") {
+        toast({ variant: "destructive", title: "Erro ao baixar", description: "Documento sem caminho no Storage (storagePath vazio). Reenvie o arquivo." });
+        return;
+      }
     
     try {
       const storage = getStorage();
@@ -175,23 +174,38 @@ export default function DocumentosPage() {
   }
 
   async function handleUpload() {
-    if (!firestore || !condominioId || !file || !nome.trim()) {
-      toast({ variant: "destructive", title: "Dados incompletos", description: "Selecione condomínio, arquivo e preencha o nome." });
+    if (!firestore || !condominioId) {
+      toast({ variant: "destructive", title: "Selecione um condomínio" });
+      return;
+    }
+    if (!file) {
+      toast({ variant: "destructive", title: "Selecione um arquivo" });
+      return;
+    }
+    const nomeOk = nome.trim();
+    if (!nomeOk) {
+      toast({ variant: "destructive", title: "Informe o nome do arquivo" });
       return;
     }
 
-    const nomeOk = nome.trim();
     const [y, m, d] = publicacao.split("-").map(Number);
-    const pubDate = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0, 0);
-
-    setUploading(true);
-    setProgress(0);
-
-    const docRef = doc(collection(firestore, `condominios/${condominioId}/documentos`));
-    const ext = file.name.includes('.') ? `.${file.name.split('.').pop()}` : '';
-    const path = `condominios/${condominioId}/documentos/${docRef.id}/${nomeOk}${ext}`;
+    const pubDate = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0, 0); // 12h evita bugs de fuso
 
     try {
+      setUploading(true);
+      setProgress(0);
+
+      // 1) cria doc no Firestore para obter docId
+      const col = collection(firestore, `condominios/${condominioId}/documentos`);
+      const createdByNome =
+        (session as any)?.user?.nome ||
+        (session as any)?.user?.displayName ||
+        session?.user?.email ||
+        "";
+
+      const docRef = doc(col);
+
+      // monta extensão e path ANTES (pra já salvar storagePath correto)
       await setDoc(docRef, {
         categoria,
         nome: nomeOk,
@@ -202,58 +216,52 @@ export default function DocumentosPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: uid,
-        createdByNome: session?.user?.displayName || session?.user?.email || "Desconhecido",
+        createdByNome,
       });
-
+// 2) upload no Storage
       const storage = getStorage();
+      const ext = (() => {
+        const n = file.name || "";
+        const i = n.lastIndexOf(".");
+        return i >= 0 ? n.slice(i) : "";
+      })();
+
+      const path = `condominios/${condominioId}/documentos/${docRef.id}/${nomeOk}${ext}`;
       const sref = storageRef(storage, path);
+
       const task = uploadBytesResumable(sref, file, { contentType: file.type });
 
       await new Promise<void>((resolve, reject) => {
         task.on(
           "state_changed",
-          (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+          (snap) => {
+            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+            setProgress(pct);
+          },
           reject,
           () => resolve()
         );
       });
 
-      toast({ title: "Documento enviado com sucesso!" });
+      // 3) atualiza doc com storagePath final
+      await updateDoc(doc(firestore, `condominios/${condominioId}/documentos/${docRef.id}`), {
+        storagePath: path,
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({ title: "Documento enviado!" });
+
+      // reset
       setOpenUpload(false);
       setNome("");
       setFile(null);
-
+      setProgress(0);
+      setCategoria(tab);
     } catch (e: any) {
-      console.error("Erro no upload:", e);
-      toast({ variant: "destructive", title: "Erro ao enviar", description: "Falha no upload para o Storage. Revertendo..." });
-      await deleteDoc(docRef).catch(err => console.error("Falha ao reverter doc do Firestore:", err));
+      console.error(e);
+      toast({ variant: "destructive", title: "Erro ao enviar", description: String(e?.message || e) });
     } finally {
       setUploading(false);
-      setProgress(0);
-    }
-  }
-
-  async function handleDelete(item: DocItem) {
-    if (!firestore || !condominioId || !canManage) return;
-    if (!confirm(`Tem certeza que deseja excluir o documento "${item.nome}"?`)) return;
-
-    try {
-      // 1. Tenta deletar o arquivo do Storage
-      if (item.storagePath) {
-        const storage = getStorage();
-        const sref = storageRef(storage, item.storagePath);
-        await deleteObject(sref).catch(err => {
-          if (err.code !== 'storage/object-not-found') throw err;
-          // Se não achou, ótimo, prossegue para deletar do Firestore
-        });
-      }
-
-      // 2. Deleta o documento do Firestore
-      await deleteDoc(doc(firestore, `condominios/${condominioId}/documentos`, item.id));
-
-      toast({ title: "Documento excluído." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao excluir", description: String(e.message || "Tente novamente.") });
     }
   }
 
@@ -274,45 +282,50 @@ export default function DocumentosPage() {
               <DialogHeader>
                 <DialogTitle>Carregar Documento</DialogTitle>
                 <DialogDescription>
-                  Envie um arquivo e organize por categoria.
+                  Envie um arquivo e organize por categoria (Balancetes, Atas ou Regimento).
                 </DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-4 py-2">
-                <div className="grid gap-1.5">
+                <div className="grid gap-1">
                   <Label>Categoria</Label>
-                  <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaDoc)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BALANCETES">Balancetes</SelectItem>
-                      <SelectItem value="ATAS">Atas</SelectItem>
-                      <SelectItem value="REGIMENTO">Regimento</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value as CategoriaDoc)}
+                  >
+                    <option value="BALANCETES">Balancetes</option>
+                    <option value="ATAS">Atas</option>
+                    <option value="REGIMENTO">Regimento</option>
+                  </select>
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="doc-nome">Nome do arquivo</Label>
-                  <Input id="doc-nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Balancete Mensal - Junho 2024" />
+
+                <div className="grid gap-1">
+                  <Label>Nome do arquivo</Label>
+                  <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Balancete Mensal - Junho 2024" />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="doc-pub">Data de Publicação</Label>
-                  <Input id="doc-pub" type="date" value={publicacao} onChange={(e) => setPublicacao(e.target.value)} />
+
+                <div className="grid gap-1">
+                  <Label>Publicação</Label>
+                  <Input type="date" value={publicacao} onChange={(e) => setPublicacao(e.target.value)} />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="doc-file">Arquivo</Label>
+
+                <div className="grid gap-1">
+                  <Label>Arquivo</Label>
                   <Input
-                    id="doc-file"
                     type="file"
                     onChange={(e) => setFile(e.target.files?.[0] || null)}
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                   />
-                  {uploading && <Progress value={progress} className="w-full" />}
+                  {uploading && (
+                    <div className="text-xs text-muted-foreground">Enviando... {progress}%</div>
+                  )}
                 </div>
               </div>
 
               <DialogFooter>
-                <Button onClick={handleUpload} disabled={uploading || !file || !nome}>
-                  {uploading ? `Enviando... ${progress}%` : "Enviar"}
+                <Button onClick={handleUpload} disabled={uploading}>
+                  {uploading ? "Enviando..." : "Enviar"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -327,63 +340,62 @@ export default function DocumentosPage() {
         </CardHeader>
 
         <CardContent>
-          {!condominioId ? (
+          {!condominioId && (
             <div className="p-4 text-sm text-muted-foreground">
               Selecione um condomínio para ver os documentos.
             </div>
-          ) : (
-            <Tabs value={tab} onValueChange={(v) => setTab(v as CategoriaDoc)}>
-              <TabsList>
-                <TabsTrigger value="BALANCETES">Balancetes</TabsTrigger>
-                <TabsTrigger value="ATAS">Atas</TabsTrigger>
-                <TabsTrigger value="REGIMENTO">Regimento</TabsTrigger>
-              </TabsList>
-
-              {(["BALANCETES", "ATAS", "REGIMENTO"] as CategoriaDoc[]).map((cat) => {
-                const list = docs.filter((d) => d.categoria === cat);
-                return (
-                  <TabsContent key={cat} value={cat} className="mt-4">
-                    <div className="w-full overflow-x-auto">
-                      <div className="min-w-[720px]">
-                        <div className="grid grid-cols-[1fr,160px,160px,120px,140px] px-3 py-2 text-xs font-medium text-muted-foreground border-b">
-                          <div>Nome do Arquivo</div>
-                          <div className="text-right">Publicação</div>
-                          <div className="text-right">Enviado por</div>
-                          <div className="text-right">Tamanho</div>
-                          <div className="text-right">Ações</div>
-                        </div>
-
-                        {loading ? (
-                          <div className="p-4 text-sm text-muted-foreground">Carregando...</div>
-                        ) : list.length === 0 ? (
-                          <div className="p-4 text-sm text-muted-foreground">Nenhum documento nesta categoria.</div>
-                        ) : (
-                          list.map((it) => (
-                            <div
-                              key={it.id}
-                              className="grid grid-cols-[1fr,160px,160px,120px,140px] items-center px-3 py-4 border-b last:border-b-0"
-                            >
-                              <div className="text-sm">{it.nome}</div>
-                              <div className="text-right text-sm text-muted-foreground">{formatDateBR(it.publicacaoEm)}</div>
-                              <div className="text-right text-sm text-muted-foreground truncate" title={it.createdByNome}>{it.createdByNome || "-"}</div>
-                              <div className="text-right text-sm text-muted-foreground">{formatSize(it.tamanhoBytes)}</div>
-                              <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="icon" onClick={() => openDoc(it)} title="Ver"><Eye className="h-4 w-4" /></Button>
-                                <Button size="icon" onClick={() => downloadDoc(it)} title="Baixar"><Download className="h-4 w-4" /></Button>
-                                {canManage && (
-                                  <Button variant="destructive" size="icon" onClick={() => handleDelete(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
-                                )}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                );
-              })}
-            </Tabs>
           )}
+
+          <Tabs value={tab} onValueChange={(v) => setTab(v as CategoriaDoc)}>
+            <TabsList>
+              <TabsTrigger value="BALANCETES">Balancetes</TabsTrigger>
+              <TabsTrigger value="ATAS">Atas</TabsTrigger>
+              <TabsTrigger value="REGIMENTO">Regimento</TabsTrigger>
+            </TabsList>
+
+            {(["BALANCETES", "ATAS", "REGIMENTO"] as CategoriaDoc[]).map((cat) => {
+              const list = docs.filter((d) => d.categoria === cat);
+              return (
+              <TabsContent key={cat} value={cat} className="mt-4">
+                <div className="w-full overflow-x-auto">
+                  <div className="min-w-[720px]">
+                    <div className="grid grid-cols-[1fr,160px,120px,140px] px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                      <div>Nome do Arquivo</div>
+                      <div className="text-right">Publicação</div>
+                      <div className="text-right">Tamanho</div>
+                      <div className="text-right">Ações</div>
+                    </div>
+
+                    {loading ? (
+                      <div className="p-4 text-sm text-muted-foreground">Carregando...</div>
+                    ) : list.length === 0 ? (
+                      <div className="p-4 text-sm text-muted-foreground">Nenhum documento nesta categoria.</div>
+                    ) : (
+                      list.map((it) => (
+                        <div
+                          key={it.id}
+                          className="grid grid-cols-[1fr,160px,120px,140px] items-center px-3 py-4 border-b last:border-b-0"
+                        >
+                          <div className="text-sm">{it.nome}</div>
+                          <div className="text-right text-sm text-muted-foreground">{formatDateBR(it.publicacaoEm)}</div>
+                          <div className="text-right text-sm text-muted-foreground">{formatSize(it.tamanhoBytes)}</div>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="icon" onClick={() => openDoc(it)} title="Ver">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" onClick={() => downloadDoc(it)} title="Baixar">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+              );
+            })}
+            </Tabs>
         </CardContent>
       </Card>
     </AppLayout>

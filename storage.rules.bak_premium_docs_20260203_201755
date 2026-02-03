@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuper() {
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.superAdmin == true
+      );
+    }
+
+    function isOperador() {
+      // Sem toUpperCase (não existe nas rules). Então valida os valores exatos.
+      return signedIn() && (
+        isSuper() ||
+        request.auth.token.role in ['SUPER_ADMIN','ADMIN_CONDOMINIO','ADMIN','SINDICO']
+      );
+    }
+
+    function membroAtivo(condId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid)).data.status == "ATIVO";
+    }
+
+    // Documentos do condomínio
+    match /condominios/{condId}/documentos/{docId}/{fileName} {
+      // morador ativo pode baixar/ver; operador também
+      allow read: if membroAtivo(condId) || isOperador();
+
+      // só operador pode enviar/apagar
+      allow write: if isOperador();
+    }
+
+    // nega o resto
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

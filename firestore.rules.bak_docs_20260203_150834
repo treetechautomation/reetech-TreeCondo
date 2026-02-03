@@ -106,13 +106,6 @@ service cloud.firestore {
       match /manutencaoFornecedores/{fornecedorId} {
         allow read: if isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
-
-        // --- REGRAS DE DOCUMENTOS ---
-        match /documentos/{docId} {
-          allow read: if isSuper() || isMembroAtivo(condominioId);
-          allow create, update, delete: if canManageCondo(condominioId);
-        }
-
       }
 
 
