@@ -417,7 +417,7 @@ export default function ReunioesPage() {
                 />
             </div>
             <div className="space-y-4">
-                <Card>
+                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                     <CardHeader>
                         <CardTitle>Próximas Reuniões</CardTitle>
                         <CardDescription>Eventos agendados a partir de hoje.</CardDescription>
@@ -431,7 +431,7 @@ export default function ReunioesPage() {
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
                     <CardHeader>
                         <CardTitle>Reuniões do dia {selectedDateStr}</CardTitle>
                     </CardHeader>
