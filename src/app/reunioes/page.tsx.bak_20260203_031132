@@ -1,0 +1,457 @@
+"use client";
+
+import * as React from "react";
+import { PlusCircle, FileDown, CalendarDays } from "lucide-react";
+
+import AppLayout from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import { useToast } from "@/hooks/use-toast";
+import { useSessionCtx } from "@/contexts/SessionContext";
+import { useFirestore } from "@/firebase";
+
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  type Firestore,
+} from "firebase/firestore";
+
+import { CalendarMonthReunioes } from "@/components/reunioes/CalendarMonthReunioes";
+
+type ReuniaoTipo = "ASSEMBLEIA" | "CONSELHO" | "REUNIAO" | "OUTRA";
+type ReuniaoStatus = "AGENDADA" | "ENCERRADA" | "CANCELADA";
+
+type Reuniao = {
+  id: string;
+  titulo: string;
+  tipo: ReuniaoTipo;
+  local: string;
+  dataInicio: any;
+  status: ReuniaoStatus;
+  pautas: string[];
+  createdAt?: any;
+  updatedAt?: any;
+  createdByUid?: string;
+  createdByNome?: string;
+};
+
+function toISODateLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function sameIsoDay(dateValue: any, isoDay: string) {
+  if (!dateValue?.toDate) return false;
+  const d = dateValue.toDate() as Date;
+  return toISODateLocal(d) === isoDay;
+}
+function formatDateTimeBR(v: any) {
+  if (!v?.toDate) return "-";
+  const d = v.toDate() as Date;
+  return d.toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" });
+}
+function isOperator(role?: string | null) {
+  const r = String(role || "").toUpperCase();
+  return ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"].includes(r);
+}
+function buildDateFromDayAndTime(day: Date, hhmm: string) {
+  const [hh, mm] = String(hhmm || "").split(":").map((x) => Number(x));
+  const h = Number.isFinite(hh) ? hh : 0;
+  const m = Number.isFinite(mm) ? mm : 0;
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
+}
+
+export default function ReunioesPage() {
+  const firestore = useFirestore();
+  const { session } = useSessionCtx();
+  const { toast } = useToast();
+
+  const condominioId = session?.activeCondominioId ?? null;
+  const uid = session?.user?.uid ?? null;
+  const role = session?.role ?? null;
+
+  const canManage = isOperator(role);
+
+  const [selectedDateStr, setSelectedDateStr] = React.useState(() => toISODateLocal(new Date()));
+
+  const [loading, setLoading] = React.useState(true);
+  const [reunioes, setReunioes] = React.useState<Reuniao[]>([]);
+
+  const [openNew, setOpenNew] = React.useState(false);
+  const [titulo, setTitulo] = React.useState("");
+  const [tipo, setTipo] = React.useState<ReuniaoTipo>("ASSEMBLEIA");
+  const [local, setLocal] = React.useState("Salão de Festas");
+  const [localOutro, setLocalOutro] = React.useState("");
+  const localOutroRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    if (local === "__OUTRO__") {
+      // pequeno delay para garantir render do input
+      const t = setTimeout(() => {
+        localOutroRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [local]);
+
+  const [day, setDay] = React.useState<Date>(() => new Date());
+  const [startTime, setStartTime] = React.useState("19:00");
+  const [pautasText, setPautasText] = React.useState("");
+
+  React.useEffect(() => {
+    if (!firestore || !condominioId) {
+      setReunioes([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const ref = collection(firestore, `condominios/${condominioId}/reunioes`);
+    const qy = query(ref, orderBy("dataInicio", "desc"));
+
+    const unsub = onSnapshot(
+      qy,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Reuniao[];
+        setReunioes(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("[reunioes] erro onSnapshot:", err);
+        setReunioes([]);
+        setLoading(false);
+      }
+    );
+
+    return unsub;
+  }, [firestore, condominioId]);
+
+  const reunioesDoDia = React.useMemo(() => {
+    return reunioes
+      .filter((r) => sameIsoDay(r.dataInicio, selectedDateStr))
+      .sort((a, b) => {
+        const da = a.dataInicio?.toDate?.()?.getTime?.() ?? 0;
+        const db = b.dataInicio?.toDate?.()?.getTime?.() ?? 0;
+        return da - db;
+      });
+  }, [reunioes, selectedDateStr]);
+
+  const proximas = React.useMemo(() => {
+    const now = Date.now();
+    return reunioes
+      .filter((r) => (r.dataInicio?.toDate?.()?.getTime?.() ?? 0) >= (now - 24 * 3600 * 1000))
+      .sort((a, b) => {
+        const da = a.dataInicio?.toDate?.()?.getTime?.() ?? 0;
+        const db = b.dataInicio?.toDate?.()?.getTime?.() ?? 0;
+        return da - db;
+      })
+      .slice(0, 50);
+  }, [reunioes]);
+
+  async function handleCreate() {
+    if (!firestore || !condominioId || !uid) return;
+
+    if (!canManage) {
+      toast({ variant: "destructive", title: "Sem permissão para criar reunião" });
+      return;
+    }
+
+    const tituloOk = titulo.trim();
+    if (!tituloOk) {
+      toast({ variant: "destructive", title: "Título obrigatório" });
+      return;
+    }
+
+    const dataInicio = buildDateFromDayAndTime(day, startTime);
+    if (!(dataInicio instanceof Date) || isNaN(dataInicio.getTime())) {
+      toast({ variant: "destructive", title: "Data/Horário inválidos" });
+      return;
+    }
+
+    const pautas = String(pautasText || "")
+      .split("\n")
+      .map((s) => s.replace(/^\s*\d+\.\s*/, "").trim())
+      .filter(Boolean);
+
+    try {
+      const localFinal = local === "__OUTRO__" ? localOutro.trim() : local;
+      if (!localFinal) {
+        toast({ variant: "destructive", title: "Informe o local" });
+        return;
+      }
+      await addDoc(collection(firestore, `condominios/${condominioId}/reunioes`), {
+        titulo: tituloOk,
+        tipo,
+        local: localFinal,
+        dataInicio: Timestamp.fromDate(dataInicio),
+        status: "AGENDADA",
+        pautas,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdByUid: uid,
+        createdByNome: ((session as any)?.user?.nome || (session as any)?.user?.displayName || session?.user?.email || ""),
+      });
+
+      toast({ title: "Reunião agendada!" });
+      setOpenNew(false);
+      setTitulo("");
+      setTipo("ASSEMBLEIA");
+      setLocal("Salão de Festas");
+      setDay(new Date());
+      setStartTime("19:00");
+      setPautasText("");
+    } catch (e: any) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Erro ao agendar reunião", description: e?.message || String(e) });
+    }
+  }
+
+  return (
+    <AppLayout
+      pageTitle="Reuniões"
+      headerActions={
+        canManage ? (
+          <Dialog open={openNew} onOpenChange={setOpenNew}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <PlusCircle className="mr-2" />
+                <span className="hidden sm:inline-block">Nova Reunião</span>
+              </Button>
+            </DialogTrigger>
+
+            <DialogContent className="sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle>Agendar Nova Reunião</DialogTitle>
+                <DialogDescription>Preencha os detalhes para agendar e notificar os moradores.</DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 py-2">
+                <div className="grid gap-1">
+                  <Label>Título</Label>
+                  <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex: Assembleia Geral Ordinária" />
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Tipo</Label>
+                  <Select value={tipo} onValueChange={(v) => setTipo(v as ReuniaoTipo)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ASSEMBLEIA">Assembleia</SelectItem>
+                      <SelectItem value="CONSELHO">Conselho</SelectItem>
+                      <SelectItem value="REUNIAO">Reunião</SelectItem>
+                      <SelectItem value="OUTRA">Outra</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Data</Label>
+                  <Input
+                    type="date"
+                    value={toISODateLocal(day)}
+                    onChange={(e) => {
+                      const [y, m, d] = e.target.value.split("-").map(Number);
+                      if (!y || !m || !d) return;
+                      setDay(new Date(y, m - 1, d, 0, 0, 0, 0));
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Horário</Label>
+                  <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Local</Label>
+                  <Select value={local} onValueChange={(v) => { setLocal(v); if (v !== "__OUTRO__") setLocalOutro(""); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o espaço" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Salão de Festas">Salão de Festas</SelectItem>
+                      <SelectItem value="Sala de Reuniões">Sala de Reuniões</SelectItem>
+                      <SelectItem value="Churrasqueira">Churrasqueira</SelectItem>
+                    
+                      <SelectItem value="__OUTRO__">Outro</SelectItem>
+</SelectContent>
+                  </Select>
+            {local === "outro" && (
+              <div className="mt-2">
+                <Label htmlFor="localOutro">Informe o local</Label>
+                <Input
+                  id="localOutro"
+                  value={localOutro}
+                  onChange={(e) => setLocalOutro(e.target.value)}
+                  placeholder="Ex: Garagem, Hall, Área externa..."
+                />
+              </div>
+            )}
+                </div>
+
+                <div className="grid gap-1">
+                  <Label>Pautas (1 por linha)</Label>
+                  <Textarea
+                    value={pautasText}
+                    onChange={(e) => setPautasText(e.target.value)}
+                    rows={5}
+                    placeholder={"1. Aprovação de contas\n2. Eleição de síndico\n3. Assuntos gerais"}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button onClick={handleCreate}>
+                  <CalendarDays className="mr-2" />
+                  Agendar e Notificar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null
+      }
+    >
+      <div className="grid lg:grid-cols-[360px,1fr] gap-4">
+        <CalendarMonthReunioes
+          firestore={firestore as Firestore}
+          condominioId={condominioId}
+          selectedDateStr={selectedDateStr}
+          onSelectDateStr={setSelectedDateStr}
+        />
+
+        <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Reuniões do dia</CardTitle>
+            <CardDescription>{selectedDateStr}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : reunioesDoDia.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma reunião neste dia.</p>
+            ) : (
+              <div className="space-y-4">
+                {reunioesDoDia.map((r) => (
+                  <Card key={r.id} className="border-black/5 bg-white/60 backdrop-blur-xl shadow-sm">
+                    <CardHeader>
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
+                        <div>
+                          <CardTitle>{r.titulo}</CardTitle>
+                          <CardDescription>
+                            {formatDateTimeBR(r.dataInicio)} - {r.local}
+                          </CardDescription>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" disabled>
+                              <FileDown className="mr-2" />
+                              Gerar Documentos
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Protocolo de Convocação</DropdownMenuItem>
+                            <DropdownMenuItem>Lista de Presença</DropdownMenuItem>
+                            <DropdownMenuItem>Carta de Convocação (Modelo)</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <h4 className="font-semibold mb-2">Pautas:</h4>
+                      {Array.isArray(r.pautas) && r.pautas.length > 0 ? (
+                        <ul className="list-disc pl-5 text-muted-foreground">
+                          {r.pautas.map((p, idx) => <li key={idx}>{p}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sem pautas.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+          <CardHeader>
+            <CardTitle>Próximas reuniões</CardTitle>
+            <CardDescription>Lista geral (ordenada por data)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : proximas.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma reunião cadastrada.</p>
+            ) : (
+              <div className="grid gap-4">
+                {proximas.map((r) => (
+                  <Card key={r.id} className="border-black/5 bg-white/60 backdrop-blur-xl shadow-sm">
+                    <CardHeader>
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
+                        <div>
+                          <CardTitle>{r.titulo}</CardTitle>
+                          <CardDescription>
+                            {formatDateTimeBR(r.dataInicio)} - {r.local}
+                          </CardDescription>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" disabled>
+                              <FileDown className="mr-2" />
+                              Gerar Documentos
+                            </Button>
+                          </DropdownMenuTrigger>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <h4 className="font-semibold mb-2">Pautas:</h4>
+                      {Array.isArray(r.pautas) && r.pautas.length > 0 ? (
+                        <ul className="list-disc pl-5 text-muted-foreground">
+                          {r.pautas.map((p, idx) => <li key={idx}>{p}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sem pautas.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}

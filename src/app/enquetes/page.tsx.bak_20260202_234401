@@ -197,7 +197,7 @@ export default function EnquetesPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: uid,
-                createdByNome: ((session as any)?.user?.nome || (session as any)?.user?.displayName || session?.user?.email || ""),
+        createdByNome: session?.user?.nome || session?.user?.email || "",
         allowMultiple: false,
       });
 

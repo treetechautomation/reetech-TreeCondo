@@ -109,13 +109,6 @@ service cloud.firestore {
       }
 
 
-        // --- REGRAS DE REUNIÕES ---
-        match /reunioes/{reuniaoId} {
-          allow read: if isSuper() || isMembroAtivo(condominioId);
-          allow create, update, delete: if canManageCondo(condominioId);
-        }
-
-
         // -------------------------
         // ENQUETES E VOTAÇÕES
         // -------------------------
