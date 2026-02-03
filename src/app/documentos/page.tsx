@@ -44,6 +44,7 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type CategoriaDoc = "BALANCETES" | "ATAS" | "REGIMENTO";
 
