@@ -12,27 +12,35 @@ service firebase.storage {
     }
 
     function membroDoc(condId) {
-      return firestore.get(membroPath(condId)).data;
+      return firestore.get(membroPath(condId));
     }
 
     function isMembroAtivo(condId) {
       return signedIn()
         && firestore.exists(membroPath(condId))
-        && membroDoc(condId).status == "ATIVO";
+        && membroDoc(condId).data.status == "ATIVO";
     }
 
+    // Corrigido: adiciona verificação 'signedIn' e simplifica lógica.
     function isOperador(condId) {
-      let isSuperClaim = request.auth.token.super_admin == true || request.auth.token.superAdmin == true;
-      if (isSuperClaim) {
+      // Regra 1: Deve estar logado
+      if (!signedIn()) {
+        return false;
+      }
+
+      // Regra 2: Super admin pode tudo
+      if (request.auth.token.super_admin == true || request.auth.token.superAdmin == true) {
         return true;
       }
       
-      if (!isMembroAtivo(condId)) {
-        return false;
+      // Regra 3: Se não for super admin, precisa ser membro ativo com cargo de gestão
+      if (isMembroAtivo(condId)) {
+        let userRole = membroDoc(condId).data.role;
+        return userRole in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"];
       }
-      
-      let userRole = membroDoc(condId).role;
-      return userRole in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"];
+
+      // Se não for super admin e não for membro ativo gestor, nega.
+      return false;
     }
 
     match /condominios/{condId}/documentos/{docId}/{fileName} {
@@ -40,6 +48,7 @@ service firebase.storage {
       allow write: if isOperador(condId);
     }
 
+    // Regra de fallback: nega tudo que não foi permitido explicitamente
     match /{allPaths=**} {
       allow read, write: if false;
     }
