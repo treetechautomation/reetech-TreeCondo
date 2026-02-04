@@ -2,57 +2,60 @@
 
 import * as React from "react";
 import {
-  Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
+  CardTitle } from "@/components/ui/card";
+import { Tabs,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  DialogTrigger
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+
+import {
+  addDoc,
+  Download,
+  Eye,
+  TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Eye, Upload, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  TabsList,
+  TabsTrigger,
+  Timestamp,
+  Trash2 } from "lucide-react";
+
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import {
+import { Card,
+  Upload,
   collection,
   deleteDoc,
+  deleteObject,
   doc,
+  getDownloadURL,
+  getStorage,
   onSnapshot,
   orderBy,
   query,
+  ref as storageRef,
   serverTimestamp,
   setDoc,
   updateDoc,
-  Timestamp,
+  uploadBytesResumable
 } from "firebase/firestore";
+
 import {
-  getStorage,
-  ref as storageRef,
-  getDownloadURL,
-  deleteObject,
-  uploadBytesResumable,
+  getStorage
 } from "firebase/storage";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type CategoriaDoc = "BALANCETES" | "ATAS" | "REGIMENTO";
 
@@ -104,16 +107,13 @@ export default function DocumentosPage() {
   const [loading, setLoading] = React.useState(true);
   const [docs, setDocs] = React.useState<DocItem[]>([]);
 
-  // Dialog states
+  // Upload dialog
   const [openUpload, setOpenUpload] = React.useState(false);
-  const [openViewer, setOpenViewer] = React.useState(false);
 
-  // Viewer states
+  const [openViewer, setOpenViewer] = React.useState(false);
   const [viewerUrl, setViewerUrl] = React.useState<string>("");
   const [viewerTitle, setViewerTitle] = React.useState<string>("");
   const [viewerType, setViewerType] = React.useState<string>("");
-
-  // Form states
   const [categoria, setCategoria] = React.useState<CategoriaDoc>("BALANCETES");
   const [nome, setNome] = React.useState("");
   const [publicacao, setPublicacao] = React.useState(() => {
@@ -121,13 +121,12 @@ export default function DocumentosPage() {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+    return `${y}-${m}-${day}`; // input date
   });
   const [file, setFile] = React.useState<File | null>(null);
   const [progress, setProgress] = React.useState<number>(0);
   const [uploading, setUploading] = React.useState(false);
 
-  // Firestore listener
   React.useEffect(() => {
     if (!firestore || !condominioId) {
       setDocs([]);
@@ -153,80 +152,96 @@ export default function DocumentosPage() {
       }
     );
 
-    return () => unsub();
-  }, [firestore, condominioId]);
+    
+  async function deleteDocItem(item: DocItem) {
+    if (!firestore || !condominioId) return;
 
-  // --- Action Handlers ---
+    const ok = confirm(`Excluir "${item.nome}"? Isso vai remover do Storage e do Firestore.`);
+    if (!ok) return;
 
-  async function openDoc(item: DocItem) {
-    if (!item.storagePath) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao abrir",
-        description: "Documento sem caminho no Storage. Por favor, reenvie o arquivo.",
-      });
-      return;
+    try {
+      // 1) tenta apagar no Storage
+      const storage = getStorage();
+      const path = (item as any).storagePath || "";
+      if (path) {
+        const sref = storageRef(storage, path);
+        await deleteObject(sref).catch(() => null); // se não existir, não trava
+      }
+
+      // 2) apaga do Firestore
+      await deleteDoc(doc(firestore, `condominios/${condominioId}/documentos/${item.id}`));
+
+      toast({ title: "Documento excluído!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao excluir", description: String(e?.message || e) });
     }
+  }
+
+  return () => unsub();
+  }, [firestore, condominioId]);
+async function openDoc(item: DocItem) {
+    try {
+      const url = await getFileUrl(item);
+      const ct = (item as any).contentType || "";
+      setViewerUrl(url);
+      setViewerTitle(item.nome || "Documento");
+      setViewerType(ct);
+      setOpenViewer(true);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao abrir", description: String(e?.message || e) });
+
     try {
       const storage = getStorage();
       const url = await getDownloadURL(storageRef(storage, item.storagePath));
-      setViewerUrl(url);
-      setViewerTitle(item.nome || "Documento");
-      setViewerType(item.contentType || "");
-      setOpenViewer(true);
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao abrir", description: String(e?.message || e) });
     }
   }
-
-  async function downloadDoc(item: DocItem) {
-    if (!item.storagePath) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao baixar",
-        description: "Documento sem caminho no Storage. Por favor, reenvie o arquivo.",
-      });
-      return;
+async function downloadDoc(item: DocItem) {
+      try {
+        if (!item?.storagePath) {
+          toast({ variant: "destructive", title: "Sem arquivo", description: "Documento sem caminho no Storage." });
+          return;
+        }
+        const storage = getStorage();
+        const url = await getDownloadURL(storageRef(storage, item.storagePath));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = item.nome || "documento";
+        a.target = "_blank";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (e: any) {
+        toast({ variant: "destructive", title: "Erro ao baixar", description: String(e?.message || e) });
+      }
     }
+
+      // 2) apaga do Firestore
+      await deleteDoc(doc(firestore, `condominios/${condominioId}/documentos/${item.id}`));
+
+      toast({ title: "Documento excluído!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao excluir", description: String(e?.message || e) });
+    }
+  }
+
+  }
+
+    
     try {
       const storage = getStorage();
       const url = await getDownloadURL(storageRef(storage, item.storagePath));
       const a = document.createElement("a");
       a.href = url;
-      a.target = "_blank";
       a.download = item.nome || "documento";
+      a.target = "_blank";
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      a.remove();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao baixar", description: String(e?.message || e) });
-    }
-  }
-
-  async function deleteDocItem(item: DocItem) {
-    if (!canManage || !firestore || !condominioId) {
-      toast({ variant: "destructive", title: "Sem permissão para excluir." });
-      return;
-    }
-
-    if (!confirm(`Tem certeza que deseja excluir o documento "${item.nome}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
-    try {
-      if (item.storagePath) {
-        const storage = getStorage();
-        const sref = storageRef(storage, item.storagePath);
-        await deleteObject(sref).catch(err => {
-          if (err.code !== 'storage/object-not-found') {
-            console.warn("Falha ao deletar arquivo do storage (pode já ter sido removido):", err);
-          }
-        });
-      }
-      await deleteDoc(doc(firestore, `condominios/${condominioId}/documentos`, item.id));
-      toast({ title: "Documento excluído com sucesso." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao excluir", description: String(e.message || "Tente novamente.") });
     }
   }
 
@@ -288,6 +303,27 @@ export default function DocumentosPage() {
     } finally {
       setUploading(false);
       setProgress(0);
+    }
+  }
+
+  async function handleDelete(item: DocItem) {
+    if (!firestore || !condominioId || !canManage) return;
+    if (!confirm(`Tem certeza que deseja excluir o documento "${item.nome}"?`)) return;
+
+    try {
+      if (item.storagePath) {
+        const storage = getStorage();
+        const sref = storageRef(storage, item.storagePath);
+        await deleteObject(sref).catch(err => {
+          if (err.code !== 'storage/object-not-found') throw err;
+        });
+      }
+
+      await deleteDoc(doc(firestore, `condominios/${condominioId}/documentos`, item.id));
+
+      toast({ title: "Documento excluído." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao excluir", description: String(e.message || "Tente novamente.") });
     }
   }
 
@@ -405,7 +441,7 @@ export default function DocumentosPage() {
                                 <Button variant="outline" size="icon" onClick={() => openDoc(it)} title="Ver"><Eye className="h-4 w-4" /></Button>
                                 <Button size="icon" onClick={() => downloadDoc(it)} title="Baixar"><Download className="h-4 w-4" /></Button>
                                 {canManage && (
-                                  <Button variant="destructive" size="icon" onClick={() => deleteDocItem(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
+                                  <Button variant="destructive" size="icon" onClick={() => handleDelete(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
                                 )}
                               </div>
                             </div>
@@ -424,7 +460,7 @@ export default function DocumentosPage() {
       <Dialog open={openViewer} onOpenChange={setOpenViewer}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{viewerTitle}</DialogTitle>
+            <h2 className="text-lg font-semibold">{viewerTitle}</h2>
           </DialogHeader>
 
           <div className="w-full h-[70vh]">
@@ -433,13 +469,14 @@ export default function DocumentosPage() {
             ) : viewerType === "application/pdf" ? (
               <iframe src={viewerUrl} className="w-full h-full rounded-md" />
             ) : (
-              <div className="text-sm text-muted-foreground flex items-center justify-center h-full">
-                Preview não disponível para este tipo de arquivo. Use o botão de download.
+              <div className="text-sm text-muted-foreground">
+                Esse tipo de arquivo não tem preview interno. Use download.
               </div>
             )}
           </div>
         </DialogContent>
       </Dialog>
-    </AppLayout>
+
+</AppLayout>
   );
 }

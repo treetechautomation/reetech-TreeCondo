@@ -7,40 +7,29 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function membroPath(condId) {
-      return /databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid);
+    function membroRef(condId) {
+      return /databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid);
     }
 
-    function membroDoc(condId) {
-      return firestore.get(membroPath(condId));
+    function membroExists(condId) {
+      return signedIn() && firestore.exists(membroRef(condId));
+    }
+
+    function membroData(condId) {
+      return firestore.get(membroRef(condId)).data;
     }
 
     function isMembroAtivo(condId) {
-      return signedIn()
-        && firestore.exists(membroPath(condId))
-        && membroDoc(condId).data.status == "ATIVO";
+      return membroExists(condId) && membroData(condId).status == "ATIVO";
     }
 
-    // Corrigido: adiciona verificação 'signedIn' e simplifica lógica.
     function isOperador(condId) {
-      // Regra 1: Deve estar logado
-      if (!signedIn()) {
-        return false;
-      }
-
-      // Regra 2: Super admin pode tudo
-      if (request.auth.token.super_admin == true || request.auth.token.superAdmin == true) {
-        return true;
-      }
-      
-      // Regra 3: Se não for super admin, precisa ser membro ativo com cargo de gestão
-      if (isMembroAtivo(condId)) {
-        let userRole = membroDoc(condId).data.role;
-        return userRole in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"];
-      }
-
-      // Se não for super admin e não for membro ativo gestor, nega.
-      return false;
+      return isMembroAtivo(condId) && (
+        membroData(condId).role == "ADMIN" ||
+        membroData(condId).role == "SINDICO" ||
+        membroData(condId).role == "ADMIN_CONDOMINIO" ||
+        membroData(condId).role == "SUPER_ADMIN"
+      );
     }
 
     match /condominios/{condId}/documentos/{docId}/{fileName} {
@@ -48,8 +37,7 @@ service firebase.storage {
       allow write: if isOperador(condId);
     }
 
-    // Regra de fallback: nega tudo que não foi permitido explicitamente
-    match /{allPaths=**} {
+    match /{path=**} {
       allow read, write: if false;
     }
   }
