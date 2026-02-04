@@ -49,15 +49,6 @@ service cloud.firestore {
       return isOperador(condominioId) || isPortaria(condominioId);
     }
 
-    // aliases usados em outras partes das rules (mantém compatibilidade do projeto)
-    function canManageCondo(condominioId) {
-      return isOperador(condominioId);
-    }
-
-    function isPorteiro(condominioId) {
-      return isMembroAtivo(condominioId) && role(condominioId) == "PORTEIRO";
-    }
-
     function isMorador(condominioId) {
       return isMembroAtivo(condominioId) && role(condominioId) == "MORADOR";
     }
