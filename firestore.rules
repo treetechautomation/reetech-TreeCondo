@@ -30,7 +30,7 @@ service cloud.firestore {
     }
 
     function isMembroAtivo(condominioId) {
-      return membroExists(condominioId) && (membroData(condominioId).status == null ? "" : membroData(condominioId).status).upper() == "ATIVO";
+      return hasMember(condominioId) && (membroData(condominioId).status == null ? "" : membroData(condominioId).status).upper() == "ATIVO";
     }
 
     function role(condominioId) {
