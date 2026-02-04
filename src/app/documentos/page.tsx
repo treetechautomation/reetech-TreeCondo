@@ -176,7 +176,7 @@ export default function DocumentosPage() {
   }
 
   async function handleUpload() {
-    if (!firestore || !condominioId || !file || !nome.trim()) {
+    if (!firestore || !condominioId || !uid || !file || !nome.trim()) {
       toast({ variant: "destructive", title: "Dados incompletos", description: "Selecione condomínio, arquivo e preencha o nome." });
       return;
     }
@@ -190,13 +190,13 @@ export default function DocumentosPage() {
 
     const docRef = doc(collection(firestore, `condominios/${condominioId}/documentos`));
     const ext = file.name.includes('.') ? `.${file.name.split('.').pop()}` : '';
-    const path = `condominios/${condominioId}/documentos/${docRef.id}/${nomeOk}${ext}`;
+    const storagePath = `condominios/${condominioId}/documentos/${docRef.id}/${nomeOk}${ext}`;
 
     try {
       await setDoc(docRef, {
         categoria,
         nome: nomeOk,
-        storagePath: path,
+        storagePath: storagePath,
         contentType: file.type || "application/octet-stream",
         tamanhoBytes: file.size,
         publicacaoEm: Timestamp.fromDate(pubDate),
@@ -207,17 +207,19 @@ export default function DocumentosPage() {
       });
 
       const storage = getStorage();
-      const sref = storageRef(storage, path);
+      const sref = storageRef(storage, storagePath);
       const task = uploadBytesResumable(sref, file, { contentType: file.type });
 
       await new Promise<void>((resolve, reject) => {
         task.on(
           "state_changed",
           (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
-          reject,
+          (error) => reject(error),
           () => resolve()
         );
       });
+
+      await updateDoc(docRef, { updatedAt: serverTimestamp() });
 
       toast({ title: "Documento enviado com sucesso!" });
       setOpenUpload(false);
@@ -226,7 +228,7 @@ export default function DocumentosPage() {
 
     } catch (e: any) {
       console.error("Erro no upload:", e);
-      toast({ variant: "destructive", title: "Erro ao enviar", description: "Falha no upload para o Storage. Revertendo..." });
+      toast({ variant: "destructive", title: "Erro ao enviar", description: e.message || "Falha no upload para o Storage. Revertendo..." });
       await deleteDoc(docRef).catch(err => console.error("Falha ao reverter doc do Firestore:", err));
     } finally {
       setUploading(false);
@@ -239,17 +241,14 @@ export default function DocumentosPage() {
     if (!confirm(`Tem certeza que deseja excluir o documento "${item.nome}"?`)) return;
 
     try {
-      // 1. Tenta deletar o arquivo do Storage
       if (item.storagePath) {
         const storage = getStorage();
         const sref = storageRef(storage, item.storagePath);
         await deleteObject(sref).catch(err => {
           if (err.code !== 'storage/object-not-found') throw err;
-          // Se não achou, ótimo, prossegue para deletar do Firestore
         });
       }
 
-      // 2. Deleta o documento do Firestore
       await deleteDoc(doc(firestore, `condominios/${condominioId}/documentos`, item.id));
 
       toast({ title: "Documento excluído." });

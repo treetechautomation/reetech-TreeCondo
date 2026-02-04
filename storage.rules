@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service firebase.storage {
@@ -8,38 +7,40 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function membroPath(condId) {
+      return /databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid);
+    }
+
     function membroDoc(condId) {
-      return firestore.get(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid)).data;
+      return firestore.get(membroPath(condId)).data;
     }
 
     function isMembroAtivo(condId) {
       return signedIn()
-        && firestore.exists(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid))
+        && firestore.exists(membroPath(condId))
         && membroDoc(condId).status == "ATIVO";
     }
 
-    function isSuper() {
-      return signedIn() && (
-        request.auth.token.super_admin == true ||
-        request.auth.token.superAdmin == true
-      );
-    }
-
     function isOperador(condId) {
-      // Super Admin pode fazer tudo, ou um membro ativo do condomínio com uma função de operador.
-      return isSuper() || (
-        isMembroAtivo(condId) &&
-        membroDoc(condId).role in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"]
-      );
+      let isSuperClaim = request.auth.token.super_admin == true || request.auth.token.superAdmin == true;
+      if (isSuperClaim) {
+        return true;
+      }
+      
+      if (!isMembroAtivo(condId)) {
+        return false;
+      }
+      
+      let userRole = membroDoc(condId).role;
+      return userRole in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"];
     }
 
     match /condominios/{condId}/documentos/{docId}/{fileName} {
-      allow read: if isMembroAtivo(condId) || isSuper();
+      allow read: if isMembroAtivo(condId);
       allow write: if isOperador(condId);
     }
 
-    // Bloqueia todas as outras rotas por padrão
-    match /{path=**} {
+    match /{allPaths=**} {
       allow read, write: if false;
     }
   }

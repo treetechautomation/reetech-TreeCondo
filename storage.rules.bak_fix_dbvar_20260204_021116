@@ -1,0 +1,46 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function membroDoc(condId) {
+      return firestore.get(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid)).data;
+    }
+
+    function isMembroAtivo(condId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid))
+        && membroDoc(condId).status == "ATIVO";
+    }
+
+    function isSuper() {
+      return signedIn() && (
+        request.auth.token.super_admin == true ||
+        request.auth.token.superAdmin == true
+      );
+    }
+
+    function isOperador(condId) {
+      // Super Admin pode fazer tudo, ou um membro ativo do condomínio com uma função de operador.
+      return isSuper() || (
+        isMembroAtivo(condId) &&
+        membroDoc(condId).role in ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"]
+      );
+    }
+
+    match /condominios/{condId}/documentos/{docId}/{fileName} {
+      allow read: if isMembroAtivo(condId) || isSuper();
+      allow write: if isOperador(condId);
+    }
+
+    // Bloqueia todas as outras rotas por padrão
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

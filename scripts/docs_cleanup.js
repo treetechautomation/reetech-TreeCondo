@@ -5,7 +5,6 @@ const fs = require("fs");
 function initializeAdmin() {
   if (admin.apps.length) return;
 
-  // Primeiro, tenta com a chave de serviço local (ambiente de dev/studio)
   const serviceAccountPath = path.join(__dirname, "..", "serviceAccountKey.json");
   if (fs.existsSync(serviceAccountPath)) {
     try {
@@ -21,7 +20,6 @@ function initializeAdmin() {
     }
   }
 
-  // Se falhar, usa as credenciais padrão do ambiente (produção/GCP)
   try {
     admin.initializeApp({
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
