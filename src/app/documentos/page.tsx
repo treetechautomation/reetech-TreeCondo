@@ -17,6 +17,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -127,6 +137,9 @@ export default function DocumentosPage() {
   const [progress, setProgress] = React.useState<number>(0);
   const [uploading, setUploading] = React.useState(false);
 
+  // State for delete confirmation
+  const [itemToDelete, setItemToDelete] = React.useState<DocItem | null>(null);
+
   // Firestore listener
   React.useEffect(() => {
     if (!firestore || !condominioId) {
@@ -208,11 +221,6 @@ export default function DocumentosPage() {
       toast({ variant: "destructive", title: "Sem permissão para excluir." });
       return;
     }
-
-    if (!confirm(`Tem certeza que deseja excluir o documento "${item.nome}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
     try {
       if (item.storagePath) {
         const storage = getStorage();
@@ -290,6 +298,13 @@ export default function DocumentosPage() {
       setProgress(0);
     }
   }
+
+  const handleConfirmDelete = async () => {
+      if (itemToDelete) {
+          await deleteDocItem(itemToDelete);
+      }
+      setItemToDelete(null); // Close dialog
+  };
 
   return (
     <AppLayout
@@ -405,7 +420,7 @@ export default function DocumentosPage() {
                                 <Button variant="outline" size="icon" onClick={() => openDoc(it)} title="Ver"><Eye className="h-4 w-4" /></Button>
                                 <Button size="icon" onClick={() => downloadDoc(it)} title="Baixar"><Download className="h-4 w-4" /></Button>
                                 {canManage && (
-                                  <Button variant="destructive" size="icon" onClick={() => deleteDocItem(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
+                                  <Button variant="destructive" size="icon" onClick={() => setItemToDelete(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
                                 )}
                               </div>
                             </div>
@@ -440,6 +455,23 @@ export default function DocumentosPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Tem certeza que deseja excluir o documento <strong>{itemToDelete?.nome}</strong>?
+                    <br />
+                    Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelete}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
