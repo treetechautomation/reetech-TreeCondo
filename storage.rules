@@ -4,11 +4,15 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // --- FUNÇÕES DE APOIO (CROSS-SERVICE) ---
+
+    // Retorna true se o usuário estiver autenticado.
     function signedIn() {
       return request.auth != null;
     }
 
-    // Helper para verificar se o usuário é um "Super Admin" global
+    // Retorna true se o usuário tiver a claim de "super_admin".
+    // Isso é definido no backend (ex: Cloud Function) e é a fonte da verdade para acesso global.
     function isSuper() {
       return signedIn() && (
         request.auth.token.super_admin == true ||
@@ -16,47 +20,38 @@ service firebase.storage {
       );
     }
     
-    // Caminho para o documento do membro do usuário que faz a requisição
-    function membroRef(condId) {
-      return /databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid);
+    // Obtém o documento de "membro" do usuário no condomínio especificado.
+    function getMembroDoc(condId) {
+      return firestore.get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
     }
 
-    // Verifica se o documento de membro existe
-    function membroExists(condId) {
-      return signedIn() && firestore.exists(membroRef(condId));
-    }
-
-    // Obtém os dados do documento do membro
-    function membroData(condId) {
-      return firestore.get(membroRef(condId)).data;
-    }
-
-    // Verifica se o usuário é um membro ATIVO do condomínio
+    // Verifica se o usuário é um membro ATIVO do condomínio.
     function isMembroAtivo(condId) {
-      return membroExists(condId) && membroData(condId).status == "ATIVO";
+      return signedIn() && getMembroDoc(condId).data.status.upper() == "ATIVO";
     }
 
-    // Verifica se o usuário é um operador (gestor) do condomínio
+    // Verifica se o usuário tem um papel de operador (gestor) no condomínio.
     function isOperador(condId) {
-      // Um operador é um SUPER_ADMIN ou um membro ativo com cargo de gestão
-      return isSuper() || (
-        isMembroAtivo(condId) && (
-          membroData(condId).role == "ADMIN" ||
-          membroData(condId).role == "SINDICO" ||
-          membroData(condId).role == "ADMIN_CONDOMINIO"
-        )
-      );
+      let role = getMembroDoc(condId).data.role.upper();
+      return isMembroAtivo(condId) && 
+        (role == "ADMIN" || role == "SINDICO" || role == "ADMIN_CONDOMINIO");
     }
 
-    // --- REGRA PARA DOCUMENTOS ---
-    // Apenas permite acesso a arquivos dentro da pasta /documentos de um condomínio
-    match /condominios/{condId}/documentos/{docId}/{fileName} {
-      // Leitura: Permitida para qualquer Super Admin ou membro ativo do condomínio.
-      // Isso inclui moradores, síndicos, etc., desde que o status seja 'ATIVO'.
-      allow read: if isMembroAtivo(condId) || isSuper();
+    // --- REGRAS DE BRANDING ---
+    // Caminho: condominios/{condId}/branding/{fileName}
+    // Ex: condominios/condo-abc/branding/logo.jpeg
+    match /condominios/{condId}/branding/{fileName} {
+      // Leitura (download/preview): Permitida para Super Admins ou qualquer membro ativo do condomínio.
+      allow read: if isSuper() || isMembroAtivo(condId);
 
-      // Escrita (upload, update, delete): Permitida apenas para operadores do condomínio.
-      allow write: if isOperador(condId);
+      // Escrita (upload, update, delete): Permitida apenas para Super Admins ou operadores do condomínio.
+      allow write: if isSuper() || isOperador(condId);
+    }
+    
+    // --- REGRA PARA DOCUMENTOS ---
+    match /condominios/{condId}/documentos/{docId}/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
+      allow write: if isSuper() || isOperador(condId);
     }
 
     // --- REGRA DE BLOQUEIO PADRÃO ---

@@ -37,21 +37,7 @@ service cloud.firestore {
       return (membroData(condominioId).role == null ? "" : membroData(condominioId).role).upper();
     }
     
-    
-    // Morador só pode autorizar acesso para o PRÓPRIO destino (unidade/bloco do vínculo)
-    function mesmoDestinoDoMorador(condominioId, acessoData) {
-      let m = membroData(condominioId);
-
-      // Unidade precisa bater sempre
-      let unidadeOk = (m.unidadeId == acessoData.unidadeId);
-
-      // Se o acesso tiver bloco, precisa bater; se não tiver bloco, aceita
-      let blocoOk = (acessoData.blocoId == null) || (m.blocoId == acessoData.blocoId);
-
-      return unidadeOk && blocoOk;
-    }
-
-function isOperador(condominioId) {
+    function isOperador(condominioId) {
       return isMembroAtivo(condominioId) && (role(condominioId) in ["SINDICO","ADMIN","ADMIN_CONDOMINIO","SUPER_ADMIN"]);
     }
     
@@ -130,27 +116,11 @@ function isOperador(condominioId) {
         allow create: if isOperador(condominioId)
           || (isMorador(condominioId) && request.resource.data.moradorUid == request.auth.uid);
 
-        // update: portaria/operador podem atualizar; morador só se dono e PENDENTE,
-        // e só pode: manter PENDENTE, AUTORIZAR, ou CANCELAR (nunca ENTROU/SAIU/NEGADO)
-        
-        // update:
-        // - portaria/operador podem operar status (entrada/saida/negação etc)
-        // - morador: só pode AUTORIZAR ou CANCELAR o próprio acesso e somente se o destino for o dele
+        // update: portaria ou operador podem atualizar; morador só se dono e PENDENTE
         allow update: if isPortariaOrOperador(condominioId)
-          || (
-            isMorador(condominioId)
-            && resource.data.moradorUid == request.auth.uid
-            && resource.data.status == "PENDENTE"
-            && request.resource.data.status in ["AUTORIZADO", "CANCELADO"]
-            && mesmoDestinoDoMorador(condominioId, resource.data)
-            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-              "status",
-              "autorizadoPorUid", "autorizadoPorNome", "autorizadoEm",
-              "canceladoPorUid", "canceladoPorNome", "canceladoEm",
-              "updatedAt"
-            ])
-          );
-// delete: operador pode; morador só se dono e PENDENTE
+          || (isMorador(condominioId) && resource.data.moradorUid == request.auth.uid && resource.data.status == "PENDENTE");
+
+        // delete: operador pode; morador só se dono e PENDENTE
         allow delete: if isOperador(condominioId)
           || (isMorador(condominioId) && resource.data.moradorUid == request.auth.uid && resource.data.status == "PENDENTE");
       }

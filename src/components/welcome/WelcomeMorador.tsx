@@ -1,10 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { useBranding } from "@/contexts/BrandingContext";
 import { useSession } from "@/hooks/useSession";
 import Image from "next/image";
 
 export default function WelcomeMorador() {
+  const branding = useBranding();
+
+
   const { session, isSessionLoading } = useSession();
   const user = session?.user ?? null;
 
@@ -20,7 +24,7 @@ export default function WelcomeMorador() {
 
       <div className="relative flex items-center gap-4">
         <Image
-            src="/logo-treecondo.jpeg"
+            src={branding.logoUrl}
             alt="Logo TreeCondo"
             width={80}
             height={80}

@@ -2,25 +2,58 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Eye, Check, X, LogIn, LogOut, Trash2, Ban
+import {
+  Plus,
+  Eye,
+  Check,
+  X,
+  LogIn,
+  LogOut,
+  Trash2,
+  Ban
 } from "lucide-react";
 
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle } from "@/components/ui/card";
+import { Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, } from "@/components/ui/dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  } from "@/components/ui/dialog";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
 
 import {
-  addDoc, getDoc, collection, onSnapshot, orderBy, query, serverTimestamp, Timestamp, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
+  addDoc,
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  where,
+  doc,
+  updateDoc,
+  deleteDoc,
+  getDoc} from "firebase/firestore";
 
 type TipoAcesso = "VISITANTE" | "PRESTADOR";
 type StatusAcesso = "PENDENTE" | "AUTORIZADO" | "NEGADO" | "ENTROU" | "SAIU" | "EXPIRADO" | "CANCELADO";
@@ -191,11 +224,7 @@ export default function AcessoPage() {
   const [janelaFim, setJanelaFim] = React.useState(() => dtLocalNowPlus(4));
   const [saving, setSaving] = React.useState(false);
   
-  
-  // destino automático para morador (vínculo)
-  const [vincBlocoId, setVincBlocoId] = React.useState<string | null>(null);
-  const [vincUnidadeId, setVincUnidadeId] = React.useState<string | null>(null);
-// Form de destino (fallback)
+  // Form de destino (fallback)
   const [formDestinoBloco, setFormDestinoBloco] = React.useState("");
   const [formDestinoUnidade, setFormDestinoUnidade] = React.useState("");
 
@@ -244,32 +273,7 @@ list.sort((a: any, b: any) => {
     return () => unsub();
   }, [firestore, condominioId, uid, canOperarPortaria, toast]);
 
-    
-
-  // carrega vínculo do morador para destino automático
-  React.useEffect(() => {
-    async function carregarVinculoMorador() {
-      if (!firestore || !condominioId || !uid) return;
-      const roleUp = String(role || "").toUpperCase();
-      if (roleUp !== "MORADOR") return;
-
-      try {
-        const ref = doc(firestore, `condominios/${condominioId}/membros/${uid}`);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) return;
-
-        const data = snap.data() as any;
-        setVincBlocoId(data?.blocoId ?? null);
-        setVincUnidadeId(data?.unidadeId ?? null);
-      } catch (e) {
-        console.error("[acesso] erro carregar vínculo:", e);
-      }
-    }
-
-    carregarVinculoMorador();
-  }, [firestore, condominioId, uid, role]);
-
-const { waiting, authorized, inside, history } = React.useMemo(() => {
+    const { waiting, authorized, inside, history } = React.useMemo(() => {
       const waiting: AcessoItem[] = [];
       const authorized: AcessoItem[] = [];
       const inside: AcessoItem[] = [];
@@ -324,52 +328,33 @@ const { waiting, authorized, inside, history } = React.useMemo(() => {
       setSaving(true);
       const col = collection(firestore, `condominios/${condominioId}/acessos`);
       
+      const payload: Partial<AcessoItem> = {
+        tipo,
+        status: "PENDENTE",
+        nome: nomeOk,
+        telefone: telefone.trim() || undefined,
+        documento: documento.trim() || undefined,
+        placa: placa.trim() || undefined,
+        empresa: tipo === "PRESTADOR" ? (empresa.trim() || undefined) : undefined,
+        observacao: observacao.trim() || undefined,
+        
+        blocoId: (blocoTxt || "").trim() || undefined,
+        unidadeId: (unidadeTxt || "").trim() || undefined,destinoBlocoTexto: blocoId ? null : formDestinoBloco.trim(),
+        destinoUnidadeTexto: unidadeId ? null : formDestinoUnidade.trim(),
+
+        moradorUid: uid,
+        moradorNome: actorName(),
+        janelaInicio: Timestamp.fromDate(ini),
+        janelaFim: Timestamp.fromDate(fim),
+        createdByUid: uid,
+        createdByRole: role || "MORADOR",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
       
-        const roleUp = String(role || "").toUpperCase();
-        const isMoradorNow = roleUp === "MORADOR";
-
-        // destino automático do vínculo do morador
-        const destinoBloco = isMoradorNow ? (vincBlocoId ?? null) : (blocoId ?? null);
-        const destinoUnidade = isMoradorNow ? (vincUnidadeId ?? null) : (unidadeId ?? null);
-
-        if (isMoradorNow) {
-          if (!destinoUnidade) {
-            toast({ variant: "destructive", title: "Seu vínculo não tem unidade", description: "Defina a unidade do morador no cadastro/membros antes de criar acesso." });
-            setSaving(false);
-            return;
-          }
-        }
-
-        const payload: any = {
-          tipo,
-          status: "PENDENTE",
-          nome: nomeOk,
-
-          telefone: telefone.trim() || null,
-          documento: documento.trim() || null,
-          placa: placa.trim() || null,
-          empresa: tipo === "PRESTADOR" ? (empresa.trim() || null) : null,
-          observacao: observacao.trim() || null,
-
-          blocoId: destinoBloco,
-          unidadeId: destinoUnidade,
-
-          moradorUid: uid,
-          moradorNome: actorName(),
-          janelaInicio: Timestamp.fromDate(ini),
-          janelaFim: Timestamp.fromDate(fim),
-          createdByUid: uid,
-          createdByRole: role || "MORADOR",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        // remove chaves null opcionais se quiser (bloco pode ser null)
-        // mas evita undefined (Firestore não aceita)
-        Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
-
-        await addDoc(col, payload);
-toast({ title: "Acesso criado!", description: "Aguardando validação da portaria." });
+      await addDoc(col, payload);
+      
+      toast({ title: "Acesso criado!", description: "Aguardando validação da portaria." });
       setOpenNew(false);
       // Reset form
       setNome(""); setTipo("VISITANTE"); setTelefone(""); setDocumento(""); setPlaca(""); setEmpresa(""); setObservacao(""); 

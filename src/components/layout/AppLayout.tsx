@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
+import { useBranding } from "@/contexts/BrandingContext";
 import { hasRole } from "@/lib/acl";
 import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions, MENU_LABELS } from "@/lib/menuPermissions";
 import Image from "next/image";
@@ -84,6 +85,8 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
   const router = useRouter();
   const pathname = usePathname();
   const { session, isSessionLoading } = useSessionCtx();
+
+  const branding = useBranding();
 
     const isSuper =
       Boolean((session as any)?.superAdmin) ||
@@ -168,7 +171,7 @@ setPerms(p);
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-2xl bg-white/[0.08] backdrop-blur flex items-center justify-center border border-white/15 shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]">
                     <Image
-                      src="/logo-treecondo.jpeg"
+                      src={branding.menuLogoUrl}
                       alt="TreeCondo"
                       width={48}
                       height={48}

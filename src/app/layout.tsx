@@ -5,6 +5,7 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { AuthGate } from "@/components/authgate";
 import { CondominioProvider } from '@/contexts/CondominioContext';
 import { SessionProvider } from '@/contexts/SessionContext';
+import { BrandingProvider } from '@/contexts/BrandingContext';
 
 const APP_NAME = "TreeCondo";
 const APP_DESCRIPTION = "Gerencie seu condomínio com facilidade.";
@@ -55,11 +56,13 @@ export default function RootLayout({
       <body>
         <FirebaseClientProvider>
           <SessionProvider>
-            <AuthGate>
+            <BrandingProvider>
+<AuthGate>
               <CondominioProvider>
                 {children}
               </CondominioProvider>
             </AuthGate>
+            </BrandingProvider>
           </SessionProvider>
         </FirebaseClientProvider>
         <Toaster />
