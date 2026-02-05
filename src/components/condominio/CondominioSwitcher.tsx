@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { useFirestore } from "@/firebase";
+import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { useSessionCtx } from "@/contexts/SessionContext";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,6 +27,8 @@ function norm(s: string) {
 }
 
 export function CondominioSwitcher() {
+  const { session } = useSessionCtx();
+  const firestore = useFirestore();
   const {
     condominioAtivoId,
     setCondominioAtivoId,
@@ -32,29 +37,66 @@ export function CondominioSwitcher() {
   } = useCondominio();
 
   const [open, setOpen] = React.useState(false);
+  const [superOptions, setSuperOptions] = React.useState<Option[]>([]);
+  const [isLoadingSuperOptions, setIsLoadingSuperOptions] = React.useState(false);
+
+  const isSuper = !!session?.superAdmin;
+
+  React.useEffect(() => {
+    if (!isSuper || !firestore) return;
+
+    const loadSuperOptions = async () => {
+      setIsLoadingSuperOptions(true);
+      try {
+        const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
+        const snap = await getDocs(q);
+        const list = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            condominioId: d.id,
+            condominioNome: data?.nome || d.id,
+          };
+        });
+        setSuperOptions(list);
+      } catch (e) {
+        console.error("[CondominioSwitcher] Erro ao carregar condominios (super admin):", e);
+        setSuperOptions([]);
+      } finally {
+        setIsLoadingSuperOptions(false);
+      }
+    };
+    loadSuperOptions();
+  }, [isSuper, firestore]);
 
   const options: Option[] = React.useMemo(() => {
-    const list = (vinculos || [])
+    const base = (vinculos || [])
       .filter((v) => v?.status !== "INATIVO")
       .map((v) => ({
         condominioId: v.condominioId,
         condominioNome: (v as any).condominioNome || v.condominioId,
       }));
 
-    // evita duplicados por condominioId
+    if (isSuper) {
+      const allOptionsMap = new Map<string, Option>();
+      base.forEach(o => allOptionsMap.set(o.condominioId, o));
+      superOptions.forEach(o => allOptionsMap.set(o.condominioId, o));
+      
+      return Array.from(allOptionsMap.values()).sort((a, b) => a.condominioNome.localeCompare(b.condominioNome));
+    }
+    
     const seen = new Set<string>();
-    return list.filter((o) => {
+    return base.filter((o) => {
       if (seen.has(o.condominioId)) return false;
       seen.add(o.condominioId);
       return true;
     });
-  }, [vinculos]);
+  }, [vinculos, superOptions, isSuper]);
 
   const active = React.useMemo(() => {
     return options.find((o) => o.condominioId === condominioAtivoId) || null;
   }, [options, condominioAtivoId]);
 
-  const isDisabled = isLoadingVinculos || options.length === 0;
+  const isDisabled = isLoadingVinculos || isLoadingSuperOptions || options.length === 0;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -75,7 +117,6 @@ export function CondominioSwitcher() {
 
       <PopoverContent className="w-[260px] p-0" align="start">
         <Command
-          // filtro com acento/sem acento
           filter={(value, search) => {
             const v = norm(value);
             const s = norm(search);
@@ -87,7 +128,6 @@ export function CondominioSwitcher() {
 
           <CommandGroup>
             {options.map((o) => {
-              // IMPORTANTE: value tem que existir para a busca funcionar
               const value = `${o.condominioId} | ${o.condominioNome}`;
               const selected = o.condominioId === condominioAtivoId;
 
@@ -96,7 +136,9 @@ export function CondominioSwitcher() {
                   key={o.condominioId}
                   value={value}
                   onSelect={() => {
-                    setCondominioAtivoId(o.condominioId);
+                    if (condominioAtivoId !== o.condominioId) {
+                       setCondominioAtivoId(o.condominioId);
+                    }
                     setOpen(false);
                   }}
                   className="cursor-pointer"
