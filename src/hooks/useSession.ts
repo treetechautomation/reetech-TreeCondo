@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { User } from "firebase/auth";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { useUser, useClaims, useFirestore } from "@/firebase";
@@ -39,7 +39,7 @@ function resolveRole(superAdmin: boolean, vinculoAtivo: Vinculo | null): RoleKey
   if (vinculoAtivo.role === "PORTEIRO") return "PORTEIRO";
   if (vinculoAtivo.role === "ZELADOR") return "ZELADOR";
   if (vinculoAtivo.role === "ADMIN_CONDOMINIO") return "ADMIN_CONDOMINIO";
-if (vinculoAtivo.role === "ADMIN") return "ADMIN";
+  if (vinculoAtivo.role === "ADMIN") return "ADMIN";
   return "MORADOR";
 }
 
@@ -60,7 +60,11 @@ export function useSessionBase() {
   const { claims, isClaimsLoading } = useClaims();
   const firestore = useFirestore();
 
-  const [activeCondominioId, setActiveCondominioId] = useState<string | null>(null);
+  const [activeCondominioId, setActiveCondominioIdInternal] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(LS_CONDO);
+  });
+
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [isVinculosLoading, setIsVinculosLoading] = useState(true);
 
@@ -84,7 +88,6 @@ export function useSessionBase() {
           .filter((v) => v.status === "ATIVO");
         setVinculos(list);
         setIsVinculosLoading(false);
-        console.log('[useSession] Vínculos carregados:', list.length);
       },
       (err) => {
         console.error("[useSession] erro ao carregar userCondominios/{uid}/vinculos:", { code: (err as any)?.code, message: (err as any)?.message, err });
@@ -98,44 +101,45 @@ export function useSessionBase() {
 
   // Resolve condomínio ativo
   useEffect(() => {
-    // Só roda quando todos os dados estiverem prontos
     if (isUserLoading || isClaimsLoading || isVinculosLoading) return;
     if (!user) {
-      setActiveCondominioId(null);
+      setActiveCondominioIdInternal(null);
       return;
     }
 
     const isSuper = isSuperAdminUser(user, claims);
-    const savedCondo = typeof window !== 'undefined' ? window.localStorage.getItem(LS_CONDO) : null;
     
-    // Se já existe um ativo e ele está na lista de vínculos, mantenha.
-    if (activeCondominioId && vinculos.some(v => v.condominioId === activeCondominioId)) {
-        return;
+    // Non-super-admins are locked to their first available condo
+    if (!isSuper) {
+      if (vinculos.length > 0 && vinculos[0].condominioId !== activeCondominioId) {
+        setActiveCondominioIdInternal(vinculos[0].condominioId);
+      } else if (vinculos.length === 0) {
+        setActiveCondominioIdInternal(null);
+      }
+      return;
     }
 
-    // Se o salvo no LS for válido, usa ele.
-    if (savedCondo && vinculos.some(v => v.condominioId === savedCondo)) {
-        setActiveCondominioId(savedCondo);
-        return;
+    // For super admins, respect their choice in localStorage if it's valid
+    const savedCondo = typeof window !== 'undefined' ? window.localStorage.getItem(LS_CONDO) : null;
+    if (savedCondo && savedCondo !== activeCondominioId) {
+        setActiveCondominioIdInternal(savedCondo);
+    } else if (!savedCondo && vinculos.length > 0 && activeCondominioId !== vinculos[0].condominioId) {
+        // Fallback to first vinculo if no LS entry
+        setActiveCondominioIdInternal(vinculos[0].condominioId);
     }
-
-    // Se não, e se houver vínculos, pega o primeiro.
-    if (vinculos.length > 0) {
-        setActiveCondominioId(vinculos[0].condominioId);
-        return;
-    }
-
-    // Se é super admin e não tem vinculos, pode ser que ele selecione manualmente,
-    // então se tiver algo no LS, usamos.
-    if (isSuper && savedCondo) {
-        setActiveCondominioId(savedCondo);
-        return;
-    }
-
-    // Caso final: sem vínculos, sem seleção salva.
-    setActiveCondominioId(null);
-
+    
   }, [user, isUserLoading, claims, isClaimsLoading, vinculos, isVinculosLoading, activeCondominioId]);
+
+  const setActiveCondominioId = useCallback((id: string | null) => {
+    setActiveCondominioIdInternal(id);
+    if (typeof window !== "undefined") {
+      if (id) {
+        window.localStorage.setItem(LS_CONDO, id);
+      } else {
+        window.localStorage.removeItem(LS_CONDO);
+      }
+    }
+  }, []);
 
   const session: Session | null = useMemo(() => {
     if (!user) return null;
@@ -146,8 +150,7 @@ export function useSessionBase() {
       : null;
     
     const role = resolveRole(superAdmin, vinculoAtivo);
-    console.log('[useSession] Session recalculada. Role:', role, 'SuperAdmin:', superAdmin, 'CondoId:', activeCondominioId);
-
+    
     return {
       user,
       activeCondominioId,
@@ -157,22 +160,16 @@ export function useSessionBase() {
       vinculos,
     };
   }, [user, claims, activeCondominioId, vinculos]);
-
-  // Sincroniza com localStorage
+  
+  // Sincroniza role com localStorage para uso em outros contextos, se necessário
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    if (activeCondominioId) {
-      window.localStorage.setItem(LS_CONDO, activeCondominioId);
-    } else {
-      window.localStorage.removeItem(LS_CONDO);
-    }
     if (session?.role) {
       window.localStorage.setItem(LS_ROLE, session.role);
     } else {
       window.localStorage.removeItem(LS_ROLE);
     }
-  }, [session?.role, activeCondominioId]);
+  }, [session?.role]);
 
   const isSessionLoading = isUserLoading || isClaimsLoading || isVinculosLoading;
   const isAuthenticated = !!user;

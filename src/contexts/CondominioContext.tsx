@@ -80,12 +80,10 @@ const CondominioContext = createContext<CondominioContextType | undefined>(
 
 export function CondominioProvider({ children }: { children: ReactNode }) {
   const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
-  const isSuperAdmin = hasRole(session, ["SUPER_ADMIN"]);
   const firestore = useFirestore();
 
   const condominioAtivoId = session?.activeCondominioId ?? null;
 
-  // --- Vínculos (vem da Session) ---
   const vinculos: Vinculo[] = useMemo(
     () => ((session as any)?.vinculos as Vinculo[] | undefined) ?? [],
     [session]
@@ -97,7 +95,6 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     return vinculos.find((v) => v.condominioId === condominioAtivoId) ?? null;
   }, [vinculos, condominioAtivoId]);
 
-  // --- Blocos / Unidades (estado local) ---
   const [blocos, setBlocos] = useState<Bloco[]>([]);
   const [isLoadingBlocos, setIsLoadingBlocos] = useState(false);
   const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(null);
@@ -107,69 +104,6 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   const [unidadeAtivaId, setUnidadeAtivaIdState] = useState<string | null>(
     null
   );
-
-  // Se NÃO for super admin, trava o condomínio no vínculo (primeiro vínculo).
-  React.useEffect(() => {
-    if (isSuperAdmin) return;
-    if (!vinculos || vinculos.length === 0) return;
-
-    const lockedId = vinculos[0].condominioId;
-    if (!lockedId) return;
-
-    // se estiver vazio ou diferente, força para o condomínio do vínculo
-    if (!condominioAtivoId || condominioAtivoId !== lockedId) {
-      setActiveCondominioId(lockedId);
-    }
-  }, [isSuperAdmin, condominioAtivoId, vinculos, setActiveCondominioId]);
-
-  // FIX_AUTOPICK_CONDO_FROM_MEMBRO:
-  // Se não vier "vinculos" no session (ex: morador novo), tenta descobrir o condomínio
-  // olhando o doc: condominios/{condId}/membros/{uid} (status ATIVO)
-  React.useEffect(() => {
-    const run = async () => {
-      if (!firestore) return;
-      if (!session?.user) return;
-      if (condominioAtivoId) return;
-
-      // se já tem vínculos, o outro effect cuida
-      if (Array.isArray(vinculos) && vinculos.length > 0) return;
-
-      try {
-        // 1) lista condomínios públicos
-        const pubsQ = query(
-          collection(firestore, "condominiosPublicos"),
-          orderBy("nome")
-        );
-        const pubsSnap = await getDocs(pubsQ);
-
-        for (const d of pubsSnap.docs) {
-          const condId = d.id;
-
-          // 2) testa se existe membro ATIVO para este usuário
-          const mref = doc(
-            firestore,
-            "condominios",
-            condId,
-            "membros",
-            session.user.uid
-          );
-          const ms = await getDoc(mref);
-
-          if (ms.exists()) {
-            const data = ms.data() as any;
-            if (data?.status === "ATIVO") {
-              setActiveCondominioId(condId);
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.error("[CondominioContext] autopick condo fallback falhou:", e);
-      }
-    };
-
-    run();
-  }, [firestore, session?.user, condominioAtivoId, vinculos, setActiveCondominioId]);
 
   // Restaurar bloco/unidade do localStorage quando trocar de condomínio
   useEffect(() => {
@@ -294,7 +228,8 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   const handleSetCondominioAtivoId = useCallback(
     (newCondoId: string | null) => {
-      if (!isSuperAdmin) return;
+      if (!session?.superAdmin) return;
+      if (newCondoId === condominioAtivoId) return;
 
       const previousCondoId = condominioAtivoId;
       
@@ -314,7 +249,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [isSuperAdmin, condominioAtivoId, setActiveCondominioId]
+    [session?.superAdmin, condominioAtivoId, setActiveCondominioId]
   );
 
   const handleSetBlocoAtivoId = useCallback(
