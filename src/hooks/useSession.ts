@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -128,7 +127,7 @@ export function useSessionBase() {
         setActiveCondominioIdInternal(vinculos[0].condominioId);
     }
     
-  }, [user, isUserLoading, claims, isClaimsLoading, vinculos, isVinculosLoading, activeCondominioId]);
+  }, [user, isUserLoading, claims, isClaimsLoading, vinculos, isVinculosLoading]);
 
   const setActiveCondominioId = useCallback((id: string | null) => {
     setActiveCondominioIdInternal(id);

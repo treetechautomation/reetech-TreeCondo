@@ -45,14 +45,17 @@ export function CondominioSwitcher() {
 
   const isSuper = !!session?.superAdmin || String(session?.role || "") === "SUPER_ADMIN";
 
-  // SUPER_ADMIN: carrega SOMENTE a lista pública (condominiosPublicos)
+  // SUPER_ADMIN: carrega TODOS os condomínios a partir de condominiosPublicos (fonte da verdade)
   React.useEffect(() => {
     if (!isSuper || !firestore) return;
 
     const load = async () => {
       setIsLoadingSuperOptions(true);
       try {
-        const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
+        const q = query(
+          collection(firestore, "condominiosPublicos"),
+          orderBy("nome")
+        );
         const snap = await getDocs(q);
         const list: Option[] = snap.docs.map((d) => {
           const data = d.data() as any;
@@ -63,7 +66,10 @@ export function CondominioSwitcher() {
         });
         setSuperOptions(list);
       } catch (e) {
-        console.error("[CondominioSwitcher] Erro ao carregar condominiosPublicos (super admin):", e);
+        console.error(
+          "[CondominioSwitcher] Erro ao carregar condominiosPublicos (super admin):",
+          e
+        );
         setSuperOptions([]);
       } finally {
         setIsLoadingSuperOptions(false);
@@ -74,6 +80,7 @@ export function CondominioSwitcher() {
   }, [isSuper, firestore]);
 
   const options: Option[] = React.useMemo(() => {
+    // REGRA: Super Admin vê SOMENTE a lista pública (evita “fantasmas” de vínculos velhos)
     if (isSuper) {
       const map = new Map<string, Option>();
       superOptions.forEach((o) => map.set(o.condominioId, o));
@@ -82,6 +89,7 @@ export function CondominioSwitcher() {
       );
     }
 
+    // Usuário normal: vê apenas seus vínculos ATIVOS
     const map = new Map<string, Option>();
     (vinculos || []).forEach((v: any) => {
       if (v?.status === "ATIVO") {
@@ -91,7 +99,6 @@ export function CondominioSwitcher() {
         });
       }
     });
-
     return Array.from(map.values()).sort((a, b) =>
       a.condominioNome.localeCompare(b.condominioNome)
     );
@@ -103,6 +110,7 @@ export function CondominioSwitcher() {
 
   const isDisabled = isLoadingVinculos || isLoadingSuperOptions;
 
+  // Se não for super e só tem 0/1 opção, deixa travado
   if (!isSuper && options.length <= 1) {
     return (
       <Button variant="outline" role="combobox" className="w-full justify-between" disabled>
@@ -136,7 +144,7 @@ export function CondominioSwitcher() {
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[260px] p-0 z-[9999]" align="start">
+      <PopoverContent className="w-[260px] p-0" align="start">
         <Command filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}>
           <CommandInput placeholder="Procurar condomínio..." />
           <CommandList>

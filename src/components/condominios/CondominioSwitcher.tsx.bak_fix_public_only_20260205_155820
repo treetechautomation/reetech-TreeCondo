@@ -8,14 +8,7 @@ import { useSessionCtx } from "@/contexts/SessionContext";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 import { cn } from "@/lib/utils";
 import { useCondominio } from "@/contexts/CondominioContext";
@@ -36,25 +29,28 @@ function norm(s: string) {
 export function CondominioSwitcher() {
   const { session } = useSessionCtx();
   const firestore = useFirestore();
-  const { condominioAtivoId, setCondominioAtivoId, vinculos, isLoadingVinculos } =
-    useCondominio();
+  const {
+    condominioAtivoId,
+    setCondominioAtivoId,
+    vinculos,
+    isLoadingVinculos,
+  } = useCondominio();
 
   const [open, setOpen] = React.useState(false);
   const [superOptions, setSuperOptions] = React.useState<Option[]>([]);
   const [isLoadingSuperOptions, setIsLoadingSuperOptions] = React.useState(false);
 
-  const isSuper = !!session?.superAdmin || String(session?.role || "") === "SUPER_ADMIN";
+  const isSuper = !!session?.superAdmin;
 
-  // SUPER_ADMIN: carrega SOMENTE a lista pública (condominiosPublicos)
   React.useEffect(() => {
     if (!isSuper || !firestore) return;
 
-    const load = async () => {
+    const loadSuperOptions = async () => {
       setIsLoadingSuperOptions(true);
       try {
         const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
         const snap = await getDocs(q);
-        const list: Option[] = snap.docs.map((d) => {
+        const list = snap.docs.map((d) => {
           const data = d.data() as any;
           return {
             condominioId: d.id,
@@ -63,60 +59,55 @@ export function CondominioSwitcher() {
         });
         setSuperOptions(list);
       } catch (e) {
-        console.error("[CondominioSwitcher] Erro ao carregar condominiosPublicos (super admin):", e);
+        console.error("[CondominioSwitcher] Erro ao carregar condominios (super admin):", e);
         setSuperOptions([]);
       } finally {
         setIsLoadingSuperOptions(false);
       }
     };
-
-    load();
+    loadSuperOptions();
   }, [isSuper, firestore]);
 
   const options: Option[] = React.useMemo(() => {
-    if (isSuper) {
-      const map = new Map<string, Option>();
-      superOptions.forEach((o) => map.set(o.condominioId, o));
-      return Array.from(map.values()).sort((a, b) =>
-        a.condominioNome.localeCompare(b.condominioNome)
-      );
-    }
+    const allOptionsMap = new Map<string, Option>();
 
-    const map = new Map<string, Option>();
-    (vinculos || []).forEach((v: any) => {
-      if (v?.status === "ATIVO") {
-        map.set(v.condominioId, {
-          condominioId: v.condominioId,
-          condominioNome: v?.condominioNome || v.condominioId,
-        });
-      }
+    // Adiciona condomínios dos vínculos do usuário
+    (vinculos || []).forEach(v => {
+        if (v?.status !== "INATIVO") {
+            allOptionsMap.set(v.condominioId, {
+                condominioId: v.condominioId,
+                condominioNome: (v as any).condominioNome || v.condominioId,
+            });
+        }
     });
 
-    return Array.from(map.values()).sort((a, b) =>
-      a.condominioNome.localeCompare(b.condominioNome)
-    );
-  }, [isSuper, superOptions, vinculos]);
+    // Se for Super Admin, adiciona os condomínios da lista pública
+    if (isSuper) {
+        superOptions.forEach(o => allOptionsMap.set(o.condominioId, o));
+    }
+    
+    return Array.from(allOptionsMap.values()).sort((a, b) => a.condominioNome.localeCompare(b.condominioNome));
+  }, [vinculos, superOptions, isSuper]);
 
   const active = React.useMemo(() => {
     return options.find((o) => o.condominioId === condominioAtivoId) || null;
   }, [options, condominioAtivoId]);
 
-  const isDisabled = isLoadingVinculos || isLoadingSuperOptions;
+  const isDisabled = isLoadingVinculos || isLoadingSuperOptions || (options.length === 0 && !isSuper);
 
   if (!isSuper && options.length <= 1) {
     return (
-      <Button variant="outline" role="combobox" className="w-full justify-between" disabled>
-        <span className="truncate">{active ? active.condominioNome : "Nenhum condomínio"}</span>
-      </Button>
-    );
-  }
-
-  if (options.length === 0) {
-    return (
-      <Button variant="outline" role="combobox" className="w-full justify-between" disabled>
-        <span className="truncate">{isDisabled ? "Carregando..." : "Nenhum condomínio"}</span>
-      </Button>
-    );
+       <Button
+          variant="outline"
+          role="combobox"
+          className="w-full justify-between"
+          disabled={true}
+        >
+          <span className="truncate">
+            {active ? active.condominioNome : "Nenhum condomínio"}
+          </span>
+        </Button>
+    )
   }
 
   return (
@@ -136,34 +127,39 @@ export function CondominioSwitcher() {
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[260px] p-0 z-[9999]" align="start">
-        <Command filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}>
+      <PopoverContent className="w-[260px] p-0" align="start">
+        <Command
+          filter={(value, search) => {
+            const v = norm(value);
+            const s = norm(search);
+            return v.includes(s) ? 1 : 0;
+          }}
+        >
           <CommandInput placeholder="Procurar condomínio..." />
           <CommandList>
             <CommandEmpty>Nenhum condomínio encontrado.</CommandEmpty>
             <CommandGroup>
-              {options.map((o) => {
+                {options.map((o) => {
                 const value = `${o.condominioId} | ${o.condominioNome}`;
                 const selected = o.condominioId === condominioAtivoId;
 
                 return (
-                  <CommandItem
+                    <CommandItem
                     key={o.condominioId}
                     value={value}
                     onSelect={() => {
-                      if (condominioAtivoId !== o.condominioId) {
+                        if (condominioAtivoId !== o.condominioId) {
                         setCondominioAtivoId(o.condominioId);
-                      }
-                      setOpen(false);
+                        }
+                        setOpen(false);
                     }}
                     className="cursor-pointer"
-                    disabled={selected}
-                  >
+                    >
                     <Check className={cn("mr-2 h-4 w-4", selected ? "opacity-100" : "opacity-0")} />
                     <span className="truncate">{o.condominioNome}</span>
-                  </CommandItem>
+                    </CommandItem>
                 );
-              })}
+                })}
             </CommandGroup>
           </CommandList>
         </Command>

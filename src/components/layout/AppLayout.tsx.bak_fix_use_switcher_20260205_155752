@@ -14,7 +14,7 @@ import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 import UserBadge from "./UserBadge";
-import { CondominioSwitcher } from "@/components/condominios/CondominioSwitcher";
+import { CondominioSelector } from "../condominio-selector";
 import { BlocoUnidadeSelector } from "../bloco-unidade-selector";
 import { LogOut } from "lucide-react";
 import { CondominioLogo } from "@/components/layout/CondominioLogo";
@@ -152,7 +152,7 @@ setPerms(p);
     <div className="tc-bg">
       <div className="flex min-h-screen">
         {!hideSidebar && (
-          <aside className="w-[350px] text-white relative overflow-visible">
+          <aside className="w-[350px] text-white relative overflow-hidden">
             {/* Fundo “aurora” */}
             <div className="absolute inset-0 bg-slate-900" />
             <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -161,7 +161,7 @@ setPerms(p);
 
             {/* Painel 100% glass */}
             <div 
-              className="flex-1 rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-visible flex flex-col m-3"
+              className="flex-1 rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-hidden flex flex-col m-3"
             >
               {/* brilho interno */}
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_circle_at_-20%_-20%,rgba(255,255,255,.18),transparent_45%),radial-gradient(900px_circle_at_120%_20%,rgba(255,255,255,.10),transparent_40%)]" />
@@ -193,7 +193,7 @@ setPerms(p);
               </div>
 
               {/* Nav */}
-              <div className="relative p-3 flex-1 flex flex-col overflow-visible">
+              <div className="relative p-3 flex-1 flex flex-col overflow-hidden">
                 <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
                   {filteredNav.map((item) => (
                     <NavItem key={item.href} href={item.href} label={item.label} />
@@ -222,13 +222,13 @@ setPerms(p);
 
         <main className="flex-1">
           {!hideSidebar && (
-            <header className="sticky top-0 z-[999] bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
+            <header className="sticky top-0 z-10 bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
               <div className="flex items-center justify-between px-6 py-4">
                  <div className="flex-1 min-w-0">
                     <div className="text-xl font-semibold text-slate-900 truncate">{pageTitle ?? ""}</div>
                  </div>
                 <div className="flex items-center gap-4 flex-shrink-0 ml-4">
-                  {isSuper && <CondominioSwitcher />}
+                  {isSuper && <CondominioSelector />}
                   {headerActions ?? null}
                 </div>
               </div>
