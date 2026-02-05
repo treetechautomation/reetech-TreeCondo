@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service firebase.storage {
@@ -6,56 +5,62 @@ service firebase.storage {
 
     // --- FUNÇÕES DE APOIO (CROSS-SERVICE) ---
 
-    // Retorna true se o usuário estiver autenticado.
     function signedIn() {
       return request.auth != null;
     }
 
-    // Retorna true se o usuário tiver a claim de "super_admin".
-    // Isso é definido no backend (ex: Cloud Function) e é a fonte da verdade para acesso global.
     function isSuper() {
       return signedIn() && (
         request.auth.token.super_admin == true ||
         request.auth.token.superAdmin == true
       );
     }
-    
-    // Obtém o documento de "membro" do usuário no condomínio especificado.
+
     function getMembroDoc(condId) {
       return firestore.get(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid));
     }
 
-    // Verifica se o usuário é um membro ATIVO do condomínio.
     function isMembroAtivo(condId) {
-      return signedIn() && getMembroDoc(condId).data.status.upper() == "ATIVO";
+      return signedIn() &&
+             exists(/databases/$(database)/documents/condominios/$(condId)/membros/$(request.auth.uid)) &&
+             getMembroDoc(condId).data.status == "ATIVO";
     }
 
-    // Verifica se o usuário tem um papel de operador (gestor) no condomínio.
     function isOperador(condId) {
-      let role = getMembroDoc(condId).data.role.upper();
-      return isMembroAtivo(condId) && 
+      let role = getMembroDoc(condId).data.role;
+      return isMembroAtivo(condId) &&
         (role == "ADMIN" || role == "SINDICO" || role == "ADMIN_CONDOMINIO");
     }
 
-    // --- REGRAS DE BRANDING ---
-    // Caminho: condominios/{condId}/branding/{fileName}
-    // Ex: condominios/condo-abc/branding/logo.jpeg
-    match /condominios/{condId}/branding/{fileName} {
-      // Leitura (download/preview): Permitida para Super Admins ou qualquer membro ativo do condomínio.
-      allow read: if isSuper() || isMembroAtivo(condId);
+    // ============================================================
+    // BRANDING
+    // ============================================================
 
-      // Escrita (upload, update, delete): Permitida apenas para Super Admins ou operadores do condomínio.
+    // Global: logo do menu TreeCondo (qualquer um logado pode ver)
+    match /branding/global/{fileName} {
+      allow read: if signedIn();
+      allow write: if isSuper(); // Apenas Super Admin pode alterar
+    }
+
+    // Por Condomínio: logo do painel (apenas membros ativos)
+    match /branding/{condId}/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
       allow write: if isSuper() || isOperador(condId);
     }
     
-    // --- REGRA PARA DOCUMENTOS ---
+    // Legado: /condominios/{condId}/branding/* (mesmas regras)
+    match /condominios/{condId}/branding/{fileName} {
+       allow read: if isSuper() || isMembroAtivo(condId);
+       allow write: if isSuper() || isOperador(condId);
+    }
+
+    // --- DOCUMENTOS ---
     match /condominios/{condId}/documentos/{docId}/{fileName} {
-      allow read: if isSuper() || isMembroAtivo(condId);
-      allow write: if isSuper() || isOperador(condId);
+      allow read: if isMembroAtivo(condId);
+      allow write: if isOperador(condId);
     }
 
     // --- REGRA DE BLOQUEIO PADRÃO ---
-    // Nega acesso a qualquer outro caminho no bucket que não tenha uma regra específica.
     match /{path=**} {
       allow read, write: if false;
     }

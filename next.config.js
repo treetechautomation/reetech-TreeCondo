@@ -1,4 +1,3 @@
-
 /** @type {import('next').NextConfig} */
 
 const withPWA = require("next-pwa")({
@@ -10,11 +9,27 @@ const withPWA = require("next-pwa")({
 
 const nextConfig = withPWA({
   experimental: {
-    // This is the correct placement for allowedDevOrigins in recent Next.js versions.
-    // It enables secure communication with the development server from external tools like Firebase Studio.
+    // (warning pode continuar dependendo da versão do Next)
     allowedDevOrigins: [
-        "https://*.cloudworkstations.dev",
-        "http://localhost:9002",
+      "https://*.cloudworkstations.dev",
+      "http://localhost:9002",
+    ],
+  },
+
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "firebasestorage.googleapis.com",
+      },
+       {
+        protocol: "https",
+        hostname: "picsum.photos",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      }
     ],
   },
 });

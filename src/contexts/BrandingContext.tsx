@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -10,150 +11,120 @@ type BrandingData = {
   menuLogoUrl: string;
   faviconUrl: string | null;
   isLoading: boolean;
-  source: "cache" | "storage" | "fallback";
 };
 
 const FALLBACK_LOGO = "/logo-treecondo.jpeg";
 const FALLBACK_MENU_LOGO = "/logo-treecondo.jpeg";
 
-const LS_KEY = (condId: string) => `treecondo_branding_${condId}`;
-const TTL_MS = 1000 * 60 * 60 * 24; // Cache de 24 horas
+const TTL_MS = 1000 * 60 * 30; // 30 minutos
 
-// Cache em memória para a sessão atual
-const memCache = new Map<
-  string,
-  { ts: number; data: Omit<BrandingData, "isLoading" | "source"> }
->();
+type CacheEntry = {
+  ts: number;
+  logoUrl: string;
+  menuLogoUrl: string;
+  faviconUrl: string | null;
+};
 
-const BrandingContext = React.createContext<BrandingData>({
-  logoUrl: FALLBACK_LOGO,
-  menuLogoUrl: FALLBACK_MENU_LOGO,
-  faviconUrl: null,
-  isLoading: true,
-  source: "fallback",
-});
+const globalCache: { current: CacheEntry | null } = { current: null };
+const condoCache = new Map<string, CacheEntry>();
 
-function setFavicon(url?: string | null) {
-  if (typeof window === "undefined" || !url) return;
-  try {
-    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "icon";
-      document.head.appendChild(link);
-    }
-    link.href = url;
-  } catch {
-    // Ignora erros em ambientes onde o DOM não é totalmente acessível
-  }
-}
-
-async function safeGetUrl(storage: any, path: string): Promise<string | null> {
+async function safeGet(storage: any, path: string): Promise<string | null> {
   try {
     return await getDownloadURL(storageRef(storage, path));
   } catch (error: any) {
-    // Ignora o erro "object-not-found" pois é esperado
-    if (error.code !== 'storage/object-not-found') {
-      console.warn(`[Branding] Erro ao buscar URL para ${path}:`, error);
+    // TODO: remove (depuração temporária)
+    // Não falha se for "object-not-found", que é esperado.
+    if (error.code !== "storage/object-not-found") {
+      console.warn(`[BrandingContext] Falha ao buscar ${path}:`, error.code);
     }
     return null;
   }
 }
 
+function setFavicon(url?: string | null) {
+  if (typeof window === "undefined" || !url) return;
+  let link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  link.href = url;
+}
+
+const BrandingContext = React.createContext<BrandingData | null>(null);
+
 export function BrandingProvider({ children }: { children: React.ReactNode }) {
   const { session } = useSessionCtx();
-  const condId = session?.activeCondominioId ?? null;
+  const condId = session?.activeCondominioId;
 
   const [state, setState] = React.useState<BrandingData>({
     logoUrl: FALLBACK_LOGO,
     menuLogoUrl: FALLBACK_MENU_LOGO,
     faviconUrl: null,
     isLoading: true,
-    source: "fallback",
   });
 
   React.useEffect(() => {
     let cancelled = false;
 
     async function loadBranding() {
-      if (!condId) {
-        setState({
-          logoUrl: FALLBACK_LOGO,
-          menuLogoUrl: FALLBACK_MENU_LOGO,
-          faviconUrl: null,
-          isLoading: false,
-          source: "fallback",
-        });
-        setFavicon(null); // Reseta favicon
-        return;
-      }
+      if (cancelled) return;
+      setState((prev) => ({ ...prev, isLoading: true }));
 
-      // 1. Tenta o cache de memória (mais rápido)
-      const mem = memCache.get(condId);
-      if (mem && Date.now() - mem.ts < TTL_MS) {
-        if (!cancelled) {
-          setState({ ...mem.data, isLoading: false, source: "cache" });
-          setFavicon(mem.data.faviconUrl);
+      const storage = getStorage(getFirebaseApp());
+      const now = Date.now();
+      
+      const key = condId || "global";
+      const cache = condId ? condoCache : new Map([['global', globalCache.current]]);
+      let entry = cache.get(key);
+
+      if (!entry || now - entry.ts > TTL_MS) {
+        const menuLogoUrl = await safeGet(storage, "branding/global/logo-menu.png") || FALLBACK_MENU_LOGO;
+        const globalFavicon = await safeGet(storage, "branding/global/favicon.png");
+
+        let logoUrl = FALLBACK_LOGO;
+        let condoFavicon: string | null = null;
+        
+        if (condId) {
+          logoUrl = await safeGet(storage, `branding/${condId}/logo-painel.png`) || menuLogoUrl;
+          condoFavicon = await safeGet(storage, `branding/${condId}/favicon.png`);
         }
-        return;
-      }
 
-      // 2. Tenta o localStorage (persistente)
-      try {
-        const raw = window.localStorage.getItem(LS_KEY(condId));
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.ts && parsed?.data && Date.now() - parsed.ts < TTL_MS) {
-            memCache.set(condId, { ts: parsed.ts, data: parsed.data });
-            if (!cancelled) {
-              setState({ ...parsed.data, isLoading: false, source: "cache" });
-              setFavicon(parsed.data.faviconUrl);
-            }
-            return;
-          }
+        entry = {
+          ts: now,
+          logoUrl,
+          menuLogoUrl,
+          faviconUrl: condoFavicon || globalFavicon,
+        };
+
+        if (condId) {
+          condoCache.set(condId, entry);
+        } else {
+          globalCache.current = entry;
         }
-      } catch { /* Ignora falhas de parsing do localStorage */ }
-
-      // 3. Busca no Firebase Storage
-      if (!cancelled) setState((s) => ({ ...s, isLoading: true }));
-
-      const app = getFirebaseApp();
-      const storage = getStorage(app);
-      const base = `condominios/${condId}/branding`;
-
-      const [logo, menuLogo, favicon] = await Promise.all([
-        safeGetUrl(storage, `${base}/logo.jpeg`),
-        safeGetUrl(storage, `${base}/logotreecondo.png`),
-        safeGetUrl(storage, `${base}/favicon.png`),
-      ]);
-
-      const dataToCache = {
-        logoUrl: logo || FALLBACK_LOGO,
-        menuLogoUrl: menuLogo || logo || FALLBACK_MENU_LOGO, // Fallback em cascata
-        faviconUrl: favicon || null,
-      };
-
-      // Atualiza caches
-      memCache.set(condId, { ts: Date.now(), data: dataToCache });
-      try {
-        window.localStorage.setItem(LS_KEY(condId), JSON.stringify({ ts: Date.now(), data: dataToCache }));
-      } catch { /* Ignora se o localStorage estiver cheio ou indisponível */ }
+      }
 
       if (!cancelled) {
-        setState({ ...dataToCache, isLoading: false, source: "storage" });
-        setFavicon(dataToCache.faviconUrl);
+        setState({
+          logoUrl: entry.logoUrl,
+          menuLogoUrl: entry.menuLogoUrl,
+          faviconUrl: entry.faviconUrl,
+          isLoading: false,
+        });
+        setFavicon(entry.faviconUrl);
       }
     }
 
     loadBranding();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [condId]);
 
   return (
-    <BrandingContext.Provider value={state}>
-      {children}
-    </BrandingContext.Provider>
+    <BrandingContext.Provider value={state}>{children}</BrandingContext.Provider>
   );
 }
 
