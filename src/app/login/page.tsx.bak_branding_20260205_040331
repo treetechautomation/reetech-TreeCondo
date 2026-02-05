@@ -11,7 +11,6 @@ import {
 } from "firebase/auth";
 import { Eye, EyeOff } from "lucide-react";
 import { initializeFirebase } from "@/firebase";
-import { useBranding } from "@/contexts/BrandingContext";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,8 +25,6 @@ function isStrongEnough(pw: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { auth } = initializeFirebase();
-  const branding = useBranding();
-
 
   const [tab, setTab] = React.useState<"login" | "primeiro">("login");
 
@@ -173,8 +170,7 @@ export default function LoginPage() {
             <div className="relative">
               <div className="flex flex-col items-center gap-4 mb-4">
                 <Image
-                  src={branding.menuLogoUrl}
-                  priority
+                  src="/logo-treecondo.jpeg"
                   alt="TreeCondo Logo"
                   width={192}
                   height={192}

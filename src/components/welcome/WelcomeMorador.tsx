@@ -26,8 +26,8 @@ export default function WelcomeMorador() {
         <Image
             src={branding.logoUrl}
             alt="Logo TreeCondo"
-            width={80}
-            height={80}
+            width={180}
+            height={180}
             className="rounded-full border-4 border-white/50 shadow-lg"
         />
         <div className="flex-1">

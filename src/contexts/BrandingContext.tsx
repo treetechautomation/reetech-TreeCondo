@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -7,15 +6,14 @@ import { getFirebaseApp } from "@/firebase";
 import { useSessionCtx } from "@/contexts/SessionContext";
 
 type BrandingData = {
-  logoUrl: string;
-  menuLogoUrl: string;
+  logoUrl: string;       // painel (condomínio)
+  menuLogoUrl: string;   // menu (TreeCondo)
   faviconUrl: string | null;
   isLoading: boolean;
 };
 
 const FALLBACK_LOGO = "/logo-treecondo.jpeg";
 const FALLBACK_MENU_LOGO = "/logo-treecondo.jpeg";
-
 const TTL_MS = 1000 * 60 * 30; // 30 minutos
 
 type CacheEntry = {
@@ -32,10 +30,13 @@ async function safeGet(storage: any, path: string): Promise<string | null> {
   try {
     return await getDownloadURL(storageRef(storage, path));
   } catch (error: any) {
-    // TODO: remove (depuração temporária)
-    // Não falha se for "object-not-found", que é esperado.
-    if (error.code !== "storage/object-not-found") {
-      console.warn(`[BrandingContext] Falha ao buscar ${path}:`, error.code);
+    // Debug controlado (temporário). Mantém logs úteis sem poluir.
+    const code = error?.code;
+    // object-not-found pode acontecer (ex: favicon opcional). Mas para logo-painel isso é importante.
+    if (code !== "storage/object-not-found") {
+      console.warn("[BrandingContext] FAIL", { path, code });
+    } else if (path.includes("logo-painel") || path.includes("logo-menu")) {
+      console.warn("[BrandingContext] NOT_FOUND", { path, code });
     }
     return null;
   }
@@ -74,64 +75,71 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
       const storage = getStorage(getFirebaseApp());
       const now = Date.now();
-      
-      const key = condId || "global";
-      const cache = condId ? condoCache : new Map([['global', globalCache.current]]);
-      let entry = cache.get(key);
 
-      if (!entry || now - entry.ts > TTL_MS) {
-        const menuLogoUrl = await safeGet(storage, "branding/global/logo-menu.png") || FALLBACK_MENU_LOGO;
-        const globalFavicon = await safeGet(storage, "branding/global/favicon.png");
+      // Debug (temporário): confirma condId ativo
+      console.warn("[BrandingContext] activeCondominioId:", condId || "(none)");
 
-        let logoUrl = FALLBACK_LOGO;
-        let condoFavicon: string | null = null;
-        
-        if (condId) {
-          logoUrl = await safeGet(storage, `branding/${condId}/logo-painel.png`) || menuLogoUrl;
-          condoFavicon = await safeGet(storage, `branding/${condId}/favicon.png`);
-        }
+      // 1) tenta usar cache global (menu)
+      let globalEntry = globalCache.current;
+      if (!globalEntry || now - globalEntry.ts > TTL_MS) {
+        const menuLogoUrl =
+          (await safeGet(storage, "branding/global/logo-menu.jpeg")) || FALLBACK_MENU_LOGO;
+        const globalFavicon = await safeGet(storage, "branding/global/favicon.jpeg");
 
-        entry = {
+        globalEntry = {
           ts: now,
-          logoUrl,
+          logoUrl: FALLBACK_LOGO, // global não define logo do painel
           menuLogoUrl,
-          faviconUrl: condoFavicon || globalFavicon,
+          faviconUrl: globalFavicon || null,
         };
+        globalCache.current = globalEntry;
+      }
 
-        if (condId) {
-          condoCache.set(condId, entry);
+      // 2) cache por condomínio (painel)
+      let condoEntry: CacheEntry | null = null;
+      if (condId) {
+        const cached = condoCache.get(condId);
+        if (cached && now - cached.ts <= TTL_MS) {
+          condoEntry = cached;
         } else {
-          globalCache.current = entry;
+          const logoUrl =
+            (await safeGet(storage, `branding/${condId}/logo-painel.jpeg`)) || FALLBACK_LOGO; // ✅ NÃO cai pro menu
+          const condoFavicon = await safeGet(storage, `branding/${condId}/favicon.jpeg`);
+
+          condoEntry = {
+            ts: now,
+            logoUrl,
+            menuLogoUrl: globalEntry.menuLogoUrl,
+            faviconUrl: condoFavicon || globalEntry.faviconUrl || null,
+          };
+          condoCache.set(condId, condoEntry);
         }
       }
 
+      const final = condoEntry || globalEntry;
+
       if (!cancelled) {
         setState({
-          logoUrl: entry.logoUrl,
-          menuLogoUrl: entry.menuLogoUrl,
-          faviconUrl: entry.faviconUrl,
+          logoUrl: condId ? final.logoUrl : FALLBACK_LOGO,
+          menuLogoUrl: final.menuLogoUrl,
+          faviconUrl: final.faviconUrl,
           isLoading: false,
         });
-        setFavicon(entry.faviconUrl);
+        setFavicon(final.faviconUrl);
       }
     }
 
     loadBranding();
-
     return () => {
       cancelled = true;
     };
   }, [condId]);
 
-  return (
-    <BrandingContext.Provider value={state}>{children}</BrandingContext.Provider>
-  );
+  return <BrandingContext.Provider value={state}>{children}</BrandingContext.Provider>;
 }
 
 export function useBranding(): BrandingData {
   const ctx = React.useContext(BrandingContext);
-  if (!ctx) {
-    throw new Error("useBranding deve ser usado dentro de um BrandingProvider.");
-  }
+  if (!ctx) throw new Error("useBranding deve ser usado dentro de um BrandingProvider.");
   return ctx;
 }

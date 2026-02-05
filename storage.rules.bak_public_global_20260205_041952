@@ -39,7 +39,7 @@ service firebase.storage {
     // branding/global/logo-menu.jpeg
     match /branding/global/{fileName} {
       // Menu do app: qualquer usuário logado pode ler
-      allow read: if true;
+      allow read: if signedIn();
       // Escrita: só super (ou se quiser, operador global)
       allow write: if isSuper();
     }
