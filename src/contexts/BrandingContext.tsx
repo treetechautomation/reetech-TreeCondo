@@ -158,7 +158,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useBranding(): BrandingData {
-  const ctx = useContext(BrandingContext);
+  const ctx = React.useContext(BrandingContext);
   if (!ctx) {
     throw new Error("useBranding deve ser usado dentro de um BrandingProvider.");
   }
