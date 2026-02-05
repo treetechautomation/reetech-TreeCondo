@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,10 +14,12 @@ import { useFirestore } from "@/firebase";
 import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from "firebase/firestore";
 import { Package, AlertCircle, CalendarClock, CalendarCheck2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBranding } from "@/contexts/BrandingContext";
 
 export default function Dashboard() {
   const { session } = useSessionCtx();
   const firestore = useFirestore();
+  const branding = useBranding();
   
   const condominioId = session?.activeCondominioId;
   const uid = session?.user?.uid;
@@ -53,10 +54,13 @@ export default function Dashboard() {
     let qIncidentes;
     if (isOperator) {
       qIncidentes = query(incidentesRef, where("status", "in", ["ABERTO", "EM_ANDAMENTO"]));
-    } else {
+    } else if (uid) {
       qIncidentes = query(incidentesRef, where("criadoPorUid", "==", uid), where("status", "in", ["ABERTO", "EM_ANDAMENTO"]));
     }
-    unsubs.push(onSnapshot(qIncidentes, (snap) => setIncidentesCount(snap.size)));
+    if (qIncidentes) {
+      unsubs.push(onSnapshot(qIncidentes, (snap) => setIncidentesCount(snap.size)));
+    }
+
 
     // 3. Reservas (Filtrado para morador)
     const reservasRef = collection(firestore, "condominios", condominioId, "reservas");
@@ -64,10 +68,12 @@ export default function Dashboard() {
     let qReservas;
     if (isOperator) {
       qReservas = query(reservasRef, where("status", "==", "APROVADA"), where("data", ">=", now));
-    } else {
+    } else if (uid) {
       qReservas = query(reservasRef, where("uid", "==", uid), where("status", "==", "APROVADA"), where("data", ">=", now));
     }
-    unsubs.push(onSnapshot(qReservas, (snap) => setReservasCount(snap.size)));
+    if (qReservas) {
+      unsubs.push(onSnapshot(qReservas, (snap) => setReservasCount(snap.size)));
+    }
 
 
     // 4. Assembleia (Sempre geral para o condomínio)
@@ -90,7 +96,13 @@ export default function Dashboard() {
   
   return (
     <AppLayout pageTitle="Painel">
-      <div className="mb-6"><WelcomeMorador /></div>
+      <div className="mb-6">
+        {branding.isLoading ? (
+          <Skeleton className="h-[160px] w-full rounded-2xl" />
+        ) : (
+          <WelcomeMorador />
+        )}
+      </div>
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
