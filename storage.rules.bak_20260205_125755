@@ -52,14 +52,7 @@ service firebase.storage {
 
     // ------------------------------------------------------------
     // DOCUMENTOS (mantendo seu padrão)
-          // ------------------------------------------------------------
-      // ÁREAS (imagens das áreas comuns)
-      match /condominios/{condId}/areas/{fileName} {
-        allow read: if isSuper() || isMembroAtivo(condId);
-        allow write: if isSuper() || isOperador(condId);
-      }
-
-match /condominios/{condId}/documentos/{docId}/{fileName} {
+    match /condominios/{condId}/documentos/{docId}/{fileName} {
       allow read: if isSuper() || isMembroAtivo(condId);
       allow write: if isSuper() || isOperador(condId);
     }

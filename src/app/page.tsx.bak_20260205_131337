@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
-import { collection, query, where, onSnapshot, Timestamp, orderBy, limit, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from "firebase/firestore";
 import { Package, AlertCircle, CalendarClock, CalendarCheck2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBranding } from "@/contexts/BrandingContext";
@@ -32,56 +32,23 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!firestore || !condominioId) {
-      setEncomendasCount(null);
-      setIncidentesCount(null);
-      setReservasCount(null);
-      setProximaAssembleia(undefined);
+      setEncomendasCount(0);
+      setIncidentesCount(0);
+      setReservasCount(0);
+      setProximaAssembleia(null);
       return;
     }
 
     const isOperator = role && ["SINDICO", "ADMIN", "PORTEIRO", "ADMIN_CONDOMINIO", "SUPER_ADMIN"].includes(role);
     const unsubs: (() => void)[] = [];
 
-    // 1. Encomendas
-    // Operador: vê geral do condomínio
-    // Morador: filtra por unidadeIdNorm (+ blocoIdNorm, se existir)
-    const encomendasRef = collection(firestore, "condominios", condominioId, "encomendas");
+    // 1. Encomendas (Sempre geral para o condomínio)
+    const qEncomendas = query(
+      collection(firestore, "condominios", condominioId, "encomendas"),
+      where("status", "==", "AGUARDANDO")
+    );
+    unsubs.push(onSnapshot(qEncomendas, (snap) => setEncomendasCount(snap.size)));
 
-    (async () => {
-      try {
-        if (isOperator) {
-          const qEncomendas = query(encomendasRef, where("status", "==", "AGUARDANDO"));
-          unsubs.push(onSnapshot(qEncomendas, (snap) => setEncomendasCount(snap.size)));
-          return;
-        }
-
-        if (!uid) {
-          setEncomendasCount(0);
-          return;
-        }
-
-        // pega unidade/bloco do membro
-        const membroRef = doc(firestore, "condominios", condominioId, "membros", uid);
-        const membroSnap = await getDoc(membroRef);
-        const md = membroSnap.exists() ? (membroSnap.data() || {}) : {};
-        const unidadeIdNorm = md.unidadeIdNorm || null;
-        const blocoIdNorm = md.blocoIdNorm || null;
-
-        if (!unidadeIdNorm) {
-          setEncomendasCount(0);
-          return;
-        }
-
-        const wheres = [where("unidadeIdNorm", "==", unidadeIdNorm), where("status", "==", "AGUARDANDO")];
-        if (blocoIdNorm) wheres.push(where("blocoIdNorm", "==", blocoIdNorm));
-
-        const qEncomendas = query(encomendasRef, ...wheres);
-        unsubs.push(onSnapshot(qEncomendas, (snap) => setEncomendasCount(snap.size)));
-      } catch (e) {
-        console.error("[Dashboard] erro ao montar query de encomendas:", e);
-        setEncomendasCount(0);
-      }
-    })();
     // 2. Incidentes (Filtrado para morador)
     const incidentesRef = collection(firestore, "condominios", condominioId, "incidentes");
     let qIncidentes;
@@ -100,20 +67,9 @@ export default function Dashboard() {
     const now = Timestamp.now();
     let qReservas;
     if (isOperator) {
-      qReservas = query(
-      reservasRef,
-      where("status", "==", "APROVADA"),
-      where("data", ">=", now),
-      orderBy("data", "asc")
-    );
+      qReservas = query(reservasRef, where("status", "==", "APROVADA"), where("data", ">=", now));
     } else if (uid) {
-      qReservas = query(
-      reservasRef,
-      where("uid", "==", uid),
-      where("status", "==", "APROVADA"),
-      where("data", ">=", now),
-      orderBy("data", "asc")
-    );
+      qReservas = query(reservasRef, where("uid", "==", uid), where("status", "==", "APROVADA"), where("data", ">=", now));
     }
     if (qReservas) {
       unsubs.push(onSnapshot(qReservas, (snap) => setReservasCount(snap.size)));
@@ -131,9 +87,6 @@ export default function Dashboard() {
     );
     unsubs.push(onSnapshot(qAssembleia, (snap) => {
       setProximaAssembleia(snap.empty ? null : snap.docs[0].data());
-    }, (err) => {
-      console.error("[Dashboard] snapshot error (qAssembleia):", err?.code || err, err);
-      setProximaAssembleia(null);
     }));
 
     return () => {

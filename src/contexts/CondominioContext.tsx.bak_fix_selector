@@ -12,28 +12,12 @@ import React, {
 } from "react";
 import { useSessionCtx } from "./SessionContext";
 import { useFirestore } from "@/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  QueryDocumentSnapshot,
-  DocumentData,
-  getDocs,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, QueryDocumentSnapshot, DocumentData, getDocs, doc, getDoc } from "firebase/firestore";
 
 const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
 const LS_UNIDADE = (condominioId: string) => `tc_bloco_${condominioId}_unidade`;
 
-export type VinculoRole =
-  | "SINDICO"
-  | "MORADOR"
-  | "PORTEIRO"
-  | "ZELADOR"
-  | "ADMIN"
-  | "ADMIN_CONDOMINIO";
+export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ZELADOR" | "ADMIN" | "ADMIN_CONDOMINIO";
 
 export type Vinculo = {
   condominioId: string;
@@ -94,7 +78,9 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   const vinculoAtivo = useMemo(() => {
     if (!condominioAtivoId) return null;
-    return vinculos.find((v) => v.condominioId === condominioAtivoId) ?? null;
+    return (
+      vinculos.find((v) => v.condominioId === condominioAtivoId) ?? null
+    );
   }, [vinculos, condominioAtivoId]);
 
   // --- Blocos / Unidades (estado local) ---
@@ -121,8 +107,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
       setActiveCondominioId(lockedId);
     }
   }, [isSuperAdmin, condominioAtivoId, vinculos, setActiveCondominioId]);
-
-  // FIX_AUTOPICK_CONDO_FROM_MEMBRO:
+// FIX_AUTOPICK_CONDO_FROM_MEMBRO:
   // Se não vier "vinculos" no session (ex: morador novo), tenta descobrir o condomínio
   // olhando o doc: condominios/{condId}/membros/{uid} (status ATIVO)
   React.useEffect(() => {
@@ -136,23 +121,14 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
       try {
         // 1) lista condomínios públicos
-        const pubsQ = query(
-          collection(firestore, "condominiosPublicos"),
-          orderBy("nome")
-        );
+        const pubsQ = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
         const pubsSnap = await getDocs(pubsQ);
 
         for (const d of pubsSnap.docs) {
           const condId = d.id;
 
           // 2) testa se existe membro ATIVO para este usuário
-          const mref = doc(
-            firestore,
-            "condominios",
-            condId,
-            "membros",
-            session.user.uid
-          );
+          const mref = doc(firestore, "condominios", condId, "membros", session.user.uid);
           const ms = await getDoc(mref);
 
           if (ms.exists()) {
@@ -171,7 +147,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
     run();
   }, [firestore, session?.user, condominioAtivoId, vinculos, setActiveCondominioId]);
 
-  // Restaurar bloco/unidade do localStorage quando trocar de condomínio
+// Restaurar bloco/unidade do localStorage quando trocar de condomínio
   useEffect(() => {
     if (!condominioAtivoId) {
       setBlocoAtivoIdState(null);
@@ -217,7 +193,9 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
         // Se não há bloco selecionado, tenta restaurar do LS ou pegar o primeiro
         if (!blocoAtivoId) {
           if (typeof window !== "undefined") {
-            const savedBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
+            const savedBloco = localStorage.getItem(
+              LS_BLOCO(condominioAtivoId)
+            );
             if (savedBloco && list.find((b) => b.id === savedBloco)) {
               setBlocoAtivoIdState(savedBloco);
               return;
@@ -271,7 +249,9 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
         // Se não há unidade selecionada, tenta restaurar ou pegar a primeira
         if (!unidadeAtivaId) {
           if (typeof window !== "undefined") {
-            const savedUnidade = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
+            const savedUnidade = localStorage.getItem(
+              LS_UNIDADE(condominioAtivoId)
+            );
             if (savedUnidade && list.find((u) => u.id === savedUnidade)) {
               setUnidadeAtivaIdState(savedUnidade);
               return;
@@ -293,28 +273,20 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   }, [firestore, condominioAtivoId, blocoAtivoId]);
 
   const handleSetCondominioAtivoId = useCallback(
-    (newCondoId: string | null) => {
-      if (!isSuperAdmin) return;
+    (id: string | null) => {
+            if (!isSuperAdmin) return; // somente SUPER_ADMIN pode trocar condomínio ativo
+setActiveCondominioId(id);
+      if (!id) return;
 
-      const previousCondoId = condominioAtivoId;
-      
-      setActiveCondominioId(newCondoId);
-
+      // Quando troca de condomínio, limpamos seleções antigas
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(LS_BLOCO(id));
+        localStorage.removeItem(LS_UNIDADE(id));
+      }
       setBlocoAtivoIdState(null);
       setUnidadeAtivaIdState(null);
-
-      if (typeof window !== "undefined") {
-        if (previousCondoId) {
-            localStorage.removeItem(LS_BLOCO(previousCondoId));
-            localStorage.removeItem(LS_UNIDADE(previousCondoId));
-        }
-        if (newCondoId) {
-            localStorage.removeItem(LS_BLOCO(newCondoId));
-            localStorage.removeItem(LS_UNIDADE(newCondoId));
-        }
-      }
     },
-    [isSuperAdmin, condominioAtivoId, setActiveCondominioId]
+    [setActiveCondominioId]
   );
 
   const handleSetBlocoAtivoId = useCallback(

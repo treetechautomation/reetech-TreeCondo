@@ -49,13 +49,10 @@ export function CondominioSelector() {
     if (!isSuper) return;
     if (!firestore) return;
 
-    // se já tem vínculos, não precisa do fallback
-    if (Array.isArray(vinculos) && vinculos.length > 0) return;
-
     const loadSuperOptions = async () => {
       try {
         setIsLoadingSuperOptions(true);
-        const qPub = query(collection(firestore, "condominios"), orderBy("nome"));
+        const qPub = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
         const snap = await getDocs(qPub);
         const list = snap.docs.map(d => {
           const data = d.data() as any;
@@ -71,7 +68,7 @@ export function CondominioSelector() {
     };
 
     loadSuperOptions();
-  }, [session?.role, session?.superAdmin, firestore, Array.isArray(vinculos) ? vinculos.length : 0]);
+  }, [session?.role, session?.superAdmin, firestore, vinculos]);
 
 
   const options = React.useMemo(() => {
@@ -147,10 +144,8 @@ export function CondominioSelector() {
                     disabled={selected}
                     onSelect={() => {
                       setCondominioAtivoId(o.id);
-
                       setBlocoAtivoId(null);
                       setUnidadeAtivaId(null);
-
                       setOpen(false);
                     }}
                   >
