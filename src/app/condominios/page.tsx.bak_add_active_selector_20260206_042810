@@ -9,10 +9,6 @@ import { PlusCircle } from "lucide-react";
 import { useFirestore } from "@/firebase";
 import { collection, onSnapshot, orderBy, query, doc, setDoc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { NovoCondominioModal } from "@/components/condominios/NovoCondominioModal";
-import CondominioSelect from "@/components/condominios/CondominioSelect";
-import { useCondominio } from "@/contexts/CondominioContext";
-import { useSessionCtx } from "@/contexts/SessionContext";
-import { hasRole } from "@/lib/acl";
 
 interface Condominio {
   id: string;
@@ -22,11 +18,7 @@ interface Condominio {
 }
 
 export default function CondominiosPage() {
-  
-    const { session } = useSessionCtx();
-    const { condominioAtivoId, setCondominioAtivoId } = useCondominio();
-    const isSuper = hasRole(session, ["SUPER_ADMIN"]); 
-// --- Blocos (na criação do condomínio) ---
+  // --- Blocos (na criação do condomínio) ---
   const [blocosCount, setBlocosCount] = React.useState<number>(0);
   const [blocosNames, setBlocosNames] = React.useState<string>(""); // 1 por linha
   const firestore = useFirestore();
@@ -62,18 +54,7 @@ export default function CondominiosPage() {
     >
       <NovoCondominioModal open={isModalOpen} onOpenChange={setIsModalOpen} />
 
-      
-
-        {isSuper && (
-          <div className="mb-6 p-4 rounded-3xl" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.10), rgba(13,148,136,0.15))" }}>
-            <CondominioSelect
-              value={condominioAtivoId}
-              onChange={(id) => setCondominioAtivoId(id)}
-              label="Condomínio ativo"
-            />
-          </div>
-        )}
-<div className="rounded-lg border bg-card">
+      <div className="rounded-lg border bg-card">
         <div className="border-b px-6 py-4">
           <h2 className="text-sm font-medium text-muted-foreground">
             Condomínios cadastrados

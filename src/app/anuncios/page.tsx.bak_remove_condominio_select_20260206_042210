@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import AppLayout from "@/components/layout/AppLayout";
+import CondominioSelect from "@/components/condominios/CondominioSelect";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
@@ -152,15 +153,31 @@ function AnnouncementsList() {
 
 export default function AnunciosPage() {
   const { session } = useSessionCtx();
-  const { condominioAtivoId } = useCondominio();
-const canManage = hasRole(session, ["SUPER_ADMIN", "ADMIN", "SINDICO"]);
+  const { condominioAtivoId, setCondominioAtivoId } = useCondominio();
+  
+  const canManage = hasRole(session, ["SUPER_ADMIN", "ADMIN", "SINDICO"]);
 
   const [aba, setAba] = React.useState<"ANUNCIOS" | "MENSAGENS">("ANUNCIOS");
 
 
   return (
     <AppLayout pageTitle="Comunicação">
-      <Tabs value={aba} onValueChange={(v) => setAba(v as any)} className="space-y-6">
+      {canManage && (
+        <div
+          className="mb-8 p-4 rounded-3xl"
+          style={{
+            background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(13,148,136,0.15))",
+          }}
+        >
+          <CondominioSelect
+            value={condominioAtivoId}
+            onChange={(id) => setCondominioAtivoId(id)}
+            label="Condomínio ativo"
+          />
+        </div>
+      )}
+      
+        <Tabs value={aba} onValueChange={(v) => setAba(v as any)} className="space-y-6">
           <TabsList className="w-full justify-start flex flex-wrap gap-2">
             <TabsTrigger value="ANUNCIOS">Anúncios</TabsTrigger>
             <TabsTrigger value="MENSAGENS">Mensagens</TabsTrigger>

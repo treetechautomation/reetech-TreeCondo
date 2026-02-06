@@ -63,7 +63,7 @@ type CondoPublico = {
 
 export default function PessoasPage() {
   const { condominioAtivoId } = useCondominio();
-  const { session } = useSessionCtx();
+  const { session, setActiveCondominioId } = useSessionCtx();
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -114,6 +114,120 @@ export default function PessoasPage() {
   const [loadingBlocos, setLoadingBlocos] = React.useState(false);
 
   // Carrega blocos do condomínio ativo
+  React.useEffect(() => {
+    (async () => {
+      try {
+        if (!condominioAtivoId) {
+          setBlocos([]);
+          setForm(f => ({ ...f, blocoId: "", unidadeId: "" }));
+          return;
+        }
+        setLoadingBlocos(true);
+        const r = await fetch(`/api/condominios/${condominioAtivoId}/blocos`);
+        const data = await r.json().catch(() => ({}));
+        if (r.ok && data?.ok && Array.isArray(data?.blocos)) {
+          setBlocos(data.blocos.map((b: any) => ({ id: String(b.id), nome: String(b.nome || b.id) })));
+        } else {
+          setBlocos([]);
+        }
+      } catch {
+        setBlocos([]);
+      } finally {
+        setLoadingBlocos(false);
+      }
+    })();
+  }, [condominioAtivoId]);
+
+  // --- Condomínios públicos (picker) ---
+  const [condos, setCondos] = useState<CondoPublico[]>([]);
+  const [isLoadingCondos, setIsLoadingCondos] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCondos() {
+      if (!firestore || !session) return;
+      setIsLoadingCondos(true);
+      console.log('[PessoasPage] Iniciando fetchCondos. superAdmin:', session.superAdmin);
+
+      try {
+        let list: CondoPublico[] = [];
+        const publicosRef = collection(firestore, "condominiosPublicos");
+
+        if (session.superAdmin) {
+          // SUPER_ADMIN: Carrega todos os condomínios públicos
+          const q = query(publicosRef, orderBy("nome"));
+          const snap = await getDocs(q);
+          list = snap.docs.map(d => {
+            const data = d.data();
+            return {
+              id: d.id,
+              condominioId: (data as any).condominioId || d.id,
+              nome: (data as any).nome || "Condomínio sem nome",
+              ativo: (data as any).ativo !== false,
+            };
+          }).filter(c => c.ativo);
+          console.log('[PessoasPage] SuperAdmin carregou condomínios:', list.length);
+        } else {
+          // USUÁRIO COMUM: Carrega apenas condomínios de seus vínculos ativos
+          console.log('[PessoasPage] Usuário comum, buscando por vínculos:', session.vinculos.length);
+          const vinculosAtivos = (session.vinculos || []).filter(v => v.status === "ATIVO");
+          if (vinculosAtivos.length > 0) {
+            const promises = vinculosAtivos.map(v => getDoc(doc(publicosRef, v.condominioId)));
+            const snaps = await Promise.all(promises);
+            list = snaps
+              .map((snap: any) => {
+                const data = (snap.data?.() ?? snap.data ?? {}) as any;
+                const cid = String(data.condominioId ?? snap.id ?? "").trim();
+                return {
+                  id: String(snap.id),
+                  condominioId: cid || String(snap.id),
+                  nome: String(data.nome ?? "(Sem nome)"),
+                  ativo: data.ativo !== false,
+                };
+              })
+              .filter((c: any) => c.ativo !== false);
+list.sort((a, b) => a.nome.localeCompare(b.nome));
+          }
+        }
+
+        if (!cancelled) {
+          setCondos(list);
+          console.log('[PessoasPage] Condomínios definidos no estado:', list.length);
+        }
+      } catch (err: any) {
+        console.error("[PessoasPage] erro ao carregar condomínios:", err);
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar condomínios",
+          description: err.message || "Verifique as permissões de leitura.",
+        });
+      } finally {
+        if (!cancelled) {
+          setIsLoadingCondos(false);
+        }
+      }
+    }
+
+    fetchCondos();
+
+    return () => { cancelled = true; }
+  }, [firestore, session, toast]);
+
+
+  // AUTO_SELECT_CONDO_SINGLE
+    useEffect(() => {
+      if (!condominioAtivoId && condos.length === 1) {
+        // se existe só 1 condo público, seleciona automaticamente
+        setActiveCondominioId(condos[0].condominioId);
+      }
+    }, [condos, condominioAtivoId, setActiveCondominioId]);
+
+    const selectedCondo = useMemo(() => {
+      if (!condominioAtivoId) return null;
+      return condos.find((c) => c.condominioId === condominioAtivoId) ?? null;
+    }, [condos, condominioAtivoId]);
+
   // --- Membros do condomínio ativo ---
   useEffect(() => {
     if (!firestore || !condominioAtivoId) {
@@ -263,8 +377,41 @@ setLoading(true);
     }
   };
 
+  const HeaderActions = () => (
+    <div className="flex items-center gap-3">
+      {canPickCondo ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white/55 px-3 py-2 backdrop-blur-xl">
+          <span className="text-xs text-slate-600">Condomínio:</span>
+          <select
+            className="bg-transparent text-sm font-semibold text-slate-900 outline-none"
+            value={condominioAtivoId ?? ""}
+            onChange={(e) => setActiveCondominioId(e.target.value || null)}
+            disabled={isLoadingCondos}
+          >
+            <option value="">{isLoadingCondos ? "Carregando..." : "Selecionar..."}</option>
+            {condos.map((c) => (
+              <option key={c.id} value={c.condominioId}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-black/10 bg-white/55 px-3 py-2 text-xs text-slate-700 backdrop-blur-xl">
+          Condomínio ativo: <span className="font-semibold">{condominioAtivoId ?? "não selecionado"}</span>
+        </div>
+      )}
+
+      {selectedCondo?.nome && (
+        <div className="hidden md:block text-xs text-slate-500">
+          ID: <span className="font-mono">{condominioAtivoId}</span>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <AppLayout pageTitle="Moradores / Síndicos" >
+    <AppLayout pageTitle="Moradores / Síndicos" headerActions={<HeaderActions />}>
       <div className="space-y-8">
         {!condominioAtivoId && (
           <div className="mb-4 rounded-xl border border-dashed bg-white/55 p-6 text-center text-sm text-slate-600 backdrop-blur-xl">

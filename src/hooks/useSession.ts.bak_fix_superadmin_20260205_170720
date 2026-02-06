@@ -24,25 +24,10 @@ type UserDoc = {
 
 function isSuperAdminUser(user: User | null, claims: Record<string, any> | null): boolean {
   if (!user) return false;
-
   const email = (user.email || "").toLowerCase();
-
-  // ✅ lista de emails que SEMPRE serão super admin (coloque o seu aqui também)
-  const allowEmails = new Set<string>([
-    "treecommunity@treetechautomation.com",
-    "treetechautomation@treetechautomation.com",
-    // "SEU_EMAIL_AQUI@SEUDOMINIO.COM",
-  ]);
-  if (allowEmails.has(email)) return true;
-
-  // ✅ claims comuns
+  if (email === "treecommunity@treetechautomation.com") return true;
   if (claims?.super_admin === true) return true;
   if (claims?.superAdmin === true) return true;
-
-  // ✅ alguns setups salvam role/roles
-  if (String(claims?.role || "") === "SUPER_ADMIN") return true;
-  if (Array.isArray(claims?.roles) && claims.roles.includes("SUPER_ADMIN")) return true;
-
   return false;
 }
 
@@ -142,7 +127,7 @@ export function useSessionBase() {
         setActiveCondominioIdInternal(vinculos[0].condominioId);
     }
     
-  }, [user, isUserLoading, claims, isClaimsLoading, vinculos, isVinculosLoading, activeCondominioId]);
+  }, [user, isUserLoading, claims, isClaimsLoading, vinculos, isVinculosLoading]);
 
   const setActiveCondominioId = useCallback((id: string | null) => {
     setActiveCondominioIdInternal(id);

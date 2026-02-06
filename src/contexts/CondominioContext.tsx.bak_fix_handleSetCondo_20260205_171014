@@ -19,6 +19,9 @@ import {
   onSnapshot,
   QueryDocumentSnapshot,
   DocumentData,
+  getDocs,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 
 const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
@@ -38,7 +41,6 @@ export type Vinculo = {
   blocoId?: string | null;
   unidadeId?: string | null;
   status: "ATIVO" | "INATIVO";
-  condominioNome?: string;
 };
 
 export type Bloco = {
@@ -80,18 +82,6 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
   const { session, isSessionLoading, setActiveCondominioId } = useSessionCtx();
   const firestore = useFirestore();
 
-  // ✅ SUPER ADMIN robusto (emails + flags + role + hasRole)
-  const isSuperAdmin = useMemo(() => {
-    const email = (session?.user?.email || "").toLowerCase();
-    return (
-      email === "treecommunity@treetechautomation.com" ||
-      email === "treetechautomation@treetechautomation.com" ||
-      !!(session as any)?.superAdmin ||
-      String((session as any)?.role || "") === "SUPER_ADMIN" ||
-      hasRole(session, ["SUPER_ADMIN"])
-    );
-  }, [session]);
-
   const condominioAtivoId = session?.activeCondominioId ?? null;
 
   const vinculos: Vinculo[] = useMemo(
@@ -107,28 +97,13 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   const [blocos, setBlocos] = useState<Bloco[]>([]);
   const [isLoadingBlocos, setIsLoadingBlocos] = useState(false);
-  const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(() => {
-      if (typeof window === "undefined") return null;
-      return localStorage.getItem("condominioAtivoId") || null;
-    });
+  const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(null);
 
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [isLoadingUnidades, setIsLoadingUnidades] = useState(false);
-  const [unidadeAtivaId, setUnidadeAtivaIdState] = useState<string | null>(null);
-
-  // ✅ Regra correta: só força condomínio se houver APENAS 1 vínculo ativo
-useEffect(() => {
-  if (isSessionLoading) return;
-
-  const ativos = vinculos.filter(v => v.status === "ATIVO");
-
-  // se só existe 1 vínculo, trava
-  if (ativos.length === 1) {
-    if (ativos[0].condominioId !== condominioAtivoId) {
-      setActiveCondominioId(ativos[0].condominioId);
-    }
-  }
-}, [vinculos, condominioAtivoId, setActiveCondominioId, isSessionLoading]);
+  const [unidadeAtivaId, setUnidadeAtivaIdState] = useState<string | null>(
+    null
+  );
 
   // Restaurar bloco/unidade do localStorage quando trocar de condomínio
   useEffect(() => {
@@ -137,6 +112,7 @@ useEffect(() => {
       setUnidadeAtivaIdState(null);
       return;
     }
+
     if (typeof window === "undefined") return;
 
     const savedBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
@@ -146,7 +122,7 @@ useEffect(() => {
     setUnidadeAtivaIdState(savedUnidade || null);
   }, [condominioAtivoId]);
 
-  // Listener de blocos
+  // Listener de blocos do condomínio ativo
   useEffect(() => {
     if (!firestore || !condominioAtivoId) {
       setBlocos([]);
@@ -169,16 +145,19 @@ useEffect(() => {
             ...(doc.data() as Omit<Bloco, "id">),
           })
         );
-
         setBlocos(list);
         setIsLoadingBlocos(false);
 
-        // auto pick bloco
-        if (!blocoAtivoId && list.length > 0 && typeof window !== "undefined") {
-          const saved = localStorage.getItem(LS_BLOCO(condominioAtivoId));
-          if (saved && list.find((b) => b.id === saved)) {
-            setBlocoAtivoIdState(saved);
-          } else {
+        // Se não há bloco selecionado, tenta restaurar do LS ou pegar o primeiro
+        if (!blocoAtivoId) {
+          if (typeof window !== "undefined") {
+            const savedBloco = localStorage.getItem(LS_BLOCO(condominioAtivoId));
+            if (savedBloco && list.find((b) => b.id === savedBloco)) {
+              setBlocoAtivoIdState(savedBloco);
+              return;
+            }
+          }
+          if (list.length > 0) {
             setBlocoAtivoIdState(list[0].id);
           }
         }
@@ -193,7 +172,7 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, condominioAtivoId]);
 
-  // Listener de unidades
+  // Listener de unidades do bloco ativo
   useEffect(() => {
     if (!firestore || !condominioAtivoId || !blocoAtivoId) {
       setUnidades([]);
@@ -223,12 +202,16 @@ useEffect(() => {
         setUnidades(list);
         setIsLoadingUnidades(false);
 
-        // auto pick unidade
-        if (!unidadeAtivaId && list.length > 0 && typeof window !== "undefined") {
-          const saved = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
-          if (saved && list.find((u) => u.id === saved)) {
-            setUnidadeAtivaIdState(saved);
-          } else {
+        // Se não há unidade selecionada, tenta restaurar ou pegar a primeira
+        if (!unidadeAtivaId) {
+          if (typeof window !== "undefined") {
+            const savedUnidade = localStorage.getItem(LS_UNIDADE(condominioAtivoId));
+            if (savedUnidade && list.find((u) => u.id === savedUnidade)) {
+              setUnidadeAtivaIdState(savedUnidade);
+              return;
+            }
+          }
+          if (list.length > 0) {
             setUnidadeAtivaIdState(list[0].id);
           }
         }
@@ -243,32 +226,38 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, condominioAtivoId, blocoAtivoId]);
 
-  // ✅ troca condomínio (somente super admin)
   const handleSetCondominioAtivoId = useCallback(
     (id: string | null) => {
-      if (!isSuperAdmin) return;
-
-      const anteriorId = condominioAtivoId;
-
+      if (!isSuperAdmin) return; // somente SUPER_ADMIN pode trocar condomínio ativo
       setActiveCondominioId(id);
 
-      // limpa seleções
-      setBlocoAtivoIdState(null);
-      setUnidadeAtivaIdState(null);
-
-      // limpa storage do anterior e do novo
+      // Quando troca de condomínio, limpamos seleções antigas
       if (typeof window !== "undefined") {
-        if (anteriorId) {
-          localStorage.removeItem(LS_BLOCO(anteriorId));
-          localStorage.removeItem(LS_UNIDADE(anteriorId));
-        }
         if (id) {
           localStorage.removeItem(LS_BLOCO(id));
           localStorage.removeItem(LS_UNIDADE(id));
         }
       }
+      setBlocoAtivoIdState(null);
+      setUnidadeAtivaIdState(null);
     },
-    [isSuperAdmin, condominioAtivoId, setActiveCondominioId]
+    [isSuperAdmin, setActiveCondominioId]
+  );
+setBlocoAtivoIdState(null);
+      setUnidadeAtivaIdState(null);
+
+      if (typeof window !== "undefined") {
+        if (previousCondoId) {
+            localStorage.removeItem(LS_BLOCO(previousCondoId));
+            localStorage.removeItem(LS_UNIDADE(previousCondoId));
+        }
+        if (newCondoId) {
+            localStorage.removeItem(LS_BLOCO(newCondoId));
+            localStorage.removeItem(LS_UNIDADE(newCondoId));
+        }
+      }
+    },
+    [session?.superAdmin, condominioAtivoId, setActiveCondominioId]
   );
 
   const handleSetBlocoAtivoId = useCallback(
@@ -277,8 +266,11 @@ useEffect(() => {
       setUnidadeAtivaIdState(null);
 
       if (typeof window !== "undefined" && condominioAtivoId) {
-        if (id) localStorage.setItem(LS_BLOCO(condominioAtivoId), id);
-        else localStorage.removeItem(LS_BLOCO(condominioAtivoId));
+        if (id) {
+          localStorage.setItem(LS_BLOCO(condominioAtivoId), id);
+        } else {
+          localStorage.removeItem(LS_BLOCO(condominioAtivoId));
+        }
         localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
       }
     },
@@ -290,8 +282,11 @@ useEffect(() => {
       setUnidadeAtivaIdState(id);
 
       if (typeof window !== "undefined" && condominioAtivoId) {
-        if (id) localStorage.setItem(LS_UNIDADE(condominioAtivoId), id);
-        else localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+        if (id) {
+          localStorage.setItem(LS_UNIDADE(condominioAtivoId), id);
+        } else {
+          localStorage.removeItem(LS_UNIDADE(condominioAtivoId));
+        }
       }
     },
     [condominioAtivoId]
@@ -325,6 +320,8 @@ useEffect(() => {
 
 export function useCondominio() {
   const ctx = useContext(CondominioContext);
-  if (!ctx) throw new Error("useCondominio must be used within CondominioProvider");
+  if (!ctx) {
+    throw new Error("useCondominio must be used within CondominioProvider");
+  }
   return ctx;
 }

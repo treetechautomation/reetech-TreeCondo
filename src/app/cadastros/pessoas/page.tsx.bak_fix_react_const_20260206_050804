@@ -114,6 +114,11 @@ export default function PessoasPage() {
   const [loadingBlocos, setLoadingBlocos] = React.useState(false);
 
   // Carrega blocos do condomínio ativo
+  React.const selectedCondo = useMemo(() => {
+      if (!condominioAtivoId) return null;
+      return condos.find((c) => c.condominioId === condominioAtivoId) ?? null;
+    }, [condos, condominioAtivoId]);
+
   // --- Membros do condomínio ativo ---
   useEffect(() => {
     if (!firestore || !condominioAtivoId) {
@@ -263,8 +268,22 @@ setLoading(true);
     }
   };
 
-  return (
-    <AppLayout pageTitle="Moradores / Síndicos" >
+  const HeaderActions = () => (
+  <div className="flex items-center gap-3">
+    <div className="rounded-2xl border border-black/10 bg-white/55 px-3 py-2 text-xs text-slate-700 backdrop-blur-xl">
+      Condomínio ativo:{" "}
+      <span className="font-semibold">{condominioAtivoId ?? "não selecionado"}</span>
+    </div>
+
+    {selectedCondo?.nome && (
+      <div className="hidden md:block text-xs text-slate-500">
+        ID: <span className="font-mono">{condominioAtivoId}</span>
+      </div>
+    )}
+  </div>
+);
+return (
+    <AppLayout pageTitle="Moradores / Síndicos" headerActions={<HeaderActions />}>
       <div className="space-y-8">
         {!condominioAtivoId && (
           <div className="mb-4 rounded-xl border border-dashed bg-white/55 p-6 text-center text-sm text-slate-600 backdrop-blur-xl">
