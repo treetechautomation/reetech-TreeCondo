@@ -1,348 +1,563 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import QRCode from "qrcode";
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
-  getCountFromServer,
+  updateDoc,
 } from "firebase/firestore";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Convidado = {
   id: string;
   nome?: string;
   cpf?: string | null;
   status?: "PENDENTE" | "ENTROU";
+  entradaEm?: any;
+  porteiroUid?: string | null;
   createdAt?: any;
 };
 
 type ReservaDoc = {
   uid?: string;
   userId?: string;
-  moradorUid?: string;
   status?: string;
   areaId?: string;
   areaNome?: string;
   areaName?: string;
-  capacidadeMax?: number;
+  data?: any;
+  valorCobrado?: number;
 };
 
-function normalizeCpf(v: string) {
+function maskCpf(v?: string | null) {
   const d = (v || "").replace(/\D/g, "");
-  return d.length ? d : "";
+  if (!d) return "";
+  // mostra só final (opcional)
+  return "•••.•••.•••-" + d.slice(-2);
 }
 
-function inferCapacidade(areaIdOrName?: string) {
-  const k = String(areaIdOrName || "").toLowerCase();
-  if (k.includes("salao") || k.includes("sal") || k.includes("fest")) return 45;
-  if (k.includes("churrasqueira_1") || k.includes("churrasqueira 1") || k.includes("churras_1")) return 32;
-  if (k.includes("churrasqueira_2") || k.includes("churrasqueira 2") || k.includes("churras_2")) return 24;
-  return 0;
-}
-
-export default function ReservasConvidadosPage() {
+export default function ConvidadosCheckinPage() {
   const params = useParams<{ reservaId: string }>();
   const reservaId = params?.reservaId ?? "";
   const router = useRouter();
   const firestore = useFirestore();
   const { session, isSessionLoading } = useSessionCtx();
 
-  const [loading, setLoading] = React.useState(true);
+  const condId = session?.activeCondominioId ?? null;
+  const role: string | null = (session as any)?.role ?? null;
+
+    const isSuper =
+      Boolean((session as any)?.superAdmin) ||
+      Boolean((session as any)?.isSuperAdmin) ||
+      Boolean((session as any)?.super_admin) ||
+      String((session as any)?.role || session?.role || "").toUpperCase() === "SUPER_ADMIN";
+
+  const isPorteiro = role === "PORTEIRO";
+  const isAdminLike =
+      isSuper ||
+      role === "ADMIN" ||
+      role === "SINDICO" ||
+      role === "ADMIN_CONDOMINIO" ||
+      role === "ZELADOR";
+
+  const canUse = !!session && !!condId && (isPorteiro || isAdminLike);
+
+  const [loadingReserva, setLoadingReserva] = React.useState(true);
   const [reserva, setReserva] = React.useState<ReservaDoc | null>(null);
+
+  const [moradorInfo, setMoradorInfo] = React.useState<any | null>(null);
+  const [loadingLista, setLoadingLista] = React.useState(true);
   const [itens, setItens] = React.useState<Convidado[]>([]);
-  const [nome, setNome] = React.useState("");
-  const [cpf, setCpf] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  const [loadingMarkId, setLoadingMarkId] = React.useState<string | null>(null);
+  const [q, setQ] = React.useState("");
 
-  const user = session?.user;
-  const condId = session?.activeCondominioId;
-  const isSuper = session?.superAdmin;
-  const isMorador = session?.role === "MORADOR";
-  const isAdminLike = isSuper || ["ADMIN", "SINDICO", "ADMIN_CONDOMINIO"].includes(String(session?.role || ""));
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmItem, setConfirmItem] = React.useState<Convidado | null>(null);
 
-  // Carrega dados da reserva (pra validar dono e pegar capacidade)
+  const filtrados = React.useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return itens;
+    return (itens || []).filter((c) =>
+      String(c.nome || "").toLowerCase().includes(term)
+    );
+  }, [itens, q]);
+
+  const [savingId, setSavingId] = React.useState<string | null>(null);
+
+  // carrega a reserva (pra validar status APROVADA)
   React.useEffect(() => {
     if (!firestore || !condId || !reservaId) return;
 
     let alive = true;
     (async () => {
       try {
-        const ref = doc(firestore, "condominios", condId, "reservas", reservaId);
+        const ref = doc(
+          firestore,
+          "condominios",
+          String(condId),
+          "reservas",
+          String(reservaId)
+        );
         const snap = await getDoc(ref);
-        if (alive) {
-          setReserva(snap.exists() ? (snap.data() as any) : null);
-        }
+        if (!alive) return;
+
+        setReserva(snap.exists() ? (snap.data() as any) : null);
       } catch (e) {
-        console.error("[convidados] erro ao carregar reserva:", e);
+        console.error("[checkin] erro ao carregar reserva:", e);
+        setReserva(null);
       } finally {
-        if (alive) setLoading(false);
+        if (alive) setLoadingReserva(false);
       }
     })();
-    return () => { alive = false; };
+
+    return () => {
+      alive = false;
+    };
   }, [firestore, condId, reservaId]);
 
-  // Lista convidados
+  // Carrega o membro (nome/bloco/unidade) do morador dono da reserva
+  React.useEffect(() => {
+    if (!firestore) return;
+    if (!session?.activeCondominioId) return;
+    const uid = String(
+      (reserva as any)?.uid || (reserva as any)?.userId || ""
+    );
+    if (!uid) {
+      setMoradorInfo(null);
+      return;
+    }
+
+    let alive = true;
+
+    (async () => {
+      try {
+        const ref = doc(
+          firestore,
+          "condominios",
+          String(session.activeCondominioId),
+          "membros",
+          uid
+        );
+        const snap = await getDoc(ref);
+        if (!alive) return;
+        setMoradorInfo(snap.exists() ? snap.data() : null);
+      } catch (e) {
+        console.error("[checkin] erro ao carregar membro do morador:", e);
+        if (alive) setMoradorInfo(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [
+    firestore,
+    session?.activeCondominioId,
+    (reserva as any)?.uid,
+    (reserva as any)?.userId,
+  ]);
+
+  // lista convidados
   React.useEffect(() => {
     if (!firestore || !condId || !reservaId) return;
 
-    const ref = collection(firestore, "condominios", condId, "reservas", reservaId, "convidados");
-    const q = query(ref, orderBy("createdAt", "asc"));
+    const ref = collection(
+      firestore,
+      "condominios",
+      String(condId),
+      "reservas",
+      String(reservaId),
+      "convidados"
+    );
+
+    const qq = query(ref, orderBy("createdAt", "asc"));
 
     const unsub = onSnapshot(
-      q,
+      qq,
       (snap) => {
-        const out: Convidado[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        const out: Convidado[] = [];
+        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
         setItens(out);
+        setLoadingLista(false);
       },
-      (err) => console.error("[convidados] snapshot erro:", err)
+      (err) => {
+        console.error("[checkin] snapshot convidados erro:", err);
+        setItens([]);
+        setLoadingLista(false);
+      }
     );
+
     return () => unsub();
   }, [firestore, condId, reservaId]);
 
-  // --- Guards de Acesso ---
   if (isSessionLoading) {
-    return <AppLayout pageTitle="Lista de Convidados">Carregando sessão...</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Carregando sessão...
+      </AppLayout>
+    );
   }
 
-  if (!user || !condId) {
-    return <AppLayout pageTitle="Lista de Convidados">Acesso negado. Faça login e selecione um condomínio.</AppLayout>;
+  if (!session) {
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">Sem sessão.</AppLayout>
+    );
   }
 
-  if (loading) {
-    return <AppLayout pageTitle="Lista de Convidados">Carregando dados da reserva...</AppLayout>;
+  if (!canUse) {
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">Acesso negado.</AppLayout>
+    );
+  }
+
+  if (loadingReserva) {
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Carregando reserva...
+      </AppLayout>
+    );
   }
 
   if (!reserva) {
-    return <AppLayout pageTitle="Lista de Convidados">Reserva não encontrada.</AppLayout>;
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Reserva não encontrada.
+      </AppLayout>
+    );
   }
 
-  const donoUid = (
-  reserva.uid ||
-  reserva.userId ||
-  reserva.moradorUid ||
-  (reserva as any).createdByUid ||
-  (reserva as any).createdBy?.uid ||
-  (reserva as any).createdBy?.userId ||
-  ""
-).toString();
-const souDono = !!user.uid && donoUid === user.uid;
-
-  // Apenas Super Admin, Admin/Síndico ou o próprio morador dono podem gerenciar.
-  const canManageGuests = isSuper || isAdminLike || souDono;
-  
-  if (!canManageGuests) {
-     return <AppLayout pageTitle="Lista de Convidados">Você não tem permissão para gerenciar os convidados desta reserva.</AppLayout>;
+  const statusReserva = String(reserva.status || "");
+  if (isPorteiro && statusReserva !== "APROVADA") {
+    return (
+      <AppLayout pageTitle="Check-in de Convidados">
+        Esta reserva não está APROVADA. O porteiro só faz check-in em reservas
+        aprovadas.
+      </AppLayout>
+    );
   }
-  
-  // A partir daqui, o usuário tem permissão.
-  
-  const areaLabel = reserva.areaNome || reserva.areaName || reserva.areaId || "Área";
-  const cap = Number(reserva.capacidadeMax ?? inferCapacidade(reserva.areaId || reserva.areaNome || reserva.areaName));
+
+  const areaLabel =
+    reserva.areaNome || reserva.areaName || reserva.areaId || "Área";
+
   const total = itens.length;
-  const limite = Number.isFinite(cap) ? cap : 0;
-  const limiteAtingido = limite > 0 && total >= limite;
+  const entrou = itens.filter(
+    (c) => String(c.status || "") === "ENTROU"
+  ).length;
+  const pendente = total - entrou;
 
-  async function add() {
-    if (!firestore) {
-      alert("Firestore ainda não carregou. Recarregue a página.");
-      return;
-    }
-    const cId = condId;
-    if (!cId) {
-      alert("Condomínio ativo não definido. Recarregue e selecione o condomínio.");
-      return;
-    }
+  async function marcarEntrou(item: Convidado) {
+    if (!firestore || !condId || !reservaId || !item) return;
+    if (!isPorteiro && !isAdminLike) return;
 
-    const n = nome.trim();
-    const c = normalizeCpf(cpf);
-
-    if (!n) return;
-
-    if (limite > 0) {
-      try {
-        const refCount = collection(firestore, "condominios", cId, "reservas", reservaId, "convidados");
-        const snapCount = await getCountFromServer(refCount);
-        const totalServer = Number(snapCount.data().count || 0);
-
-        if (totalServer >= limite) {
-          alert("Limite de convidados atingido para esta reserva.");
-          return;
-        }
-      } catch (e) {
-        console.error("[convidados] erro ao contar convidados no servidor:", e);
-        alert("Não consegui validar o limite agora. Tente novamente.");
-        return;
-      }
-    }
-
-    setSaving(true);
+    setSavingId(item.id);
     try {
-      const ref = collection(firestore, "condominios", condId, "reservas", reservaId, "convidados");
-      await addDoc(ref, {
-        nome: n,
-        cpf: c ? c : null,
-        status: "PENDENTE",
-        createdAt: serverTimestamp(),
+      const ref = doc(
+        firestore,
+        "condominios",
+        String(condId),
+        "reservas",
+        String(reservaId),
+        "convidados",
+        String(item.id)
+      );
+
+      await updateDoc(ref, {
+        status: "ENTROU",
+        entradaEm: serverTimestamp(),
+        porteiroUid: session?.user?.uid ?? null,
+        updatedAt: serverTimestamp(),
       });
-      setNome("");
-      setCpf("");
     } catch (e) {
-      console.error("[convidados] erro add:", e);
-      alert("Não consegui adicionar. Veja o console.");
+      console.error("[checkin] erro marcar entrou:", e);
+      alert(
+        "❌ Não consegui marcar entrada. Veja o console (provável rules)."
+      );
     } finally {
-      setSaving(false);
+      setSavingId(null);
     }
   }
 
-  async function remove(item: Convidado) {
-    if (!firestore) {
-      alert("Firestore ainda não carregou. Recarregue a página.");
-      return;
-    }
+  async function baixarPDF() {
+      const pdf = new jsPDF();
 
-    const cId = condId;
-    if (!cId) {
-      alert("Condomínio ativo não definido. Recarregue e selecione o condomínio.");
-      return;
-    }
-    const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
-    if (!ok) return;
+      const moradorNome =
+        moradorInfo?.nome ||
+        moradorInfo?.displayName ||
+        moradorInfo?.name ||
+        "Morador";
 
-    try {
-      const ref = doc(firestore, "condominios", cId, "reservas", reservaId, "convidados", item.id);
-      await deleteDoc(ref);
-    } catch (e) {
-      console.error("[convidados] erro remove:", e);
-      alert("Não consegui remover. Veja o console.");
+      const moradorBloco =
+        moradorInfo?.blocoId ||
+        moradorInfo?.bloco ||
+        moradorInfo?.blocoNome ||
+        moradorInfo?.blocoName ||
+        moradorInfo?.blocoLabel ||
+        "";
+
+      const moradorUnidade =
+        moradorInfo?.unidadeId ||
+        moradorInfo?.unidade ||
+        moradorInfo?.unidadeNome ||
+        moradorInfo?.unidadeLabel ||
+        moradorInfo?.apto ||
+        "";
+
+      // título
+      pdf.setFontSize(14);
+      pdf.text("Lista de Convidados (Check-in)", 14, 16);
+
+      // QR Code (canto superior direito)
+      const url =
+        typeof window !== "undefined"
+          ? window.location.href
+          : `/reservas/convidados-checkin/${String(reservaId)}`;
+
+      try {
+        const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 160 });
+        pdf.addImage(qrDataUrl, "PNG", 160, 8, 40, 40);
+        pdf.setFontSize(8);
+        pdf.text("QR do Check-in", 162, 50);
+      } catch (e) {
+        console.warn("[pdf] falha ao gerar QR:", e);
+      }
+
+      // infos
+      pdf.setFontSize(10);
+      pdf.text(`Área: ${areaLabel}`, 14, 26);
+      pdf.text(`Status da Reserva: ${statusReserva}`, 14, 32);
+
+      // morador (NUNCA mostrar uid aqui)
+      pdf.text(`Morador: ${moradorNome}`, 14, 38);
+
+      const extra = [
+        moradorBloco ? `Bloco ${moradorBloco}` : null,
+        moradorUnidade ? `Unidade/Apto ${moradorUnidade}` : null,
+      ].filter(Boolean).join(" • ");
+
+      if (extra) {
+        pdf.text(extra, 14, 44);
+      }
+
+      const body = filtrados.map((c, idx) => ([
+        String(idx + 1).padStart(2, "0"),
+        String(c.nome || "-"),
+        String(c.cpf ? maskCpf(c.cpf) : "-"),
+        String(c.status || "PENDENTE"),
+      ]));
+
+      autoTable(pdf, {
+        startY: extra ? 52 : 48,
+        head: [["Nº", "Nome", "CPF", "Status"]],
+        body,
+        styles: { fontSize: 9 },
+        headStyles: { fontSize: 9 },
+      });
+
+      pdf.save(`convidados_${String(reservaId)}.pdf`);
     }
-  }
 
   return (
     <AppLayout
-      pageTitle="Lista de Convidados"
+      pageTitle="Check-in de Convidados"
       headerActions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => router.push("/reservas")}>
-            Voltar
+          <Button variant="outline" asChild>
+            <Link href="/reservas/agenda">Voltar</Link>
+          </Button>
+
+          <Button onClick={baixarPDF}>
+            Baixar PDF
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
-        <div className="rounded-2xl border border-black/10 bg-white p-4">
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm text-muted-foreground">Área</div>
               <div className="text-lg font-semibold">{areaLabel}</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Reserva ID: <span className="font-mono">{reservaId}</span>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Morador:{" "}
+                  <span className="font-medium">
+                    {moradorInfo?.nome ||
+                      moradorInfo?.displayName ||
+                      moradorInfo?.name || "-"}
+                  </span>
+                  {moradorInfo?.blocoId ||
+                  moradorInfo?.bloco ||
+                  moradorInfo?.blocoNome ||
+                  moradorInfo?.blocoName ||
+                  moradorInfo?.blocoLabel ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • Bloco{" "}
+                      {moradorInfo?.blocoId ||
+                        moradorInfo?.bloco ||
+                        moradorInfo?.blocoNome ||
+                        moradorInfo?.blocoName ||
+                        moradorInfo?.blocoLabel}
+                    </span>
+                  ) : null}
+                  {moradorInfo?.unidadeId ||
+                  moradorInfo?.unidade ||
+                  moradorInfo?.unidadeNome ||
+                  moradorInfo?.unidadeLabel ||
+                  moradorInfo?.apto ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • Unidade/Apto{" "}
+                      {moradorInfo?.unidadeId ||
+                        moradorInfo?.unidade ||
+                        moradorInfo?.unidadeNome ||
+                        moradorInfo?.unidadeLabel ||
+                        moradorInfo?.apto}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
 
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">Convidados</div>
-              <div className="text-lg font-semibold">
-                {total}
-                {limite > 0 ? ` / ${limite}` : ""}
-              </div>
-              {limite > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  {limiteAtingido ? "Limite atingido" : "Dentro do limite"}
-                </div>
-              )}
+              <div className="text-sm text-muted-foreground">Status</div>
+              <div className="text-lg font-semibold">{statusReserva}</div>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+            <div className="rounded-xl border bg-muted/10 p-3">
+              <div className="text-muted-foreground">Total</div>
+              <div className="text-lg font-semibold">{total}</div>
+            </div>
+            <div className="rounded-xl border bg-muted/10 p-3">
+              <div className="text-muted-foreground">Pendentes</div>
+              <div className="text-lg font-semibold">{pendente}</div>
+            </div>
+            <div className="rounded-xl border bg-muted/10 p-3">
+              <div className="text-muted-foreground">Entraram</div>
+              <div className="text-lg font-semibold">{entrou}</div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black/10 bg-white p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_280px_140px]">
-            <div>
-              <div className="text-sm text-muted-foreground">Nome do convidado</div>
-              <input
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 outline-none"
-                placeholder="Ex: João da Silva"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                disabled={saving || limiteAtingido}
-              />
-            </div>
-
-            <div>
-              <div className="text-sm text-muted-foreground">CPF (opcional)</div>
-              <input
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 outline-none"
-                placeholder="Somente números"
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
-                disabled={saving || limiteAtingido}
-              />
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                type="button"
-                className="w-full"
-                onClick={add}
-                disabled={saving || !nome.trim() || limiteAtingido}
-              >
-                {saving ? "Adicionando..." : "Adicionar"}
-              </Button>
-            </div>
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="font-semibold">Lista</div>
+            <input
+              className="h-10 w-full md:w-[360px] rounded-xl border bg-background px-3 text-sm"
+              placeholder="Buscar por nome..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
           </div>
 
-          {limiteAtingido && (
-            <div className="mt-3 text-sm text-amber-700">
-              Você atingiu o limite de convidados desta área. Para adicionar mais, remova alguém.
+          {loadingLista ? (
+            <div className="mt-4 text-sm text-muted-foreground">
+              Carregando convidados...
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+              Nenhum convidado encontrado.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {filtrados.map((c, idx) => {
+                const st = String(c.status || "PENDENTE");
+                const entrou = st === "ENTROU";
+
+                return (
+                  <div
+                    key={c.id}
+                    className="rounded-xl border p-4 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">
+                        {String(idx + 1).padStart(2, "0")} - {c.nome || "-"}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground">
+                        {c.cpf
+                          ? `CPF: ${maskCpf(c.cpf)}`
+                          : "CPF: (não informado)"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-semibold">
+                        {entrou ? "✅ ENTROU" : "🟢 PENDENTE"}
+                      </div>
+
+                      <Button
+                        onClick={() => {
+                          setConfirmItem(c);
+                          setConfirmOpen(true);
+                        }}
+                        disabled={entrou || savingId === c.id}
+                      >
+                        {savingId === c.id
+                          ? "Salvando..."
+                          : entrou
+                          ? "OK"
+                          : "Marcar entrou"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-
-        {itens.length === 0 ? (
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            Nenhum convidado cadastrado ainda.
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="font-semibold">Convidados</div>
-              <div className="text-sm text-muted-foreground">{itens.length} item(ns)</div>
-            </div>
-
-            <div className="space-y-2">
-              {itens.map((c, idx) => (
-                <div
-                  key={c.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-black/10 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">
-                      {String(idx + 1).padStart(2, "0")} - {c.nome || "-"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.cpf ? `CPF: ${c.cpf}` : "CPF: -"}
-                    </div>
-                  </div>
-
-                  <Button variant="outline" onClick={() => remove(c)}>
-                    Remover
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Entrada</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você confirma a entrada do convidado{" "}
+              <strong>{confirmItem?.nome ?? "..."}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (confirmItem) {
+                  await marcarEntrou(confirmItem);
+                }
+              }}
+              disabled={savingId !== null}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

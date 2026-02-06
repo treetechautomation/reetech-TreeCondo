@@ -14,7 +14,7 @@ function ensureAdminApp() {
   if (getApps().length) return;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const serviceAccount = require("../../serviceAccountKey.json");
     initializeApp({ credential: cert(serviceAccount) });
   } catch (e) {

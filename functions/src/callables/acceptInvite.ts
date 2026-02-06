@@ -1,4 +1,4 @@
-/* eslint-disable require-jsdoc, max-len, @typescript-eslint/no-explicit-any */
+/* eslint-disable require-jsdoc, @typescript-eslint/no-explicit-any */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 

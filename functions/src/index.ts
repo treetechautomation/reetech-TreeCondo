@@ -1,4 +1,4 @@
-/* eslint-disable require-jsdoc, max-len */
+/* eslint-disable require-jsdoc */
 import * as admin from "firebase-admin";
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 

@@ -22,7 +22,7 @@ export function CondominioLogo({
     return <div className={cn("h-9 w-28 rounded-xl bg-muted/30", className)} />;
   }
 
-  // eslint-disable-next-line @next/next/no-img-element
+   
   return (
     <img
       src={src}

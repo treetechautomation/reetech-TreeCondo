@@ -25,13 +25,15 @@ export default function AgendaReservasPage() {
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
   const user = session?.user ?? null;
-  const role: string | null = (session as any)?.role ?? null;
 
-    const isSuper =
-      Boolean((session as any)?.superAdmin) ||
-      Boolean((session as any)?.isSuperAdmin) ||
-      Boolean((session as any)?.super_admin) ||
-      String((session as any)?.role || session?.role || "").toUpperCase() === "SUPER_ADMIN";
+  const roleRaw: string | null = (session as any)?.role ?? session?.role ?? null;
+  const roleUpper = String(roleRaw || "").toUpperCase();
+
+  const isSuper =
+    Boolean((session as any)?.superAdmin) ||
+    Boolean((session as any)?.isSuperAdmin) ||
+    Boolean((session as any)?.super_admin) ||
+    roleUpper === "SUPER_ADMIN";
 
   const firestore = useFirestore();
   const podeVer = !isSessionLoading && !!session && !!condId;
@@ -42,8 +44,9 @@ export default function AgendaReservasPage() {
   // reaproveita o hook que já existe
   const { reservas, loadingReservas } = useReservas(condId, dateStr);
 
-  const isPorteiro = role === "PORTEIRO";
-  const isAdminLike = isSuper || role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO" || role === "ZELADOR";
+  const isPorteiro = roleUpper === "PORTEIRO";
+  const isAdminLike =
+    isSuper || ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "ZELADOR"].includes(roleUpper);
 
   // Porteiro vê só aprovadas do dia; admin também pode ver pra auditoria
   const reservasDoDia = React.useMemo(() => {
@@ -54,40 +57,59 @@ export default function AgendaReservasPage() {
   // cache de membros por uid (nome/bloco/unidade)
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
 
+  // UIDs do dia (ordenado, estável)
+  const uidsDoDia = React.useMemo(() => {
+    const uids = Array.from(new Set(reservasDoDia.map((r: any) => r.uid).filter(Boolean)));
+    uids.sort();
+    return uids;
+  }, [reservasDoDia]);
+
+  // key estável (para deps e evitar expressão complexa)
+  const uidsKey = React.useMemo(() => uidsDoDia.join("|"), [uidsDoDia]);
+
   React.useEffect(() => {
     if (!firestore || !condId) return;
     if (!isPorteiro && !isAdminLike) return;
 
-    const uids = Array.from(new Set(reservasDoDia.map((r: any) => r.uid).filter(Boolean)));
-    if (uids.length === 0) return;
+    if (uidsDoDia.length === 0) return;
+
+    // busca só quem falta no cache
+    const missing = uidsDoDia.filter((uid) => !membrosByUid[uid]);
+    if (missing.length === 0) return;
 
     let cancelled = false;
 
     (async () => {
       const next: Record<string, any> = {};
-      for (const uid of uids) {
+
+      for (const uid of missing) {
         try {
           // membros/{uid} tem nome/blocoId/unidadeId (conforme seu print)
-          const snap = await getDoc(doc(firestore, "condominios", String(condId), "membros", String(uid)));
+          const snap = await getDoc(
+            doc(firestore, "condominios", String(condId), "membros", String(uid))
+          );
           if (snap.exists()) next[uid] = snap.data();
         } catch (e) {
           // silencioso (não quebra a tela)
           console.error("[Agenda] falha ao carregar membro", uid, e);
         }
       }
-      if (!cancelled) setMembrosByUid((prev) => ({ ...prev, ...next }));
+
+      if (!cancelled && Object.keys(next).length) {
+        setMembrosByUid((prev) => ({ ...prev, ...next }));
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [firestore, condId, isPorteiro, isAdminLike, reservasDoDia.map((r: any) => r.uid).join("|")]);
+  }, [firestore, condId, isPorteiro, isAdminLike, uidsKey, uidsDoDia, membrosByUid]);
 
   async function handleCheckin(reservaId: string) {
     if (!podeVer) return;
     if (!firestore || !condId) return;
 
-    // Somente PORTEIRO (ou admin pra teste)
+    // Somente PORTEIRO (ou admin pra auditoria/teste)
     if (!isPorteiro && !isAdminLike) {
       alert("Sem permissão para registrar entrada.");
       return;
@@ -138,7 +160,9 @@ export default function AgendaReservasPage() {
           <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Reservas aprovadas do dia</div>
-              <div className="text-xs text-muted-foreground">{isPorteiro ? "Modo porteiro" : "Modo auditoria"}</div>
+              <div className="text-xs text-muted-foreground">
+                {isPorteiro ? "Modo porteiro" : "Modo auditoria"}
+              </div>
             </div>
 
             {loadingReservas ? (
@@ -199,7 +223,11 @@ export default function AgendaReservasPage() {
                           onClick={() => handleCheckin(r.id)}
                           disabled={entrou || loadingCheckinId === r.id}
                         >
-                          {loadingCheckinId === r.id ? "Registrando..." : entrou ? "Já registrado" : "Registrar entrada"}
+                          {loadingCheckinId === r.id
+                            ? "Registrando..."
+                            : entrou
+                              ? "Já registrado"
+                              : "Registrar entrada"}
                         </Button>
                       </div>
 

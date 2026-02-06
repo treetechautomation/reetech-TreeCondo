@@ -9,7 +9,7 @@ export function adminDb() {
   if (!getApps().length) {
     try {
       // DEV/Studio: usa o arquivo serviceAccountKey.json na raiz do projeto
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const serviceAccount = require("../../serviceAccountKey.json");
       initializeApp({ credential: cert(serviceAccount) });
     } catch (e) {
