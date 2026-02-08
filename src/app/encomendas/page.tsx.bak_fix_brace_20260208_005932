@@ -191,23 +191,19 @@ export default function EncomendasPage() {
   const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
 
   async function showQrCode(pkg: EncomendaDoc) {
-  const code = String((pkg as any).codigoRetirada || (pkg as any).codigo || "").trim();
-  if (!code) {
-    alert("⚠️ Esta encomenda não tem código disponível.");
-    return;
+    const code = String((pkg as any).codigoRetirada || (pkg as any).codigo || "").trim();
+    if (!code) return;
+    try {
+      const url = await QRCode.toDataURL(code, { width: 300, margin: 2 });
+      setQrCodeUrl(url);
+      setSelectedPkgForQr(pkg);
+      setIsQrDialogOpen(true);
+    } catch (err) {
+      console.error("Failed to generate QR code", err);
+      alert("Não foi possível gerar o QR Code.");
+    }
   }
-  try {
-    const url = await QRCode.toDataURL(code, { width: 300, margin: 2 });
-    setQrCodeUrl(url);
-    setSelectedPkgForQr(pkg);
-    setIsQrDialogOpen(true);
-  } catch (err) {
-    console.error("Failed to generate QR code", err);
-    alert("Não foi possível gerar o QR Code.");
   }
-}
-
-
 
   React.useEffect(() => {
     if (!isMorador || !condId || !firestore || !session?.user?.uid) {
@@ -627,7 +623,7 @@ export default function EncomendasPage() {
                                 <span className="sm:hidden">Retirar</span>
                               </Button>
                             ) : (
-                              <Button variant="outline" size="sm" disabled={false} onClick={() => showQrCode(pkg)}>
+                              <Button variant="outline" size="sm" disabled={!(pkg.codigoRetirada || pkg.codigo)} onClick={() => showQrCode(pkg)}>
                                 <QrCode className="mr-2 h-4 w-4" />
                                 Ver Código
                               </Button>

@@ -627,7 +627,7 @@ export default function EncomendasPage() {
                                 <span className="sm:hidden">Retirar</span>
                               </Button>
                             ) : (
-                              <Button variant="outline" size="sm" disabled={false} onClick={() => showQrCode(pkg)}>
+                              <Button variant="outline" size="sm" disabled={!(pkg.codigoRetirada || pkg.codigo)} onClick={() => showQrCode(pkg)}>
                                 <QrCode className="mr-2 h-4 w-4" />
                                 Ver Código
                               </Button>

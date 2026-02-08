@@ -68,7 +68,6 @@ export default function ConvidadosCheckinPage() {
   const { session, isSessionLoading } = useSessionCtx();
 
   const condId = session?.activeCondominioId ?? null;
-  const myUid = String(session?.user?.uid ?? "");
   const role: string | null = (session as any)?.role ?? null;
 
     const isSuper =
@@ -84,11 +83,6 @@ export default function ConvidadosCheckinPage() {
       role === "SINDICO" ||
       role === "ADMIN_CONDOMINIO" ||
       role === "ZELADOR";
-
-  const canViewList =
-    isSuper ||
-    isAdminLike ||
-    ownerUid === myUid;
 
   const canUse = !!session && !!condId && (isPorteiro || isAdminLike);
 
@@ -132,14 +126,6 @@ export default function ConvidadosCheckinPage() {
         if (!alive) return;
 
         setReserva(snap.exists() ? (snap.data() as any) : null);
-
-  const ownerUid =
-    (reserva as any)?.uid ||
-    (reserva as any)?.userId ||
-    (reserva as any)?.moradorUid ||
-    (reserva as any)?.createdByUid ||
-    (reserva as any)?.createdBy?.uid ||
-    "";
       } catch (e) {
         console.error("[checkin] erro ao carregar reserva:", e);
         setReserva(null);
@@ -242,26 +228,11 @@ export default function ConvidadosCheckinPage() {
     );
   }
 
-  if (!canViewList) {
-  if (isPorteiro) {
+  if (!canUse) {
     return (
-      <AppLayout pageTitle="Lista de Convidados">
-        <p>Porteiro realiza check-in na tela específica.</p>
-        <Button asChild variant="outline">
-          <Link href={`/reservas/convidados-checkin/${reservaId}`}>
-            Ir para Check-in
-          </Link>
-        </Button>
-      </AppLayout>
+      <AppLayout pageTitle="Check-in de Convidados">Acesso negado.</AppLayout>
     );
   }
-
-  return (
-    <AppLayout pageTitle="Lista de Convidados">
-      Acesso negado.
-    </AppLayout>
-  );
-}
 
   if (loadingReserva) {
     return (

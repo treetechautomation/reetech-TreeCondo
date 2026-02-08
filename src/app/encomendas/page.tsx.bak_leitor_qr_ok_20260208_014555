@@ -69,7 +69,6 @@ type EncomendaDoc = {
   retiradaPorUid?: string | null;
   moradorUid?: string | null;
   codigo?: string;
-  codigoRetirada?: string;
   chegouEm?: any;
   retiradaEm?: any;
   criadoPorUid?: string;
@@ -191,23 +190,17 @@ export default function EncomendasPage() {
   const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
 
   async function showQrCode(pkg: EncomendaDoc) {
-  const code = String((pkg as any).codigoRetirada || (pkg as any).codigo || "").trim();
-  if (!code) {
-    alert("⚠️ Esta encomenda não tem código disponível.");
-    return;
+    if (!pkg.codigo) return;
+    try {
+      const url = await QRCode.toDataURL(pkg.codigo, { width: 300, margin: 2 });
+      setQrCodeUrl(url);
+      setSelectedPkgForQr(pkg);
+      setIsQrDialogOpen(true);
+    } catch (err) {
+      console.error("Failed to generate QR code", err);
+      alert("Não foi possível gerar o QR Code.");
+    }
   }
-  try {
-    const url = await QRCode.toDataURL(code, { width: 300, margin: 2 });
-    setQrCodeUrl(url);
-    setSelectedPkgForQr(pkg);
-    setIsQrDialogOpen(true);
-  } catch (err) {
-    console.error("Failed to generate QR code", err);
-    alert("Não foi possível gerar o QR Code.");
-  }
-}
-
-
 
   React.useEffect(() => {
     if (!isMorador || !condId || !firestore || !session?.user?.uid) {
@@ -627,7 +620,7 @@ export default function EncomendasPage() {
                                 <span className="sm:hidden">Retirar</span>
                               </Button>
                             ) : (
-                              <Button variant="outline" size="sm" disabled={false} onClick={() => showQrCode(pkg)}>
+                              <Button variant="outline" size="sm" disabled={!pkg.codigo} onClick={() => showQrCode(pkg)}>
                                 <QrCode className="mr-2 h-4 w-4" />
                                 Ver Código
                               </Button>
@@ -701,7 +694,7 @@ export default function EncomendasPage() {
               </DialogHeader>
               <div className="flex flex-col items-center justify-center p-4">
                 {qrCodeUrl && <img src={qrCodeUrl} alt="QR Code" />}
-                <code className="mt-4 text-lg font-bold tracking-wider">{selectedPkgForQr?.codigoRetirada || selectedPkgForQr?.codigo}</code>
+                <code className="mt-4 text-lg font-bold tracking-wider">{selectedPkgForQr?.codigo}</code>
               </div>
               <DialogFooter>
                 <Button onClick={() => setIsQrDialogOpen(false)}>Fechar</Button>
