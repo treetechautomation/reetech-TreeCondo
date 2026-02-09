@@ -54,3 +54,11 @@ serviceAccountKey.json
 *.BAK_*
 *.bak
 *.bak_*
+
+# segredo / credenciais
+serviceAccountKey.json
+*.pem
+*.key
+
+# firebase local
+.firebase/
