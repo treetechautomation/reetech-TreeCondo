@@ -48,3 +48,9 @@ serviceAccountKey.json
 # secrets
 serviceAccountKey.json
 .env.local
+
+# backups locais
+*.BAK
+*.BAK_*
+*.bak
+*.bak_*
