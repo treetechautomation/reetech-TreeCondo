@@ -298,7 +298,6 @@ export default function ConvidadosPage() {
                   <Button
                     variant="outline"
                     onClick={() => remove(c)}
-                    disabled={!podeGerenciar}
                   >
                     Remover
                   </Button>
