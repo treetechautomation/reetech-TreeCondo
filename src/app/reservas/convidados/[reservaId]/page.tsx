@@ -1,210 +1,175 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  addDoc,
+  deleteDoc,
 } from "firebase/firestore";
 
 type Convidado = {
   id: string;
   nome?: string;
   cpf?: string | null;
-  status?: "PENDENTE" | "ENTROU";
-  createdAt?: any;
 };
 
 type ReservaDoc = {
   uid?: string;
-  userId?: string;
   status?: string;
-  areaId?: string;
-  areaNome?: string;
-  areaName?: string;
-  capacidadeMax?: number | null;
 };
 
-function normalizeCpf(v: string) {
-  const d = (v || "").replace(/\D/g, "");
-  return d.length ? d : "";
+function maskCpf(v?: string | null) {
+  const d = (v || "").replace(/\\D/g, "");
+  if (!d) return "";
+  return "•••.•••.•••-" + d.slice(-2);
 }
 
-function inferCapacidade(areaIdOrName?: string) {
-  const k = String(areaIdOrName || "").toLowerCase();
-
-  // Ajuste aqui se seus IDs forem diferentes
-  if (k.includes("salao") || k.includes("sal") || k.includes("fest")) return 45;
-  if (k.includes("churrasqueira_1") || k.includes("churrasqueira 1") || k.includes("churras_1")) return 32;
-  if (k.includes("churrasqueira_2") || k.includes("churrasqueira 2") || k.includes("churras_2")) return 24;
-
-  // fallback seguro (se não souber)
-  return 0;
-}
-
-export default function ReservasConvidadosPage() {
-  const { reservaId } = useParams<{ reservaId: string }>();
+export default function ConvidadosPage() {
+  const params = useParams<{ reservaId: string }>();
+  const reservaId = params?.reservaId ?? "";
   const router = useRouter();
   const firestore = useFirestore();
   const { session, isSessionLoading } = useSessionCtx();
 
-  const myUid = String((session as any)?.user?.uid ?? session?.user?.uid ?? "");
+  const condId = session?.activeCondominioId ?? null;
+  const myUid = String(session?.user?.uid ?? "");
 
-  const [loading, setLoading] = React.useState(true);
+  const [loadingReserva, setLoadingReserva] = React.useState(true);
   const [reserva, setReserva] = React.useState<ReservaDoc | null>(null);
+
+  const isOwner =
+    reserva &&
+    String(
+      (reserva as any)?.uid ||
+        (reserva as any)?.userId ||
+        (reserva as any)?.moradorUid ||
+        (reserva as any)?.createdByUid ||
+        (reserva as any)?.createdBy?.uid ||
+        ""
+    ) === myUid;
+
   const [itens, setItens] = React.useState<Convidado[]>([]);
-  const [nome, setNome] = React.useState("");
-  const [cpf, setCpf] = React.useState("");
+  const [loadingLista, setLoadingLista] = React.useState(true);
+  const [q, setQ] = React.useState("");
+
+  const [novoNome, setNovoNome] = React.useState("");
+  const [novoCpf, setNovoCpf] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  const canUse =
-    !!session &&
-    !!session.activeCondominioId &&
-    (session.superAdmin || session.role === "MORADOR" || session.role === "SINDICO" || session.role === "ADMIN");
+  const filtrados = React.useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return itens;
+    return (itens || []).filter((c) =>
+      String(c.nome || "").toLowerCase().includes(term)
+    );
+  }, [itens, q]);
 
-  // Carrega dados da reserva (pra validar dono e pegar capacidade)
+  // carrega a reserva (pra validar dono)
   React.useEffect(() => {
-    if (!firestore) return;
-    if (!session?.activeCondominioId || !reservaId) return;
-    let alive = true;
+    if (!firestore || !condId || !reservaId) return;
 
+    let alive = true;
     (async () => {
       try {
-        const ref = doc(firestore, "condominios", String(session.activeCondominioId), "reservas", String(reservaId));
+        const ref = doc(
+          firestore,
+          "condominios",
+          String(condId),
+          "reservas",
+          String(reservaId)
+        );
         const snap = await getDoc(ref);
         if (!alive) return;
 
-        if (!snap.exists()) {
-          setReserva(null);
-          setLoading(false);
-          return;
-        }
-
-        setReserva(snap.data() as any);
-        setLoading(false);
+        setReserva(snap.exists() ? (snap.data() as any) : null);
       } catch (e) {
         console.error("[convidados] erro ao carregar reserva:", e);
         setReserva(null);
-        setLoading(false);
+      } finally {
+        if (alive) setLoadingReserva(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [firestore, session?.activeCondominioId, reservaId]);
+  }, [firestore, condId, reservaId]);
 
-  // Lista convidados
+  // lista convidados
   React.useEffect(() => {
-    if (!firestore) return;
-    if (!session?.activeCondominioId || !reservaId) return;
+    if (!firestore || !condId || !reservaId) return;
 
     const ref = collection(
       firestore,
       "condominios",
-      String(session.activeCondominioId),
+      String(condId),
       "reservas",
       String(reservaId),
       "convidados"
     );
 
-    const q = query(ref, orderBy("createdAt", "asc"));
+    const qq = query(ref, orderBy("createdAt", "asc"));
 
     const unsub = onSnapshot(
-      q,
+      qq,
       (snap) => {
         const out: Convidado[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
         setItens(out);
+        setLoadingLista(false);
       },
-      (err) => console.error("[convidados] snapshot erro:", err)
+      (err) => {
+        console.error("[convidados] snapshot erro:", err);
+        setItens([]);
+        setLoadingLista(false);
+      }
     );
 
     return () => unsub();
-  }, [firestore, session?.activeCondominioId, reservaId]);
+  }, [firestore, condId, reservaId]);
 
-  if (isSessionLoading) {
-    return <AppLayout pageTitle="Lista de Convidados">Carregando sessão...</AppLayout>;
-  }
+  async function handleAddConvidado() {
+    if (!firestore || !condId || !reservaId) return;
 
-  if (!session) {
-    return <AppLayout pageTitle="Lista de Convidados">Sem sessão.</AppLayout>;
-  }
-
-  if (!canUse) {
-    return <AppLayout pageTitle="Lista de Convidados">Acesso negado.</AppLayout>;
-  }
-
-  if (loading) {
-    return <AppLayout pageTitle="Lista de Convidados">Carregando...</AppLayout>;
-  }
-
-  if (!reserva) {
-    return <AppLayout pageTitle="Lista de Convidados">Reserva não encontrada.</AppLayout>;
-  }
-
-  const donoUid = (reserva.uid || reserva.userId || "").toString();
-  const meuUid = (session.user?.uid || "").toString();
-  const souDono = donoUid && meuUid && donoUid === meuUid;
-
-  // Morador só mexe nas próprias reservas (admin/síndico/superadmin podem ver tudo)
-  if (!session.superAdmin && session.role === "MORADOR" && !souDono) {
-    return <AppLayout pageTitle="Lista de Convidados">Esta reserva não é sua.</AppLayout>;
-  }
-
-  const areaLabel = reserva.areaNome || reserva.areaName || reserva.areaId || "Área";
-  const cap = Number(reserva.capacidadeMax ?? inferCapacidade(reserva.areaId || reserva.areaNome || reserva.areaName));
-  const total = itens.length;
-  const limite = Number.isFinite(cap) ? cap : 0;
-
-  const limiteAtingido = limite > 0 && total >= limite;
-
-  async function add() {
-    if (!firestore) {
-      alert("Firestore ainda não carregou. Recarregue a página.");
-      return;
-    }
-    const n = nome.trim();
-    const c = normalizeCpf(cpf);
-
-    if (!n) return;
-
-    if (limite > 0 && total >= limite) {
-      alert("Limite de convidados atingido para esta reserva.");
-      return;
-    }
+    const nome = novoNome.trim();
+    if (!nome) return;
 
     setSaving(true);
     try {
-      const ref = collection(
-        firestore,
-        "condominios",
-        String(session.activeCondominioId),
-        "reservas",
-        String(reservaId),
-        "convidados"
+      await addDoc(
+        collection(
+          firestore,
+          "condominios",
+          condId,
+          "reservas",
+          reservaId,
+          "convidados"
+        ),
+        {
+          nome,
+          cpf: novoCpf.trim() || null,
+          status: "PENDENTE",
+          createdAt: serverTimestamp(),
+          createdByUid: myUid,
+        }
       );
-
-      await addDoc(ref, {
-        nome: n,
-        cpf: c ? c : null, // opcional
-        status: "PENDENTE",
-        createdAt: serverTimestamp(),
-      });
-
-      setNome("");
-      setCpf("");
+      setNovoNome("");
+      setNovoCpf("");
     } catch (e) {
       console.error("[convidados] erro add:", e);
       alert("Não consegui adicionar. Veja o console.");
@@ -214,145 +179,134 @@ export default function ReservasConvidadosPage() {
   }
 
   async function remove(item: Convidado) {
-    if (!firestore) {
-      alert("Firestore ainda não carregou. Recarregue a página.");
+    if (!firestore || !condId || !reservaId || !item.id) {
+      alert("Erro: Informações da reserva ou do convidado estão faltando.");
       return;
     }
-    const condId = session?.activeCondominioId;
-    if (!condId || !reservaId) {
-      alert("Não foi possível identificar o condomínio ou a reserva para remover o convidado.");
+    
+    if (!window.confirm(`Tem certeza que deseja remover o convidado "${item.nome ?? item.id}"?`)) {
       return;
     }
-
-    const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
-    if (!ok) return;
 
     try {
-      const ref = doc(
-        firestore,
-        "condominios",
-        condId,
-        "reservas",
-        reservaId,
-        "convidados",
-        item.id
+      await deleteDoc(
+        doc(
+          firestore,
+          "condominios",
+          String(condId),
+          "reservas",
+          String(reservaId),
+          "convidados",
+          String(item.id)
+        )
       );
-      await deleteDoc(ref);
-    } catch (e) {
+    } catch (e: any) {
       console.error("[convidados] erro remove:", e);
-      alert("Não consegui remover. Veja o console.");
+      alert(`Não consegui remover. Erro: ${e.code} - ${e.message}`);
     }
   }
 
+  if (isSessionLoading) {
+    return (
+      <AppLayout pageTitle="Lista de Convidados">Carregando sessão...</AppLayout>
+    );
+  }
+
+  if (!isOwner) {
+    return <AppLayout pageTitle="Lista de Convidados">Acesso negado.</AppLayout>;
+  }
+
+  if (loadingReserva) {
+    return (
+      <AppLayout pageTitle="Lista de Convidados">
+        Carregando reserva...
+      </AppLayout>
+    );
+  }
+
+  if (!reserva) {
+    return (
+      <AppLayout pageTitle="Lista de Convidados">
+        Reserva não encontrada.
+      </AppLayout>
+    );
+  }
+
+  const podeGerenciar = String(reserva.status) !== "CONCLUIDA" && String(reserva.status) !== "CANCELADA";
+
   return (
-    <AppLayout
-      pageTitle="Lista de Convidados"
-      headerActions={
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => router.push("/reservas")}>
-            Voltar
-          </Button>
-        </div>
-      }
-    >
+    <AppLayout pageTitle="Lista de Convidados">
       <div className="space-y-4">
-        <div className="rounded-2xl border border-black/10 bg-white p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Área</div>
-              <div className="text-lg font-semibold">{areaLabel}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Reserva ID: <span className="font-mono">{String(reservaId)}</span>
-              </div>
-            </div>
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="font-semibold">Adicionar à lista</div>
+          <div className="text-xs text-muted-foreground">
+            A lista é usada pela portaria para o check-in no dia.
+          </div>
 
-            <div className="text-right">
-              <div className="text-sm text-muted-foreground">Convidados</div>
-              <div className="text-lg font-semibold">
-                {total}
-                {limite > 0 ? ` / ${limite}` : ""}
-              </div>
-              {limite > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  {limiteAtingido ? "Limite atingido" : "Dentro do limite"}
-                </div>
-              )}
-            </div>
+          <div className="mt-3 flex flex-col md:flex-row gap-2">
+            <Input
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              placeholder="Nome completo do convidado"
+              disabled={!podeGerenciar}
+            />
+            <Input
+              value={novoCpf}
+              onChange={(e) => setNovoCpf(e.target.value)}
+              placeholder="CPF (opcional)"
+              disabled={!podeGerenciar}
+            />
+            <Button onClick={handleAddConvidado} disabled={saving || !podeGerenciar}>
+              {saving ? "..." : "Adicionar"}
+            </Button>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black/10 bg-white p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_280px_140px]">
-            <div>
-              <div className="text-sm text-muted-foreground">Nome do convidado</div>
-              <input
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 outline-none"
-                placeholder="Ex: João da Silva"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                disabled={saving || limiteAtingido}
-              />
-            </div>
-
-            <div>
-              <div className="text-sm text-muted-foreground">CPF (opcional)</div>
-              <input
-                className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 outline-none"
-                placeholder="Somente números"
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
-                disabled={saving || limiteAtingido}
-              />
-            </div>
-
-            <div className="flex items-end">
-              <Button className="w-full" onClick={add} disabled={saving || !nome.trim() || limiteAtingido}>
-                Adicionar
-              </Button>
-            </div>
+        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="font-semibold">Convidados</div>
+            <Input
+              className="h-9 w-full md:w-[280px]"
+              placeholder="Buscar por nome..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
           </div>
 
-          {limiteAtingido && (
-            <div className="mt-3 text-sm text-amber-700">
-              Você atingiu o limite de convidados desta área. Para adicionar mais, remova alguém.
+          {loadingLista ? (
+            <div className="mt-4 text-sm text-muted-foreground">
+              Carregando lista...
             </div>
-          )}
-        </div>
-
-        {itens.length === 0 ? (
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            Nenhum convidado cadastrado ainda.
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="font-semibold">Convidados</div>
-              <div className="text-sm text-muted-foreground">{itens.length} item(ns)</div>
+          ) : filtrados.length === 0 ? (
+            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+              Nenhum convidado adicionado.
             </div>
-
-            <div className="space-y-2">
-              {itens.map((c, idx) => (
+          ) : (
+            <div className="mt-4 space-y-2">
+              {filtrados.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-black/10 px-3 py-2"
+                  className="rounded-xl border p-3 flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
-                    <div className="font-medium truncate">
-                      {String(idx + 1).padStart(2, "0")} - {c.nome || "-"}
-                    </div>
+                    <div className="font-medium truncate">{c.nome || "-"}</div>
                     <div className="text-xs text-muted-foreground">
-                      {c.cpf ? `CPF: ${c.cpf}` : "CPF: -"}
+                      {c.cpf ? `CPF: ${maskCpf(c.cpf)}` : "CPF: (não informado)"}
                     </div>
                   </div>
 
-                  <Button variant="outline" onClick={() => remove(c)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => remove(c)}
+                    disabled={!podeGerenciar}
+                  >
                     Remover
                   </Button>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </AppLayout>
   );
