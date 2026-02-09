@@ -10,11 +10,7 @@ const withPWA = require("next-pwa")({
 const nextConfig = {
   experimental: {
     // Next 15 mostra warning, mas ele entende e habilita o experimento.
-    allowedDevOrigins: [
-      "https://*.cloudworkstations.dev",
-      "http://localhost:9002",
-      "http://localhost:9200",
-    ],
+    
   },
 
   images: {
