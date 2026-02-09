@@ -1,7 +1,7 @@
-
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { TreeCondoBrand } from "@/components/branding/TreeCondoBrand";
+import { useBranding } from "@/contexts/BrandingContext";
 
 function isStrongEnough(pw: string) {
   return pw.length >= 8;
@@ -25,6 +26,8 @@ function isStrongEnough(pw: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { auth } = initializeFirebase();
+  const branding = useBranding();
+  const logoSrc = branding.menuLogoUrl || branding.logoUrl || "/logo-treecondo.jpeg";
 
   const [tab, setTab] = React.useState<"login" | "primeiro">("login");
 
@@ -183,12 +186,13 @@ export default function LoginPage() {
           </div>
 
           <Card className="rounded-3xl border-black/5 bg-white/35 backdrop-blur-xl shadow-[0_20px_70px_rgba(2,6,23,0.18)]">
-            <CardHeader className="pb-2">
+            <CardHeader className="items-center pb-2 text-center">
+              <Image src={logoSrc} alt="TreeCondo" width={64} height={64} className="mb-4 rounded-2xl" />
               <CardTitle className="text-2xl">
                 <span style={{ color: "#00D0E6" }}>Tree</span>
                 <span style={{ color: "#D3EA00" }}>Condo</span>
               </CardTitle>
-              <CardDescription className="text-slate-700">
+              <CardDescription className="text-slate-700 !mt-2">
                 Acesse sua conta ou finalize o primeiro acesso.
               </CardDescription>
             </CardHeader>
