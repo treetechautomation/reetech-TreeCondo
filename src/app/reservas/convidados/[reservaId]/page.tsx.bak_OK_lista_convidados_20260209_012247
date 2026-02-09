@@ -33,7 +33,7 @@ type ReservaDoc = {
   areaId?: string;
   areaNome?: string;
   areaName?: string;
-  capacidadeMax?: number | null;
+  capacidadeMax?: number;
 };
 
 function normalizeCpf(v: string) {
@@ -218,12 +218,6 @@ export default function ReservasConvidadosPage() {
       alert("Firestore ainda não carregou. Recarregue a página.");
       return;
     }
-    const condId = session?.activeCondominioId;
-    if (!condId || !reservaId) {
-      alert("Não foi possível identificar o condomínio ou a reserva para remover o convidado.");
-      return;
-    }
-
     const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
     if (!ok) return;
 
@@ -231,11 +225,11 @@ export default function ReservasConvidadosPage() {
       const ref = doc(
         firestore,
         "condominios",
-        condId,
+        String(session.activeCondominioId),
         "reservas",
-        reservaId,
+        String(reservaId),
         "convidados",
-        item.id
+        String(item.id)
       );
       await deleteDoc(ref);
     } catch (e) {

@@ -1,379 +1,70 @@
 {
   "indexes": [
     {
-      "collectionGroup": "encomendas",
+      "collectionGroup": "reservas",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "chegouEm",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "encomendas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "retiradaEm",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "encomendas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "unidadeIdNorm",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "chegouEm",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "encomendas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "unidadeIdNorm",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "retiradaEm",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "encomendas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "blocoIdNorm",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "unidadeIdNorm",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "chegouEm",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "encomendas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "blocoIdNorm",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "unidadeIdNorm",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "retiradaEm",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "notificacoes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "targetUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "manutencaoRotinas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "proximaExecucaoEm",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "manutencaoExecucoes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "dataProgramada",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "manutencaoExecucoes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "rotinaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "dataProgramada",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "manutencaoExecucoes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "rotinaId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "dataProgramada",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "incidentes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "criadoPorUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "updatedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "acessos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "moradorUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "reservas",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "DESCENDING" }
+      ]
+    },
+
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "reservas",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "uid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "DESCENDING" }
       ]
     },
+
     {
-      "collectionGroup": "reunioes",
-      "queryScope": "COLLECTION_GROUP",
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "tipo",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "dataInicio",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "moradorUid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "reservas",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "uid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "moradorUid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "DESCENDING" }
+      ]
+    },
+
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdByUid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "reservas",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "moradorUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "createdByUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "uid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "moradorUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "reservas",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "createdByUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "data",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "createdByUid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "DESCENDING" }
       ]
     }
   ],

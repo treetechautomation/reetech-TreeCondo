@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  getCountFromServer,
 } from "firebase/firestore";
 
 type Convidado = {
@@ -29,11 +30,12 @@ type Convidado = {
 type ReservaDoc = {
   uid?: string;
   userId?: string;
+  moradorUid?: string;
   status?: string;
   areaId?: string;
   areaNome?: string;
   areaName?: string;
-  capacidadeMax?: number | null;
+  capacidadeMax?: number;
 };
 
 function normalizeCpf(v: string) {
@@ -43,23 +45,18 @@ function normalizeCpf(v: string) {
 
 function inferCapacidade(areaIdOrName?: string) {
   const k = String(areaIdOrName || "").toLowerCase();
-
-  // Ajuste aqui se seus IDs forem diferentes
   if (k.includes("salao") || k.includes("sal") || k.includes("fest")) return 45;
   if (k.includes("churrasqueira_1") || k.includes("churrasqueira 1") || k.includes("churras_1")) return 32;
   if (k.includes("churrasqueira_2") || k.includes("churrasqueira 2") || k.includes("churras_2")) return 24;
-
-  // fallback seguro (se não souber)
   return 0;
 }
 
 export default function ReservasConvidadosPage() {
-  const { reservaId } = useParams<{ reservaId: string }>();
+  const params = useParams<{ reservaId: string }>();
+  const reservaId = params?.reservaId ?? "";
   const router = useRouter();
   const firestore = useFirestore();
   const { session, isSessionLoading } = useSessionCtx();
-
-  const myUid = String((session as any)?.user?.uid ?? session?.user?.uid ?? "");
 
   const [loading, setLoading] = React.useState(true);
   const [reserva, setReserva] = React.useState<ReservaDoc | null>(null);
@@ -68,106 +65,84 @@ export default function ReservasConvidadosPage() {
   const [cpf, setCpf] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  const canUse =
-    !!session &&
-    !!session.activeCondominioId &&
-    (session.superAdmin || session.role === "MORADOR" || session.role === "SINDICO" || session.role === "ADMIN");
+  const user = session?.user;
+  const condId = session?.activeCondominioId;
+  const isSuper = session?.superAdmin;
+  const isMorador = session?.role === "MORADOR";
+  const isAdminLike = session?.role === "SINDICO" || session?.role === "ADMIN" || isSuper;
 
   // Carrega dados da reserva (pra validar dono e pegar capacidade)
   React.useEffect(() => {
-    if (!firestore) return;
-    if (!session?.activeCondominioId || !reservaId) return;
-    let alive = true;
+    if (!firestore || !condId || !reservaId) return;
 
+    let alive = true;
     (async () => {
       try {
-        const ref = doc(firestore, "condominios", String(session.activeCondominioId), "reservas", String(reservaId));
+        const ref = doc(firestore, "condominios", condId, "reservas", reservaId);
         const snap = await getDoc(ref);
-        if (!alive) return;
-
-        if (!snap.exists()) {
-          setReserva(null);
-          setLoading(false);
-          return;
+        if (alive) {
+          setReserva(snap.exists() ? (snap.data() as any) : null);
         }
-
-        setReserva(snap.data() as any);
-        setLoading(false);
       } catch (e) {
         console.error("[convidados] erro ao carregar reserva:", e);
-        setReserva(null);
-        setLoading(false);
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
-
-    return () => {
-      alive = false;
-    };
-  }, [firestore, session?.activeCondominioId, reservaId]);
+    return () => { alive = false; };
+  }, [firestore, condId, reservaId]);
 
   // Lista convidados
   React.useEffect(() => {
-    if (!firestore) return;
-    if (!session?.activeCondominioId || !reservaId) return;
+    if (!firestore || !condId || !reservaId) return;
 
-    const ref = collection(
-      firestore,
-      "condominios",
-      String(session.activeCondominioId),
-      "reservas",
-      String(reservaId),
-      "convidados"
-    );
-
+    const ref = collection(firestore, "condominios", condId, "reservas", reservaId, "convidados");
     const q = query(ref, orderBy("createdAt", "asc"));
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const out: Convidado[] = [];
-        snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
+        const out: Convidado[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
         setItens(out);
       },
       (err) => console.error("[convidados] snapshot erro:", err)
     );
-
     return () => unsub();
-  }, [firestore, session?.activeCondominioId, reservaId]);
+  }, [firestore, condId, reservaId]);
 
+  // --- Guards de Acesso ---
   if (isSessionLoading) {
     return <AppLayout pageTitle="Lista de Convidados">Carregando sessão...</AppLayout>;
   }
 
-  if (!session) {
-    return <AppLayout pageTitle="Lista de Convidados">Sem sessão.</AppLayout>;
-  }
-
-  if (!canUse) {
-    return <AppLayout pageTitle="Lista de Convidados">Acesso negado.</AppLayout>;
+  if (!user || !condId) {
+    return <AppLayout pageTitle="Lista de Convidados">Acesso negado. Faça login e selecione um condomínio.</AppLayout>;
   }
 
   if (loading) {
-    return <AppLayout pageTitle="Lista de Convidados">Carregando...</AppLayout>;
+    return <AppLayout pageTitle="Lista de Convidados">Carregando dados da reserva...</AppLayout>;
   }
 
   if (!reserva) {
     return <AppLayout pageTitle="Lista de Convidados">Reserva não encontrada.</AppLayout>;
   }
 
-  const donoUid = (reserva.uid || reserva.userId || "").toString();
-  const meuUid = (session.user?.uid || "").toString();
-  const souDono = donoUid && meuUid && donoUid === meuUid;
+  const donoUid = (reserva.uid || reserva.userId || reserva.moradorUid || "").toString();
+  const souDono = !!user.uid && donoUid === user.uid;
 
-  // Morador só mexe nas próprias reservas (admin/síndico/superadmin podem ver tudo)
-  if (!session.superAdmin && session.role === "MORADOR" && !souDono) {
-    return <AppLayout pageTitle="Lista de Convidados">Esta reserva não é sua.</AppLayout>;
+  // Apenas Super Admin, Admin/Síndico ou o próprio morador dono podem gerenciar.
+  const canManageGuests = isSuper || isAdminLike || souDono;
+  
+  if (!canManageGuests) {
+     return <AppLayout pageTitle="Lista de Convidados">Você não tem permissão para gerenciar os convidados desta reserva.</AppLayout>;
   }
-
+  
+  // A partir daqui, o usuário tem permissão.
+  
   const areaLabel = reserva.areaNome || reserva.areaName || reserva.areaId || "Área";
   const cap = Number(reserva.capacidadeMax ?? inferCapacidade(reserva.areaId || reserva.areaNome || reserva.areaName));
   const total = itens.length;
   const limite = Number.isFinite(cap) ? cap : 0;
-
   const limiteAtingido = limite > 0 && total >= limite;
 
   async function add() {
@@ -175,34 +150,43 @@ export default function ReservasConvidadosPage() {
       alert("Firestore ainda não carregou. Recarregue a página.");
       return;
     }
+    const cId = condId;
+    if (!cId) {
+      alert("Condomínio ativo não definido. Recarregue e selecione o condomínio.");
+      return;
+    }
+
     const n = nome.trim();
     const c = normalizeCpf(cpf);
 
     if (!n) return;
 
-    if (limite > 0 && total >= limite) {
-      alert("Limite de convidados atingido para esta reserva.");
-      return;
+    if (limite > 0) {
+      try {
+        const refCount = collection(firestore, "condominios", cId, "reservas", reservaId, "convidados");
+        const snapCount = await getCountFromServer(refCount);
+        const totalServer = Number(snapCount.data().count || 0);
+
+        if (totalServer >= limite) {
+          alert("Limite de convidados atingido para esta reserva.");
+          return;
+        }
+      } catch (e) {
+        console.error("[convidados] erro ao contar convidados no servidor:", e);
+        alert("Não consegui validar o limite agora. Tente novamente.");
+        return;
+      }
     }
 
     setSaving(true);
     try {
-      const ref = collection(
-        firestore,
-        "condominios",
-        String(session.activeCondominioId),
-        "reservas",
-        String(reservaId),
-        "convidados"
-      );
-
+      const ref = collection(firestore, "condominios", condId, "reservas", reservaId, "convidados");
       await addDoc(ref, {
         nome: n,
-        cpf: c ? c : null, // opcional
+        cpf: c ? c : null,
         status: "PENDENTE",
         createdAt: serverTimestamp(),
       });
-
       setNome("");
       setCpf("");
     } catch (e) {
@@ -214,33 +198,73 @@ export default function ReservasConvidadosPage() {
   }
 
   async function remove(item: Convidado) {
-    if (!firestore) {
-      alert("Firestore ainda não carregou. Recarregue a página.");
-      return;
-    }
-    const condId = session?.activeCondominioId;
-    if (!condId || !reservaId) {
-      alert("Não foi possível identificar o condomínio ou a reserva para remover o convidado.");
-      return;
-    }
+  if (!firestore) {
+    alert("Firestore ainda não carregou. Recarregue a página.");
+    return;
+  }
 
+  if (!condId) {
+    alert("Condomínio ativo não definido. Recarregue e selecione o condomínio.");
+    return;
+  }
+
+  if (!reservaId) {
+    alert("Reserva inválida.");
+    return;
+  }
+
+  const convidadoId = String(item?.id ?? "");
+  if (!convidadoId) {
+    console.error("[convidados] item.id vazio, não dá pra remover:", item);
+    alert("Não foi possível remover: ID do convidado está vazio.");
+    return;
+  }
+
+  const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
+  if (!ok) return;
+
+  try {
+    await deleteDoc(
+      doc(
+        firestore,
+        "condominios",
+        String(condId),
+        "reservas",
+        String(reservaId),
+        "convidados",
+        convidadoId
+      )
+    );
+  } catch (e) {
+    console.error("[convidados] erro remove:", e);
+    alert("Não consegui remover. Veja o console.");
+  }
+}
+
+
+    const cId = condId;
+    if (!cId) {
+      alert("Condomínio ativo não definido. Recarregue e selecione o condomínio.");
+      return;
+    }
     const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
     if (!ok) return;
 
     try {
-      const ref = doc(
-        firestore,
-        "condominios",
-        condId,
-        "reservas",
-        reservaId,
-        "convidados",
-        item.id
-      );
+      const ref = doc(firestore, "condominios", cId, "reservas", reservaId, "convidados", item.id);
       await deleteDoc(ref);
     } catch (e) {
       console.error("[convidados] erro remove:", e);
       alert("Não consegui remover. Veja o console.");
+    }
+  }
+
+  async function handleRemoveConvidado(convidadoId: string) {
+    if (!firestore || !condId) return;
+    try {
+      await deleteDoc(doc(firestore, "condominios", condId, "reservas", String(reservaId), "convidados", convidadoId));
+    } catch (e) {
+      console.error("[convidados] erro ao remover:", e);
     }
   }
 
@@ -262,7 +286,7 @@ export default function ReservasConvidadosPage() {
               <div className="text-sm text-muted-foreground">Área</div>
               <div className="text-lg font-semibold">{areaLabel}</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Reserva ID: <span className="font-mono">{String(reservaId)}</span>
+                Reserva ID: <span className="font-mono">{reservaId}</span>
               </div>
             </div>
 
@@ -306,8 +330,13 @@ export default function ReservasConvidadosPage() {
             </div>
 
             <div className="flex items-end">
-              <Button className="w-full" onClick={add} disabled={saving || !nome.trim() || limiteAtingido}>
-                Adicionar
+              <Button
+                type="button"
+                className="w-full"
+                onClick={add}
+                disabled={saving || !nome.trim() || limiteAtingido}
+              >
+                {saving ? "Adicionando..." : "Adicionar"}
               </Button>
             </div>
           </div>
