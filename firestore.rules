@@ -11,11 +11,13 @@ service cloud.firestore {
     }
 
     function isSuper() {
-      return signedIn() && (
-        request.auth.token.super_admin == true ||
-        request.auth.token.superAdmin == true
-      );
-    }
+        return signedIn() && (
+          request.auth.token.super_admin == true ||
+          request.auth.token.superAdmin == true ||
+          String(request.auth.token.role || "") == "SUPER_ADMIN" ||
+          (request.auth.token.roles is list && request.auth.token.roles.hasAny(["SUPER_ADMIN"]))
+        );
+      }
 
     function memberPath(condominioId) {
       return /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
