@@ -4,25 +4,26 @@ const withPWA = require("next-pwa")({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: true,
-  skipWaiting: true});
+  skipWaiting: true,
+});
 
-const nextConfig = withPWA({
+const nextConfig = {
   experimental: {
-    // (warning pode continuar dependendo da versão do Next)
-    
+    // Next 15 mostra warning, mas ele entende e habilita o experimento.
+    allowedDevOrigins: [
+      "https://*.cloudworkstations.dev",
+      "http://localhost:9002",
+      "http://localhost:9200",
+    ],
   },
 
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "firebasestorage.googleapis.com"},
-       {
-        protocol: "https",
-        hostname: "picsum.photos"},
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com"}
-    ]}});
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+      { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+    ],
+  },
+};
 
-module.exports = nextConfig;
+module.exports = withPWA(nextConfig);
