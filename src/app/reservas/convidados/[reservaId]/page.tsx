@@ -47,10 +47,22 @@ export default function ConvidadosPage() {
   const { session, isSessionLoading } = useSessionCtx();
 
   const condId = session?.activeCondominioId ?? null;
-  const myUid = String(session?.user?.uid ?? "");
+  const myUid = String(session?.user?.uid ?? (session as any)?.uid ?? "");
 
   const [loadingReserva, setLoadingReserva] = React.useState(true);
   const [reserva, setReserva] = React.useState<ReservaDoc | null>(null);
+
+  // --- PERMISSÕES (fonte da verdade: session.role / session.superAdmin) ---
+  const role = (session as any)?.role || "MORADOR";
+  const isSuper = (session as any)?.superAdmin === true || role === "SUPER_ADMIN";
+  const isAdmin = role === "ADMIN_CONDOMINIO" || role === "ADMIN";
+  const isSindico = role === "SINDICO";
+  const isPorteiro = role === "PORTEIRO";
+  const isZelador = role === "ZELADOR";
+
+  const isOwner = !!myUid && String(reserva?.uid || "") === myUid;
+  const canRemove = !isPorteiro && !isZelador && (isSuper || isAdmin || isSindico || isOwner);
+
 
   const [itens, setItens] = React.useState<Convidado[]>([]);
   const [loadingLista, setLoadingLista] = React.useState(true);
@@ -67,6 +79,23 @@ export default function ConvidadosPage() {
       return;
     }
 
+    // reserva precisa estar carregada para validar dono/status
+    if (!reserva) {
+      alert("Reserva ainda está carregando. Tente novamente em alguns segundos.");
+      return;
+    }
+
+    const st = String(reserva?.status || "");
+    if (st === "CONCLUIDA" || st === "CANCELADA") {
+      alert("Não é possível remover convidados em uma reserva concluída/cancelada.");
+      return;
+    }
+
+    if (!canRemove) {
+      alert("Sem permissão para remover convidado.");
+      return;
+    }
+
     const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
     if (!ok) return;
 
@@ -76,7 +105,9 @@ export default function ConvidadosPage() {
       );
     } catch (e: any) {
       console.error("[convidados] erro remove:", e);
-      alert(`Erro ao remover: ${e.code} / ${e.message}`);
+      const code = e?.code ?? "unknown";
+      const msg = e?.message ?? String(e);
+      alert(`Erro ao remover: ${code} / ${msg}`);
     }
   }
 
@@ -250,12 +281,14 @@ export default function ConvidadosPage() {
                     </div>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    onClick={() => remove(c)}
-                  >
-                    Remover
-                  </Button>
+                  {canRemove && podeGerenciar ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => remove(c)}
+                    >
+                      Remover
+                    </Button>
+                  ) : null}
                 </div>
               ))}
             </div>
