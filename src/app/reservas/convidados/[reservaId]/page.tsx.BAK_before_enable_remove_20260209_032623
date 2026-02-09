@@ -34,7 +34,7 @@ type ReservaDoc = {
 };
 
 function maskCpf(v?: string | null) {
-  const d = (v || "").replace(/\D/g, "");
+  const d = (v || "").replace(/\\D/g, "");
   if (!d) return "";
   return "•••.•••.•••-" + d.slice(-2);
 }
@@ -52,6 +52,17 @@ export default function ConvidadosPage() {
   const [loadingReserva, setLoadingReserva] = React.useState(true);
   const [reserva, setReserva] = React.useState<ReservaDoc | null>(null);
 
+  const isOwner =
+    reserva &&
+    String(
+      (reserva as any)?.uid ||
+        (reserva as any)?.userId ||
+        (reserva as any)?.moradorUid ||
+        (reserva as any)?.createdByUid ||
+        (reserva as any)?.createdBy?.uid ||
+        ""
+    ) === myUid;
+
   const [itens, setItens] = React.useState<Convidado[]>([]);
   const [loadingLista, setLoadingLista] = React.useState(true);
   const [q, setQ] = React.useState("");
@@ -59,26 +70,6 @@ export default function ConvidadosPage() {
   const [novoNome, setNovoNome] = React.useState("");
   const [novoCpf, setNovoCpf] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-
-  // --- FUNÇÃO ÚNICA DE REMOÇÃO ---
-  async function remove(item: Convidado) {
-    if (!firestore || !condId || !reservaId || !item.id) {
-      console.error("[convidados] remove: IDs inválidos", { condId, reservaId, itemId: item.id });
-      return;
-    }
-
-    const ok = window.confirm(`Remover convidado "${item.nome || "-"}"?`);
-    if (!ok) return;
-
-    try {
-      await deleteDoc(
-        doc(firestore, "condominios", String(condId), "reservas", String(reservaId), "convidados", String(item.id))
-      );
-    } catch (e: any) {
-      console.error("[convidados] erro remove:", e);
-      alert(`Erro ao remover: ${e.code} / ${e.message}`);
-    }
-  }
 
   const filtrados = React.useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -187,7 +178,61 @@ export default function ConvidadosPage() {
     }
   }
 
-  const podeGerenciar = String(reserva?.status || "") !== "CONCLUIDA" && String(reserva?.status || "") !== "CANCELADA";
+  async function remove(item: Convidado) {
+    if (!firestore || !condId || !reservaId || !item.id) {
+      alert("Erro: Informações da reserva ou do convidado estão faltando.");
+      return;
+    }
+    
+    if (!window.confirm(`Tem certeza que deseja remover o convidado "${item.nome ?? item.id}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteDoc(
+        doc(
+          firestore,
+          "condominios",
+          String(condId),
+          "reservas",
+          String(reservaId),
+          "convidados",
+          String(item.id)
+        )
+      );
+    } catch (e: any) {
+      console.error("[convidados] erro remove:", e);
+      alert(`Não consegui remover. Erro: ${e.code} - ${e.message}`);
+    }
+  }
+
+  if (isSessionLoading) {
+    return (
+      <AppLayout pageTitle="Lista de Convidados">Carregando sessão...</AppLayout>
+    );
+  }
+
+  if (!isOwner) {
+    return <AppLayout pageTitle="Lista de Convidados">Acesso negado.</AppLayout>;
+  }
+
+  if (loadingReserva) {
+    return (
+      <AppLayout pageTitle="Lista de Convidados">
+        Carregando reserva...
+      </AppLayout>
+    );
+  }
+
+  if (!reserva) {
+    return (
+      <AppLayout pageTitle="Lista de Convidados">
+        Reserva não encontrada.
+      </AppLayout>
+    );
+  }
+
+  const podeGerenciar = String(reserva.status) !== "CONCLUIDA" && String(reserva.status) !== "CANCELADA";
 
   return (
     <AppLayout pageTitle="Lista de Convidados">

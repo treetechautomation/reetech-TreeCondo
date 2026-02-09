@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
@@ -10,13 +11,13 @@ import {
 } from "firebase/auth";
 import { Eye, EyeOff } from "lucide-react";
 import { initializeFirebase } from "@/firebase";
+import { useBranding } from "@/contexts/BrandingContext";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { TreeCondoBrand } from "@/components/branding/TreeCondoBrand";
 
 function isStrongEnough(pw: string) {
   return pw.length >= 8;
@@ -25,6 +26,8 @@ function isStrongEnough(pw: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { auth } = initializeFirebase();
+  const branding = useBranding();
+
 
   const [tab, setTab] = React.useState<"login" | "primeiro">("login");
 
@@ -168,13 +171,26 @@ export default function LoginPage() {
             </div>
 
             <div className="relative">
-              <TreeCondoBrand variant="login" />
+              <div className="flex flex-col items-center gap-4 mb-4">
+                <Image
+                  src={branding.menuLogoUrl}
+                  priority
+                  alt="TreeCondo Logo"
+                  width={192}
+                  height={192}
+                  className="rounded-2xl border-2 border-white/20"
+                />
+                <div className="text-center">
+                  <div className="text-base tracking-[0.2em] text-white/80">TREETECH AUTOMATION</div>
+                </div>
+              </div>
 
-              <p className="mt-6 text-white/90 leading-relaxed text-center">
-                Centralize moradores, síndicos e operação com uma experiência premium.
+              <p className="mt-4 text-white/90 leading-relaxed">
+                Gestão inteligente para condomínios. Centralize moradores, síndicos e operação
+                com uma experiência premium.
               </p>
 
-              <div className="mt-8 flex flex-wrap gap-2 justify-center">
+              <div className="mt-8 flex flex-wrap gap-2">
                 <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Código no primeiro acesso</span>
                 <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Senha criada pelo morador</span>
                 <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Acesso seguro</span>
