@@ -6,8 +6,6 @@ import { AuthGate } from "@/components/authgate";
 import { CondominioProvider } from '@/contexts/CondominioContext';
 import { SessionProvider } from '@/contexts/SessionContext';
 import { BrandingProvider } from '@/contexts/BrandingContext';
-import PwaRegister from "@/components/pwa/PwaRegister";
-
 const APP_NAME = "TreeCondo";
 const APP_DESCRIPTION = "Gestão inteligente de condomínios";
 
@@ -58,8 +56,6 @@ export default function RootLayout({
 <script src="/pwa-register.js" defer></script>
         </head>
       <body>
-        
-          <PwaRegister />
 <FirebaseClientProvider>
           <SessionProvider>
             <BrandingProvider>
