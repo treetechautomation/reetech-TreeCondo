@@ -16,7 +16,8 @@ import {
 /**
  * Resolve a config do Firebase de forma robusta:
  * 1) NEXT_PUBLIC_FIREBASE_* (dev/local)
- * 2) FIREBASE_WEBAPP_CONFIG (App Hosting injeta como JSON no build)
+ * 2) globalThis.FIREBASE_WEBAPP_CONFIG (Firebase App Hosting runtime)
+ * 3) NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG (opcional: env pública)
  */
 function resolveFirebaseWebConfig(): {
   apiKey: string;
@@ -26,11 +27,11 @@ function resolveFirebaseWebConfig(): {
   messagingSenderId?: string;
   appId?: string;
 } {
+  // 1) DEV / LOCAL (envs públicas clássicas)
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
-  // 1) Preferência: envs NEXT_PUBLIC_*
   if (apiKey && authDomain && projectId) {
     return {
       apiKey,
@@ -42,29 +43,51 @@ function resolveFirebaseWebConfig(): {
     };
   }
 
-  // 2) Fallback: App Hosting (BUILD/RUNTIME) injeta FIREBASE_WEBAPP_CONFIG (JSON)
-  const raw = process.env.FIREBASE_WEBAPP_CONFIG;
-  if (raw) {
+  // helper: aceita string JSON ou objeto já pronto
+  const parseCfg = (raw: any) => {
+    if (!raw) return null;
     try {
-      const cfg = JSON.parse(raw);
-      if (cfg?.apiKey && cfg?.authDomain && cfg?.projectId) {
-        return {
-          apiKey: cfg.apiKey,
-          authDomain: cfg.authDomain,
-          projectId: cfg.projectId,
-          storageBucket: cfg.storageBucket,
-          messagingSenderId: cfg.messagingSenderId,
-          appId: cfg.appId,
-        };
-      }
+      const cfg = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (cfg?.apiKey && cfg?.authDomain && cfg?.projectId) return cfg;
+      return null;
     } catch {
-      // ignora e cai no erro abaixo
+      return null;
     }
+  };
+
+  // 2) APP HOSTING: o runtime injeta `globalThis.FIREBASE_WEBAPP_CONFIG`
+  // (no browser e no server do App Hosting)
+  const runtimeCfg =
+    typeof globalThis !== "undefined"
+      ? parseCfg((globalThis as any).FIREBASE_WEBAPP_CONFIG)
+      : null;
+
+  if (runtimeCfg) {
+    return {
+      apiKey: runtimeCfg.apiKey,
+      authDomain: runtimeCfg.authDomain,
+      projectId: runtimeCfg.projectId,
+      storageBucket: runtimeCfg.storageBucket,
+      messagingSenderId: runtimeCfg.messagingSenderId,
+      appId: runtimeCfg.appId,
+    };
   }
 
-  // Se chegou aqui, a config está ausente/ruim
+  // 3) Opcional: se você expuser uma env pública com JSON
+  const publicCfg = parseCfg(process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG);
+  if (publicCfg) {
+    return {
+      apiKey: publicCfg.apiKey,
+      authDomain: publicCfg.authDomain,
+      projectId: publicCfg.projectId,
+      storageBucket: publicCfg.storageBucket,
+      messagingSenderId: publicCfg.messagingSenderId,
+      appId: publicCfg.appId,
+    };
+  }
+
   throw new Error(
-    "Configuração do Firebase inválida: defina NEXT_PUBLIC_FIREBASE_* (dev) ou garanta FIREBASE_WEBAPP_CONFIG (App Hosting)."
+    "Configuração do Firebase inválida: defina NEXT_PUBLIC_FIREBASE_* (dev/local) ou garanta globalThis.FIREBASE_WEBAPP_CONFIG (App Hosting)."
   );
 }
 
@@ -79,7 +102,6 @@ let _firestore: Firestore | null = null;
  * - Retorna { app, auth, firestore }
  */
 export function initializeFirebase(): { app: FirebaseApp; auth: Auth; firestore: Firestore } {
-  // reutiliza se já inicializou
   if (_app && _auth && _firestore) return { app: _app, auth: _auth, firestore: _firestore };
 
   const firebaseConfig = resolveFirebaseWebConfig();
@@ -161,7 +183,7 @@ export function useClaims() {
 }
 
 /**
- * useMemoFirebase: apenas um alias para useMemo (pra manter as páginas funcionando)
+ * useMemoFirebase: alias para useMemo
  */
 export function useMemoFirebase<T>(factory: () => T, deps: any[]) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,7 +228,7 @@ export function useCollection<T = any>(q: Query<DocumentData> | null) {
 }
 
 /**
- * useDoc simples (pra páginas que quiserem usar daqui)
+ * useDoc simples
  */
 export function useDoc<T = any>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
@@ -243,7 +265,7 @@ export function useDoc<T = any>(path: string | null) {
 }
 
 /**
- * useUser: compat pra quem usa useSession.ts
+ * useUser
  */
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
@@ -276,7 +298,6 @@ export function useUser() {
 export { useAuth } from "./hooks/useAuth";
 
 export function getFirebaseApp() {
-  // garante que usa a mesma resolução de config
-  if (getApps().length) return getApp();
-  return initializeApp(resolveFirebaseWebConfig());
+  // ✅ garante singleton + mesma resolução
+  return initializeFirebase().app;
 }
