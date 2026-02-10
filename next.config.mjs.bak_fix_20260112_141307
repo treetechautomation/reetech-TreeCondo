@@ -1,6 +1,0 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {
-    // Isso previne erros de CORS no ambiente de desenvolvimento do Firebase Studio.}};
-
-export default nextConfig;
