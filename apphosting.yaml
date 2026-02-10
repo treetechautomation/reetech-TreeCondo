@@ -3,3 +3,10 @@ run:
 
 runConfig:
   maxInstances: 1
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG
+    value: ${FIREBASE_WEBAPP_CONFIG}
+    availability:
+      - BUILD
+      - RUNTIME
