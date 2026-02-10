@@ -13,21 +13,43 @@ import {
   doc,
 } from "firebase/firestore";
 
-/**
- * Resolve a config do Firebase de forma robusta:
- * 1) NEXT_PUBLIC_FIREBASE_* (dev/local)
- * 2) globalThis.FIREBASE_WEBAPP_CONFIG (Firebase App Hosting runtime)
- * 3) NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG (opcional: env pública)
- */
-function resolveFirebaseWebConfig(): {
+type FirebaseWebConfig = {
   apiKey: string;
   authDomain: string;
   projectId: string;
   storageBucket?: string;
   messagingSenderId?: string;
   appId?: string;
-} {
-  // 1) DEV / LOCAL (envs públicas clássicas)
+};
+
+function parseCfg(raw: any): FirebaseWebConfig | null {
+  if (!raw) return null;
+  try {
+    const cfg = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (cfg?.apiKey && cfg?.authDomain && cfg?.projectId) return cfg as FirebaseWebConfig;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a config do Firebase de forma robusta:
+ * 1) globalThis.FIREBASE_WEBAPP_CONFIG (Firebase App Hosting runtime) ✅ preferível no App Hosting
+ * 2) NEXT_PUBLIC_FIREBASE_* (dev/local)
+ * 3) NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG (opcional: JSON público)
+ */
+function resolveFirebaseWebConfig(): FirebaseWebConfig {
+  // 1) App Hosting runtime injeta FIREBASE_WEBAPP_CONFIG global (browser/SSR)
+  const runtimeCfg =
+    typeof globalThis !== "undefined"
+      ? parseCfg((globalThis as any).FIREBASE_WEBAPP_CONFIG)
+      : null;
+
+  if (runtimeCfg) return runtimeCfg;
+
+  // 2) DEV/LOCAL (envs públicas clássicas)
+  // ⚠️ IMPORTANTÍSSIMO: acesso direto para o Next injetar no client bundle
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -43,64 +65,30 @@ function resolveFirebaseWebConfig(): {
     };
   }
 
-  // helper: aceita string JSON ou objeto já pronto
-  const parseCfg = (raw: any) => {
-    if (!raw) return null;
-    try {
-      const cfg = typeof raw === "string" ? JSON.parse(raw) : raw;
-      if (cfg?.apiKey && cfg?.authDomain && cfg?.projectId) return cfg;
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-  // 2) APP HOSTING: o runtime injeta `globalThis.FIREBASE_WEBAPP_CONFIG`
-  // (no browser e no server do App Hosting)
-  const runtimeCfg =
-    typeof globalThis !== "undefined"
-      ? parseCfg((globalThis as any).FIREBASE_WEBAPP_CONFIG)
-      : null;
-
-  if (runtimeCfg) {
-    return {
-      apiKey: runtimeCfg.apiKey,
-      authDomain: runtimeCfg.authDomain,
-      projectId: runtimeCfg.projectId,
-      storageBucket: runtimeCfg.storageBucket,
-      messagingSenderId: runtimeCfg.messagingSenderId,
-      appId: runtimeCfg.appId,
-    };
-  }
-
-  // 3) Opcional: se você expuser uma env pública com JSON
+  // 3) Fallback opcional: JSON público
   const publicCfg = parseCfg(process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG);
-  if (publicCfg) {
-    return {
-      apiKey: publicCfg.apiKey,
-      authDomain: publicCfg.authDomain,
-      projectId: publicCfg.projectId,
-      storageBucket: publicCfg.storageBucket,
-      messagingSenderId: publicCfg.messagingSenderId,
-      appId: publicCfg.appId,
-    };
-  }
+  if (publicCfg) return publicCfg;
+
+  // debug (pra você enxergar onde falhou)
+  // eslint-disable-next-line no-console
+  console.error("[firebase] Missing config:", {
+    hasRuntime: !!runtimeCfg,
+    hasApiKey: !!apiKey,
+    hasAuthDomain: !!authDomain,
+    hasProjectId: !!projectId,
+    hasPublicCfg: !!process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG,
+  });
 
   throw new Error(
-    "Configuração do Firebase inválida: defina NEXT_PUBLIC_FIREBASE_* (dev/local) ou garanta globalThis.FIREBASE_WEBAPP_CONFIG (App Hosting)."
+    "Configuração do Firebase inválida: no App Hosting garanta globalThis.FIREBASE_WEBAPP_CONFIG; no dev/local defina NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN e NEXT_PUBLIC_FIREBASE_PROJECT_ID."
   );
 }
 
-// cache (singleton)
+// ---------- singleton ----------
 let _app: FirebaseApp | null = null;
 let _auth: Auth | null = null;
 let _firestore: Firestore | null = null;
 
-/**
- * initializeFirebase()
- * - Mantém singleton do app
- * - Retorna { app, auth, firestore }
- */
 export function initializeFirebase(): { app: FirebaseApp; auth: Auth; firestore: Firestore } {
   if (_app && _auth && _firestore) return { app: _app, auth: _auth, firestore: _firestore };
 
@@ -117,9 +105,6 @@ export function initializeFirebase(): { app: FirebaseApp; auth: Auth; firestore:
   return { app, auth, firestore };
 }
 
-/**
- * Hooks básicos compatíveis com o que as páginas estão importando
- */
 export function useFirestore() {
   const [firestore, setFirestore] = useState<Firestore | null>(null);
 
@@ -127,7 +112,8 @@ export function useFirestore() {
     try {
       const { firestore } = initializeFirebase();
       setFirestore(firestore);
-    } catch {
+    } catch (e) {
+      console.error("[firebase] init error:", e);
       setFirestore(null);
     }
   }, []);
@@ -145,7 +131,8 @@ export function useClaims() {
     let auth: Auth;
     try {
       auth = initializeFirebase().auth;
-    } catch {
+    } catch (e) {
+      console.error("[claims] init error:", e);
       setClaims(null);
       setIsClaimsLoading(false);
       return;
@@ -165,7 +152,8 @@ export function useClaims() {
         const token = await u.getIdTokenResult(true);
         if (!mounted) return;
         setClaims(token.claims || {});
-      } catch {
+      } catch (e) {
+        console.error("[claims] token error:", e);
         if (!mounted) return;
         setClaims(null);
       } finally {
@@ -182,17 +170,11 @@ export function useClaims() {
   return { claims, isClaimsLoading };
 }
 
-/**
- * useMemoFirebase: alias para useMemo
- */
 export function useMemoFirebase<T>(factory: () => T, deps: any[]) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(factory, deps);
 }
 
-/**
- * useCollection: ouve uma Query do Firestore e devolve array
- */
 export function useCollection<T = any>(q: Query<DocumentData> | null) {
   const [data, setData] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(!!q);
@@ -227,9 +209,6 @@ export function useCollection<T = any>(q: Query<DocumentData> | null) {
   return { data, isLoading, error };
 }
 
-/**
- * useDoc simples
- */
 export function useDoc<T = any>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(!!path);
@@ -251,6 +230,9 @@ export function useDoc<T = any>(path: string | null) {
         const snap = await getDoc(ref);
         if (!mounted) return;
         setData((snap.exists() ? (snap.data() as any) : null) as T | null);
+      } catch (e) {
+        console.error("[useDoc] error:", e);
+        if (mounted) setData(null);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -264,9 +246,6 @@ export function useDoc<T = any>(path: string | null) {
   return { data, isLoading };
 }
 
-/**
- * useUser
- */
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
   const [isUserLoading, setIsUserLoading] = useState(true);
@@ -275,7 +254,8 @@ export function useUser() {
     let auth: Auth;
     try {
       auth = initializeFirebase().auth;
-    } catch {
+    } catch (e) {
+      console.error("[user] init error:", e);
       setUser(null);
       setIsUserLoading(false);
       return;
@@ -298,6 +278,5 @@ export function useUser() {
 export { useAuth } from "./hooks/useAuth";
 
 export function getFirebaseApp() {
-  // ✅ garante singleton + mesma resolução
   return initializeFirebase().app;
 }
