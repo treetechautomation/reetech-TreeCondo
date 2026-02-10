@@ -53,11 +53,7 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
           <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
           <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); }); }`,
-            }}
-          />
+                  <script src="/pwa-register.js" defer></script>
         </head>
       <body>
         <FirebaseClientProvider>
