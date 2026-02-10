@@ -9,7 +9,7 @@ import { BrandingProvider } from '@/contexts/BrandingContext';
 import PwaRegister from "@/components/pwa/PwaRegister";
 
 const APP_NAME = "TreeCondo";
-const APP_DESCRIPTION = "TreeCondo - Gestão inteligente de condomínios";
+const APP_DESCRIPTION = "Gestão inteligente de condomínios";
 
 export const metadata: Metadata = {
   title: {
@@ -54,8 +54,8 @@ export default function RootLayout({
         />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
           <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-          <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-                  <script src="/pwa-register.js" defer></script>
+          <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<script src="/pwa-register.js" defer></script>
         </head>
       <body>
         
