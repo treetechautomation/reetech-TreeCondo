@@ -6,26 +6,28 @@ import { AuthGate } from "@/components/authgate";
 import { CondominioProvider } from '@/contexts/CondominioContext';
 import { SessionProvider } from '@/contexts/SessionContext';
 import { BrandingProvider } from '@/contexts/BrandingContext';
+import PwaRegister from "@/components/pwa/PwaRegister";
 
 const APP_NAME = "TreeCondo";
-const APP_DESCRIPTION = "Gerencie seu condomínio com facilidade.";
+const APP_DESCRIPTION = "Gestão inteligente de condomínios";
 
 export const metadata: Metadata = {
-  applicationName: APP_NAME,
   title: {
     default: APP_NAME,
-    template: `%s - ${APP_NAME}`,
+    template: `%s | ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
   manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: APP_NAME,
-  },
-  formatDetection: {
-    telephone: false,
-  },
+  themeColor: "#C9A79E",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" }
+    ],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192" }]
+  }
 };
 
 export const viewport: Viewport = {
@@ -56,7 +58,9 @@ export default function RootLayout({
                   <script src="/pwa-register.js" defer></script>
         </head>
       <body>
-        <FirebaseClientProvider>
+        
+          <PwaRegister />
+<FirebaseClientProvider>
           <SessionProvider>
             <BrandingProvider>
 <AuthGate>
