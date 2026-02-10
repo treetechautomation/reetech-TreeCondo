@@ -50,9 +50,15 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=PT+Sans:wght@400;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        <link rel="icon" href="/icons/icon-192.png" />
-      </head>
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+          <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); }); }`,
+            }}
+          />
+        </head>
       <body>
         <FirebaseClientProvider>
           <SessionProvider>
