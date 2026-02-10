@@ -9,7 +9,7 @@ import { BrandingProvider } from '@/contexts/BrandingContext';
 import PwaRegister from "@/components/pwa/PwaRegister";
 
 const APP_NAME = "TreeCondo";
-const APP_DESCRIPTION = "Gestão inteligente de condomínios";
+const APP_DESCRIPTION = "TreeCondo - Gestão inteligente de condomínios";
 
 export const metadata: Metadata = {
   title: {
