@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FirebaseApp, initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, type Auth, type User } from "firebase/auth";
-import { firebaseConfig } from "./config";
 import {
   getFirestore,
   type Firestore,
@@ -15,23 +14,84 @@ import {
 } from "firebase/firestore";
 
 /**
+ * Resolve a config do Firebase de forma robusta:
+ * 1) NEXT_PUBLIC_FIREBASE_* (dev/local)
+ * 2) FIREBASE_WEBAPP_CONFIG (App Hosting injeta como JSON no build)
+ */
+function resolveFirebaseWebConfig(): {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  appId?: string;
+} {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+  // 1) Preferência: envs NEXT_PUBLIC_*
+  if (apiKey && authDomain && projectId) {
+    return {
+      apiKey,
+      authDomain,
+      projectId,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    };
+  }
+
+  // 2) Fallback: App Hosting (BUILD/RUNTIME) injeta FIREBASE_WEBAPP_CONFIG (JSON)
+  const raw = process.env.FIREBASE_WEBAPP_CONFIG;
+  if (raw) {
+    try {
+      const cfg = JSON.parse(raw);
+      if (cfg?.apiKey && cfg?.authDomain && cfg?.projectId) {
+        return {
+          apiKey: cfg.apiKey,
+          authDomain: cfg.authDomain,
+          projectId: cfg.projectId,
+          storageBucket: cfg.storageBucket,
+          messagingSenderId: cfg.messagingSenderId,
+          appId: cfg.appId,
+        };
+      }
+    } catch {
+      // ignora e cai no erro abaixo
+    }
+  }
+
+  // Se chegou aqui, a config está ausente/ruim
+  throw new Error(
+    "Configuração do Firebase inválida: defina NEXT_PUBLIC_FIREBASE_* (dev) ou garanta FIREBASE_WEBAPP_CONFIG (App Hosting)."
+  );
+}
+
+// cache (singleton)
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _firestore: Firestore | null = null;
+
+/**
  * initializeFirebase()
  * - Mantém singleton do app
  * - Retorna { app, auth, firestore }
  */
 export function initializeFirebase(): { app: FirebaseApp; auth: Auth; firestore: Firestore } {
-  const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  };
+  // reutiliza se já inicializou
+  if (_app && _auth && _firestore) return { app: _app, auth: _auth, firestore: _firestore };
+
+  const firebaseConfig = resolveFirebaseWebConfig();
 
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const firestore = getFirestore(app);
+
+  _app = app;
+  _auth = auth;
+  _firestore = firestore;
+
   return { app, auth, firestore };
 }
 
@@ -40,6 +100,7 @@ export function initializeFirebase(): { app: FirebaseApp; auth: Auth; firestore:
  */
 export function useFirestore() {
   const [firestore, setFirestore] = useState<Firestore | null>(null);
+
   useEffect(() => {
     try {
       const { firestore } = initializeFirebase();
@@ -48,6 +109,7 @@ export function useFirestore() {
       setFirestore(null);
     }
   }, []);
+
   return firestore as any;
 }
 
@@ -57,7 +119,15 @@ export function useClaims() {
 
   useEffect(() => {
     let mounted = true;
-    const { auth } = initializeFirebase();
+
+    let auth: Auth;
+    try {
+      auth = initializeFirebase().auth;
+    } catch {
+      setClaims(null);
+      setIsClaimsLoading(false);
+      return;
+    }
 
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!mounted) return;
@@ -144,6 +214,7 @@ export function useDoc<T = any>(path: string | null) {
 
   useEffect(() => {
     let mounted = true;
+
     if (!path) {
       setData(null);
       setIsLoading(false);
@@ -171,7 +242,6 @@ export function useDoc<T = any>(path: string | null) {
   return { data, isLoading };
 }
 
-
 /**
  * useUser: compat pra quem usa useSession.ts
  */
@@ -180,7 +250,15 @@ export function useUser() {
   const [isUserLoading, setIsUserLoading] = useState(true);
 
   useEffect(() => {
-    const { auth } = initializeFirebase();
+    let auth: Auth;
+    try {
+      auth = initializeFirebase().auth;
+    } catch {
+      setUser(null);
+      setIsUserLoading(false);
+      return;
+    }
+
     setIsUserLoading(true);
 
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -198,5 +276,7 @@ export function useUser() {
 export { useAuth } from "./hooks/useAuth";
 
 export function getFirebaseApp() {
-  return getApps().length ? getApp() : initializeApp(firebaseConfig);
+  // garante que usa a mesma resolução de config
+  if (getApps().length) return getApp();
+  return initializeApp(resolveFirebaseWebConfig());
 }
