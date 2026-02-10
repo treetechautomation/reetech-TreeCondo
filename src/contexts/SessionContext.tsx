@@ -30,12 +30,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // registra token no login (web). Requer NEXT_PUBLIC_FIREBASE_VAPID_KEY e SW /firebase-messaging-sw.js
   const firestore = useFirestore();
   const app = getFirebaseApp();
-
-    const value = useSessionBase();
+  const value = useSessionBase();
 
   React.useEffect(() => {
     const uid = (value as any)?.user?.uid ?? null;
     if (!uid || !firestore || !app) return;
+    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+    if (!vapidKey) return;
+
     registerFcmToken({ app, firestore, uid }).catch(() => undefined);
   }, [(value as any)?.user?.uid, firestore, app]);
   return (
