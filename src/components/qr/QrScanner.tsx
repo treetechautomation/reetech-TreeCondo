@@ -7,13 +7,16 @@ type Props = {
   onError?: (e: any) => void;
 };
 
-const QrScannerClient = dynamic(() => import("./QrScanner.client"), { ssr: false });
+const QrScannerClient = dynamic(
+  () => import("./QrScanner.client"),
+  { ssr: false }
+);
 
-export default function QrScanner({ onResult, onError }: Props) {
+export default function QrScanner(props: Props) {
   return (
     <QrScannerClient
-      onDecoded={(text: string) => onResult?.(text)}
-      onError={(e: any) => onError?.(e)}
+      onDecoded={(text: string) => props.onResult?.(text)}
+      onError={props.onError}
     />
   );
 }
