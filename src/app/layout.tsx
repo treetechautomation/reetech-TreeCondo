@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
   manifest: "/manifest.webmanifest",
-  themeColor: "#C9A79E",
+  themeColor: "#000000",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
