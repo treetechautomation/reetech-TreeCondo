@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
-import { initializeFirebase } from "@/firebase";
 import { cn } from "@/lib/utils";
 
 type Bloco = { id: string; nome?: string };
@@ -24,34 +22,43 @@ export default function BlocoSelect({
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    if (!condominioId) {
-      setBlocos([]);
-      return;
+    let alive = true;
+
+    async function load() {
+      try {
+        if (!condominioId) {
+          if (alive) setBlocos([]);
+          return;
+        }
+
+        setLoading(true);
+
+        const r = await fetch(`/api/condominios/${condominioId}/blocos`, {
+          cache: "no-store",
+        });
+
+        const j = await r.json();
+        const list = (j?.blocos ?? j?.data ?? []) as any[];
+
+        if (!alive) return;
+        setBlocos(
+          Array.isArray(list) ? list.map((b) => ({ id: String(b.id), nome: b.nome ? String(b.nome) : undefined })) : []
+        );
+      } catch (e) {
+        console.error("[BlocoSelect] erro ao carregar blocos:", e);
+        if (alive) setBlocos([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
     }
 
-    setLoading(true);
-    const { firestore } = initializeFirebase();
-
-    const ref = collection(firestore, "condominios", condominioId, "blocos");
-    const q = query(ref, orderBy("nome"));
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list: Bloco[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        setBlocos(list);
-        setLoading(false);
-      },
-      () => {
-        setBlocos([]);
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
+    load();
+    return () => {
+      alive = false;
+    };
   }, [condominioId]);
 
-  const disabled = !condominioId || loading || blocos.length === 0;
+  const disabled = !condominioId || loading;
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -75,7 +82,7 @@ export default function BlocoSelect({
 
       {condominioId && !loading && blocos.length === 0 && (
         <p className="text-xs text-amber-700">
-          Este condomínio não tem blocos cadastrados. Cadastre os blocos em “Condomínios”.
+          Este condomínio não tem blocos cadastrados (ou você não tem acesso). Verifique em “Condomínios”.
         </p>
       )}
     </div>

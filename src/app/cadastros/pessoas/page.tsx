@@ -113,7 +113,47 @@ export default function PessoasPage() {
   const [blocos, setBlocos] = React.useState<{ id: string; nome: string }[]>([]);
   const [loadingBlocos, setLoadingBlocos] = React.useState(false);
 
-  // Carrega blocos do condomínio ativo
+  
+// Carrega blocos do condomínio ativo
+useEffect(() => {
+  let alive = true;
+
+  async function loadBlocos() {
+    try {
+      if (!condominioAtivoId) {
+        if (alive) setBlocos([]);
+        return;
+      }
+
+      setLoadingBlocos(true);
+
+      const r = await fetch(`/api/condominios/${condominioAtivoId}/blocos`, {
+        cache: "no-store",
+      });
+
+      const j = await r.json();
+      const list = (j?.blocos ?? j?.data ?? []) as any[];
+
+      if (!alive) return;
+
+      setBlocos(
+        Array.isArray(list)
+          ? list.map((b) => ({ id: String(b.id), nome: String(b.nome ?? b.id) }))
+          : []
+      );
+    } catch (e) {
+      console.error("[Pessoas] erro ao carregar blocos:", e);
+      if (alive) setBlocos([]);
+    } finally {
+      if (alive) setLoadingBlocos(false);
+    }
+  }
+
+  loadBlocos();
+  return () => {
+    alive = false;
+  };
+}, [condominioAtivoId]);
   // --- Membros do condomínio ativo ---
   useEffect(() => {
     if (!firestore || !condominioAtivoId) {
