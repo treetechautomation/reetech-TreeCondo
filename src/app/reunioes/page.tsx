@@ -407,7 +407,7 @@ export default function ReunioesPage() {
           ) : null
         }
     >
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-[380px_1fr]">
+        <div className="grid gap-4 lg:gap-6 md:grid-cols-1 lg:grid-cols-2 lg:grid-cols-[380px_1fr]">
             <div>
                 <CalendarMonthReunioes
                     firestore={firestore}
