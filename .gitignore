@@ -63,3 +63,8 @@ serviceAccountKey.json
 # firebase local
 .firebase/
 public/sw.js
+
+# secrets
+serviceAccountKey.json
+*.pem
+*.p12
