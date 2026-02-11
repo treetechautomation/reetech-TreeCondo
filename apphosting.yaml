@@ -1,8 +1,9 @@
-run:
-  command: npm run start
-
 runConfig:
   maxInstances: 1
+
+scripts:
+  buildCommand: npm run build --no-lint
+  runCommand: npm run start
 
 env:
   - variable: NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG
