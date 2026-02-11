@@ -4,8 +4,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'TreeCondo',
-  description: 'Gerencie seu condomínio com facilidade.',
+  title: "TreeCondo - Gestão inteligente de condomínios",
+  description: "TreeCondo - Gestão inteligente de condomínios",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TreeCondo",
+  },
 };
 
 export default function RootLayout({
@@ -21,7 +27,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <script src="/pwa-register.js" defer></script>
         </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased bg-black text-white">
         <FirebaseClientProvider>
           {children}
         </FirebaseClientProvider>
