@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
-import Providers from "@/app/providers";
+import Providers from "./providers";
 export const metadata: Metadata = {
   title: "TreeCondo - Gestão inteligente de condomínios",
   description: "TreeCondo - Gestão inteligente de condomínios",
