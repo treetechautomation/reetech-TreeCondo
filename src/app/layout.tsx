@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
+import Providers from "@/app/providers";
 export const metadata: Metadata = {
   title: "TreeCondo - Gestão inteligente de condomínios",
   description: "TreeCondo - Gestão inteligente de condomínios",
@@ -27,9 +28,9 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <script src="/pwa-register.js" defer></script>
         </head>
-      <body className="font-body antialiased bg-black text-white">
+      <body className="font-body antialiased">
         <FirebaseClientProvider>
-          {children}
+          <Providers>{children}</Providers>
         </FirebaseClientProvider>
         <Toaster />
       </body>
