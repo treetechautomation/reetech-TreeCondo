@@ -506,11 +506,11 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
         <CardContent>
           {!condominioId ? <div className="p-4 text-sm text-muted-foreground">Selecione um condomínio para ver/criar acessos.</div> :
             <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-              <TabsList>
-                <TabsTrigger value="PENDENTE">Pendentes</TabsTrigger>
-                <TabsTrigger value="AUTORIZADO">Autorizados</TabsTrigger>
-                <TabsTrigger value="ENTROU">Dentro do Condomínio</TabsTrigger>
-                <TabsTrigger value="HISTORICO">Histórico</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-2 rounded-2xl bg-white/40 border border-black/5 p-2 sm:p-1">
+                <TabsTrigger value="PENDENTE" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight">Pendentes</TabsTrigger>
+                <TabsTrigger value="AUTORIZADO" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight">Autorizados</TabsTrigger>
+                <TabsTrigger value="ENTROU" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight"><span className="sm:hidden">Dentro</span><span className="hidden sm:inline">Dentro do Condomínio</span></TabsTrigger>
+                <TabsTrigger value="HISTORICO" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight">Histórico</TabsTrigger>
               </TabsList>
               <TabsContent value="PENDENTE" className="mt-4">{renderTable(waiting)}</TabsContent>
               <TabsContent value="AUTORIZADO" className="mt-4">{renderTable(authorized)}</TabsContent>
