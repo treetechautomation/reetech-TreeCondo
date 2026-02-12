@@ -28,7 +28,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <script src="/pwa-register.js" defer></script>
         </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased tc-app-bg tc-bg">
         <FirebaseClientProvider>
           <Providers>{children}</Providers>
         </FirebaseClientProvider>
