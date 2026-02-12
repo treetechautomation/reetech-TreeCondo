@@ -5,7 +5,18 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 import Providers from "./providers";
 export const metadata: Metadata = {
-  title: "TreeCondo - Gestão inteligente de condomínios",
+  
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
+title: "TreeCondo - Gestão inteligente de condomínios",
   description: "TreeCondo - Gestão inteligente de condomínios",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -27,7 +38,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <script src="/pwa-register.js" defer></script>
-        </head>
+        
+          <link rel="icon" href="/favicon.ico" />
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+          <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+          <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+          <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+</head>
       <body className="font-body antialiased tc-app-bg tc-bg">
         <FirebaseClientProvider>
           <Providers>{children}</Providers>
