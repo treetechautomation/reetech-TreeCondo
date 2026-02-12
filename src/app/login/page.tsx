@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import {
+  onAuthStateChanged, useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   signInWithCustomToken,
@@ -26,6 +27,14 @@ function isStrongEnough(pw: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { auth } = initializeFirebase();
+
+  React.useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (u) router.replace("/");
+    });
+    return () => unsub();
+  }, [auth, router]);
+
   const branding = useBranding();
   const logoSrc = branding.menuLogoUrl || branding.logoUrl || "/logo-treecondo.jpeg";
 

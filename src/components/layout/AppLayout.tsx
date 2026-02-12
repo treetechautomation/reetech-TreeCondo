@@ -88,6 +88,22 @@ export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps
   const pathname = usePathname();
   const { session, isSessionLoading } = useSessionCtx();
 
+/** AUTO_REDIRECT_LOGIN_GUARD **/
+React.useEffect(() => {
+  // se está carregando, não faz nada
+  if (isSessionLoading) return;
+
+  // se está no /login, não redireciona
+  if (pathname?.startsWith("/login")) return;
+
+  // sem sessão => manda pro login
+  if (!session) {
+    router.replace("/login");
+  }
+}, [isSessionLoading, session, pathname, router]);
+/** /AUTO_REDIRECT_LOGIN_GUARD **/
+
+
   const isSuper =
     Boolean((session as any)?.superAdmin) ||
     Boolean((session as any)?.isSuperAdmin) ||
