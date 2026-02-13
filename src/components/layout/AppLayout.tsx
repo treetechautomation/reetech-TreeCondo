@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 type NavDef = { href: string; label: string; key: MenuKey };
 
 const NAV_ITEMS: NavDef[] = [
-  { href: "/", label: "Dashboard", key: "dashboard" },
+  { href: "/painel", label: "Dashboard", key: "dashboard" },
   { href: "/condominios", label: "Condomínios", key: "condominios" },
   { href: "/cadastros", label: "Cadastros", key: "cadastros" },
   { href: "/acesso", label: "Acesso", key: "acesso" },
@@ -218,7 +218,7 @@ React.useEffect(() => {
       <div className="flex min-h-screen">
         {/* DESKTOP sidebar */}
         {!hideSidebar && (
-          <aside className="hidden md:block w-[350px] text-white relative overflow-visible">
+          <aside className="hidden lg:block w-[350px] text-white relative overflow-visible">
             <SidebarPanel />
           </aside>
         )}
@@ -226,11 +226,11 @@ React.useEffect(() => {
         <main className="flex-1 min-w-0">
           {!hideSidebar && (
             <header className="sticky top-0 z-[999] bg-[#f7f2eb]/80 backdrop-blur border-b border-black/5">
-              <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-3">
+              <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4 gap-3">
                 {/* Esquerda: menu mobile + voltar */}
                 <div className="flex items-center gap-2 min-w-0">
                   {/* Drawer mobile */}
-                  <div className="md:hidden">
+                  <div className="lg:hidden">
                     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                       <SheetTrigger asChild>
                         <Button variant="ghost" size="icon" className="rounded-xl">
@@ -288,18 +288,18 @@ React.useEffect(() => {
                   </div>
 
                   {/* Título */}
-                  <div className="text-lg md:text-xl font-semibold text-slate-900 truncate">
+                  <div className="text-lg lg:text-xl font-semibold text-slate-900 truncate">
                     {pageTitle ?? ""}
                   </div>
                 </div>
 
                 {/* Direita */}
-                <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+                <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
                   {isSuper && <CondominioSwitcher />}
                   {headerActions ?? null}
 
                   {/* Logout desktop (no mobile já tem no drawer) */}
-                  <div className="hidden md:block">
+                  <div className="hidden lg:block">
                     <Button
                       onClick={handleLogout}
                       variant="ghost"
@@ -315,7 +315,7 @@ React.useEffect(() => {
             </header>
           )}
 
-          <div className="px-3 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
+          <div className="px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
               <div className="mx-auto w-full max-w-screen-xl min-w-0">
                 {children}
               </div>

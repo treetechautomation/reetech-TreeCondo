@@ -484,7 +484,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
     </div>
   );
   return (
-    <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid}><Plus className="mr-2 h-4 w-4" />Novo Acesso</Button></DialogTrigger><DialogContent className="sm:max-w-[720px]"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
+    <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid}><Plus className="mr-2 h-4 w-4" />Novo Acesso</Button></DialogTrigger><DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto max-h-[85dvh] overflow-y-auto"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
       <div className="grid gap-1"><Label>Tipo</Label><select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value as TipoAcesso)}><option value="VISITANTE">Visitante</option><option value="PRESTADOR">Prestador</option></select></div>
       
       {blocoId && unidadeId ? (
@@ -505,24 +505,83 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
         <CardHeader><CardTitle>Acessos</CardTitle><CardDescription>Pré-autorizações para visitantes e prestadores de serviço.</CardDescription></CardHeader>
         <CardContent>
           {!condominioId ? <div className="p-4 text-sm text-muted-foreground">Selecione um condomínio para ver/criar acessos.</div> :
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-2 rounded-2xl bg-white/40 border border-black/5 p-2 sm:p-1">
-                <TabsTrigger value="PENDENTE" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight">Pendentes</TabsTrigger>
-                <TabsTrigger value="AUTORIZADO" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight">Autorizados</TabsTrigger>
-                <TabsTrigger value="ENTROU" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight"><span className="sm:hidden">Dentro</span><span className="hidden sm:inline">Dentro do Condomínio</span></TabsTrigger>
-                <TabsTrigger value="HISTORICO" className="text-center justify-center w-full h-10 rounded-xl px-3 text-sm whitespace-normal leading-tight">Histórico</TabsTrigger>
-              </TabsList>
-              <TabsContent value="PENDENTE" className="mt-4">{renderTable(waiting)}</TabsContent>
-              <TabsContent value="AUTORIZADO" className="mt-4">{renderTable(authorized)}</TabsContent>
-              <TabsContent value="ENTROU" className="mt-4">{renderTable(inside)}</TabsContent>
-              <TabsContent value="HISTORICO" className="mt-4">{renderTable(history)}</TabsContent>
-            </Tabs>
+            
+<div className="space-y-4">
+  {/* MOBILE: lista (um embaixo do outro) */}
+  <div className="md:hidden space-y-5">
+    {[
+      { key: "PENDENTE", title: "Pendentes", items: waiting },
+      { key: "AUTORIZADO", title: "Autorizados", items: authorized },
+      { key: "ENTROU", title: "Dentro do Condomínio", items: inside },
+      { key: "HISTORICO", title: "Histórico", items: history },
+    ].map((sec) => (
+      <div key={sec.key} className="rounded-2xl border border-black/5 bg-white/30 backdrop-blur-xl shadow-sm">
+        <div className="px-4 py-3 border-b border-black/5">
+          <div className="text-sm font-semibold text-slate-900">{sec.title}</div>
+          <div className="text-xs text-muted-foreground">{sec.items.length} item(ns)</div>
+        </div>
+
+        <div className="p-3 space-y-2">
+          {sec.items.length === 0 ? (
+            <div className="rounded-xl border border-black/5 bg-white/40 p-4 text-sm text-muted-foreground">
+              Nada aqui ainda.
+            </div>
+          ) : (
+            sec.items.map((it) => {
+              const destino = (it.blocoId || it.destinoBlocoTexto || "-") + " / " + (it.unidadeId || it.destinoUnidadeTexto || "-");
+              return (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => setDetailedItem(it)} className="w-full text-left rounded-xl border border-black/5 bg-white/45 p-3 active:scale-[0.99] transition cursor-pointer hover:bg-black/5 active:scale-[0.99] transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900 truncate">{it.nome || "-"}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 truncate">Destino: {destino}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Janela fim: {formatDateTimeBR(it.janelaFim)}
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      <span className="inline-flex items-center rounded-full border border-black/10 bg-white/50 px-2 py-1 text-[11px] font-medium text-slate-700">
+                        {it.status}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  {/* DESKTOP/TABLET (md+): tabs */}
+  <div className="hidden md:block">
+    <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl bg-white/40 border border-black/5 p-2 h-auto md:flex md:flex-wrap md:justify-start md:gap-2 md:w-full lg:flex-nowrap">
+        <TabsTrigger value="PENDENTE" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight cursor-pointer transition-colors select-none data-[state=active]:shadow-sm border border-transparent text-amber-900 hover:bg-amber-50/70 hover:border-amber-200 data-[state=active]:bg-amber-100 data-[state=active]:border-amber-300">Pendentes</TabsTrigger>
+        <TabsTrigger value="AUTORIZADO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight cursor-pointer transition-colors select-none data-[state=active]:shadow-sm border border-transparent text-emerald-900 hover:bg-emerald-50/70 hover:border-emerald-200 data-[state=active]:bg-emerald-100 data-[state=active]:border-emerald-300">Autorizados</TabsTrigger>
+        <TabsTrigger value="ENTROU" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight cursor-pointer transition-colors select-none data-[state=active]:shadow-sm border border-transparent text-cyan-900 hover:bg-cyan-50/70 hover:border-cyan-200 data-[state=active]:bg-cyan-100 data-[state=active]:border-cyan-300"><span className="lg:hidden">Dentro</span><span className="hidden lg:inline">Dentro do Condomínio</span></TabsTrigger>
+        <TabsTrigger value="HISTORICO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight cursor-pointer transition-colors select-none data-[state=active]:shadow-sm border border-transparent text-slate-900 hover:bg-slate-50/70 hover:border-slate-200 data-[state=active]:bg-slate-100 data-[state=active]:border-slate-300">Histórico</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="PENDENTE" className="mt-4">{renderTable(waiting)}</TabsContent>
+      <TabsContent value="AUTORIZADO" className="mt-4">{renderTable(authorized)}</TabsContent>
+      <TabsContent value="ENTROU" className="mt-4">{renderTable(inside)}</TabsContent>
+      <TabsContent value="HISTORICO" className="mt-4">{renderTable(history)}</TabsContent>
+    </Tabs>
+  </div>
+</div>
+
           }
         </CardContent>
       </Card>
       
       <Dialog open={!!detailedItem} onOpenChange={(open) => !open && setDetailedItem(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>Detalhes do Acesso</DialogTitle>
             </DialogHeader>
@@ -535,6 +594,10 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
                         <span>Destino:</span>
                         <span>{detailedItem.blocoId || detailedItem.destinoBlocoTexto} / {detailedItem.unidadeId || detailedItem.destinoUnidadeTexto}</span>
                     </div>
+                      <div className="flex justify-between">
+                          <span>Janela fim:</span>
+                          <span>{formatDateTimeBR(detailedItem.janelaFim)}</span>
+                      </div>
                     {detailedItem.telefone && <div className="flex justify-between"><span>Telefone:</span> <span>{detailedItem.telefone}</span></div>}
                     {detailedItem.documento && <div className="flex justify-between"><span>Documento:</span> <span>{detailedItem.documento}</span></div>}
                     {detailedItem.placa && <div className="flex justify-between"><span>Placa:</span> <span>{detailedItem.placa}</span></div>}
@@ -549,7 +612,41 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
                         {detailedItem.negadoEm && <div className="flex justify-between"><span>Negado por:</span> <span>{detailedItem.negadoPorNome} ({formatDateTimeBR(detailedItem.negadoEm)})</span></div>}
                         {detailedItem.canceladoEm && <div className="flex justify-between"><span>Cancelado por:</span> <span>{detailedItem.canceladoPorNome} ({formatDateTimeBR(detailedItem.canceladoEm)})</span></div>}
                     </div>
-                </div>
+                
+                      {/* Ações rápidas */}
+                      <div className="border-t pt-3 mt-2">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">Ações</div>
+                        <div className="flex flex-wrap gap-2">
+                          {detailedItem.status === "PENDENTE" && (canOperarPortaria || canMoradorAutorizar) && (
+                            <>
+                              <Button size="sm" onClick={() => atualizarStatusAcesso(detailedItem, "AUTORIZADO")}>
+                                <Check className="h-4 w-4 mr-2" /> Autorizar
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => atualizarStatusAcesso(detailedItem, "NEGADO")}>
+                                <X className="h-4 w-4 mr-2" /> Negar
+                              </Button>
+                            </>
+                          )}
+
+                          {detailedItem.status === "AUTORIZADO" && canOperarPortaria && (
+                            <>
+                              <Button size="sm" onClick={() => atualizarStatusAcesso(detailedItem, "ENTROU")}>
+                                <LogIn className="h-4 w-4 mr-2" /> Entrada
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => atualizarStatusAcesso(detailedItem, "CANCELADO")}>
+                                <Ban className="h-4 w-4 mr-2" /> Cancelar
+                              </Button>
+                            </>
+                          )}
+
+                          {detailedItem.status === "ENTROU" && canOperarPortaria && (
+                            <Button size="sm" onClick={() => atualizarStatusAcesso(detailedItem, "SAIU")}>
+                              <LogOut className="h-4 w-4 mr-2" /> Saída
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+</div>
             )}
         </DialogContent>
       </Dialog>
