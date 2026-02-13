@@ -5,22 +5,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { initializeFirebase } from "@/firebase";
+import { signInWithCustomToken } from "firebase/auth";
 
-type ValidarRespOk = {
+type RespOk = {
   ok: true;
+  uid: string;
+  condominioId: string;
   conviteId: string;
-  condominioId: string | null;
-  nome: string;
+  customToken: string;
   email: string;
   role: string;
-  blocoId: string | null;
-  unidadeId: string | null;
-  uidGerado: string | null;
-  status: string;
-  expiresAt: string | null;
 };
 
-type ValidarRespErr = { ok: false; error: string };
+type RespErr = { ok: false; error: string };
 
 function normalizeCode(v: string) {
   return (v || "").trim().toUpperCase();
@@ -34,57 +32,69 @@ function PrimeiroAcessoInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // Se você quiser permitir preencher por URL futuramente (ex: ?code=TC-XXXX)
-  const initialCode = useMemo(() => normalizeCode((sp?.get("code") ?? "")), [sp]);
+  const initialCode = useMemo(() => normalizeCode(sp?.get("code") ?? ""), [sp]);
 
   const [code, setCode] = useState(initialCode);
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [senha2, setSenha2] = useState("");
+
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ValidarRespOk | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleValidate() {
+  async function handleFinish() {
     const v = normalizeCode(code);
     setCode(v);
     setError(null);
-    setResult(null);
 
     if (!isValidCode(v)) {
       setError("Código inválido. Use o formato TC-XXXXXXXX (8 caracteres).");
       return;
     }
+    if (!email.trim()) {
+      setError("Informe seu e-mail.");
+      return;
+    }
+    if (senha.length < 6) {
+      setError("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (senha !== senha2) {
+      setError("As senhas não conferem.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const r = await fetch("/api/convites/validar-codigo", {
+      const r = await fetch("/api/convites/finalizar-primeiro-acesso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: v }),
+        body: JSON.stringify({ code: v, email, senha }),
       });
 
-      const data = (await r.json().catch(() => null)) as (ValidarRespOk | ValidarRespErr | null);
-
+      const data = (await r.json().catch(() => null)) as (RespOk | RespErr | null);
       if (!data) {
         setError("Resposta inválida do servidor.");
         return;
       }
-
       if (!("ok" in data) || data.ok !== true) {
-        setError((data as any)?.error || "Não foi possível validar o código.");
+        setError((data as any)?.error || "Não foi possível concluir o primeiro acesso.");
         return;
       }
 
-      setResult(data);
+      // login automático
+      const { auth } = initializeFirebase();
+      await signInWithCustomToken(auth, data.customToken);
 
-      // Guarda pra UX (opcional)
+      // opcional: guardar para debug/UX
       try {
         localStorage.setItem("tc_invite_code", v);
         localStorage.setItem("tc_invite_id", data.conviteId);
       } catch {}
 
-      // Próximo passo: definir senha
-      router.push(`/definir-senha?conviteId=${encodeURIComponent(data.conviteId)}`);
+      router.replace("/painel");
     } catch (e: any) {
-      setError(e?.message || "Erro ao validar o código.");
+      setError(e?.message || "Erro ao concluir o primeiro acesso.");
     } finally {
       setLoading(false);
     }
@@ -94,9 +104,9 @@ function PrimeiroAcessoInner() {
     <AppLayout pageTitle="Primeiro acesso" headerActions={null}>
       <div className="mx-auto w-full max-w-xl space-y-6">
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold">Validar código</h1>
+          <h1 className="text-2xl font-semibold">Ativar primeiro acesso</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Digite o código que chegou no e-mail para continuar e definir sua senha.
+            Digite o código do convite, confirme seu e-mail e crie sua senha. Você já entra automaticamente.
           </p>
 
           <div className="mt-6 space-y-3">
@@ -107,39 +117,46 @@ function PrimeiroAcessoInner() {
               maxLength={11}
             />
 
+            <Input
+              placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+            />
+
+            <Input
+              placeholder="Nova senha (mín. 6 caracteres)"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              type="password"
+            />
+
+            <Input
+              placeholder="Confirmar senha"
+              value={senha2}
+              onChange={(e) => setSenha2(e.target.value)}
+              type="password"
+            />
+
             {error && (
               <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
 
-            <Button
-              className="w-full"
-              onClick={handleValidate}
-              disabled={loading || !normalizeCode(code)}
-            >
-              {loading ? "Validando..." : "Validar e continuar"}
+            <Button className="w-full" onClick={handleFinish} disabled={loading}>
+              {loading ? "Ativando..." : "Ativar acesso"}
             </Button>
-
-            {result && (
-              <div className="rounded-xl border bg-muted/30 p-4 text-sm">
-                <div className="font-medium">Convite validado ✅</div>
-                <div className="mt-2 text-muted-foreground">
-                  {result.nome} • {result.email}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
         <div className="rounded-2xl border bg-card/50 p-5 text-xs text-muted-foreground">
-          Dica: se você colar o código com espaços, eu normalizo automaticamente.
+          Dica: cole o código com espaços que eu normalizo automaticamente.
         </div>
       </div>
     </AppLayout>
   );
 }
-
 
 export default function PrimeiroAcessoPage() {
   return (
