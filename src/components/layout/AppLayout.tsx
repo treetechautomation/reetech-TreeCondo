@@ -295,7 +295,7 @@ React.useEffect(() => {
 
                 {/* Direita */}
                 <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
-                  {isSuper && <CondominioSwitcher />}
+                  {isSuper && <div className="w-full sm:w-auto"><CondominioSwitcher /></div>}
                   {headerActions ?? null}
 
                   {/* Logout desktop (no mobile já tem no drawer) */}
