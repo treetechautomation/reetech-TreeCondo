@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, updatePassword, type User } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 
-export default function DefinirSenhaPage() {
+function DefinirSenhaInner() {
   const router = useRouter();
+  const sp = useSearchParams();
+  const conviteId = (sp?.get("conviteId") ?? "").trim();
 
   const [user, setUser] = React.useState<User | null>(null);
   const [checkingAuth, setCheckingAuth] = React.useState(true);
@@ -24,7 +26,6 @@ export default function DefinirSenhaPage() {
       setUser(u ?? null);
       setCheckingAuth(false);
 
-      // Só redireciona DEPOIS que o Firebase confirmar que não tem usuário
       if (!u) router.replace("/login?tab=primeiro");
     });
 
@@ -34,6 +35,11 @@ export default function DefinirSenhaPage() {
   const handleSave = async () => {
     setErr(null);
     setMsg(null);
+
+    if (!conviteId) {
+      setErr("Convite ausente. Volte e valide o código novamente.");
+      return;
+    }
 
     if (senha.length < 6) {
       setErr("A senha precisa ter pelo menos 6 caracteres.");
@@ -55,9 +61,30 @@ export default function DefinirSenhaPage() {
         return;
       }
 
+      // 1) cria a senha
       await updatePassword(u, senha);
 
-      setMsg("✅ Senha criada com sucesso! Agora você já pode entrar com e-mail e senha.");
+      // 2) FINALIZA o primeiro acesso (cria users/{uid}.vinculos + membros + marca convite CONCLUIDO)
+      const idToken = await u.getIdToken(true);
+
+      const r = await fetch("/api/convites/accept", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ conviteId }),
+      });
+
+      const data = await r.json().catch(() => null);
+
+      if (!r.ok || !data?.ok) {
+        const msgErr = data?.error || "Não foi possível finalizar o primeiro acesso.";
+        setErr(msgErr);
+        return;
+      }
+
+      setMsg("✅ Senha criada e acesso liberado! Agora você já pode entrar com e-mail e senha.");
       setTimeout(() => router.replace("/login"), 900);
     } catch (e: any) {
       setErr(e?.message || "Não foi possível definir a senha.");
@@ -76,7 +103,6 @@ export default function DefinirSenhaPage() {
     );
   }
 
-  // Se não tem user, o redirect já acontece no effect
   if (!user) return null;
 
   return (
@@ -84,7 +110,7 @@ export default function DefinirSenhaPage() {
       <div className="w-full max-w-md rounded-2xl border bg-white/80 dark:bg-slate-900/60 backdrop-blur p-6 shadow">
         <h1 className="text-2xl font-semibold">Criar senha</h1>
         <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-          Primeiro acesso validado. Agora crie sua senha para os próximos logins.
+          Primeiro acesso validado. Agora crie sua senha para liberar seu condomínio.
         </p>
 
         <div className="mt-5 space-y-3">
@@ -122,13 +148,21 @@ export default function DefinirSenhaPage() {
           </button>
 
           <button
-            onClick={() => router.replace("/")}
+            onClick={() => router.replace("/login")}
             className="w-full rounded-xl px-4 py-2 font-medium border"
           >
-            Pular por agora
+            Voltar para login
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DefinirSenhaPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <DefinirSenhaInner />
+    </React.Suspense>
   );
 }
