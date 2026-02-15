@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, , updatePassword, onAuthStateChanged } from "firebase/auth";
+import { signInWithEmailAndPassword, updatePassword, onAuthStateChanged } from "firebase/auth";
 import { Eye, EyeOff } from "lucide-react";
 import { initializeFirebase } from "@/firebase";
 
@@ -64,89 +64,101 @@ export default function LoginPage() {
     setErrorLogin(null);
     setLoadingLogin(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), senha);
-      router.push("/painel");
-    } catch (e: any) {
-      setErrorLogin(e?.message || "Falha ao entrar.");
-    } finally {
-      setLoadingLogin(false);
-    }
-  }
+        // Finaliza primeiro acesso (cria senha no Auth + vinculo/membro/convite no Firestore)
+        const r = await fetch("/api/convites/finalizar-primeiro-acesso", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), code: codigo.trim(), senha: pw1 }),
+        });
 
-  async function handleValidarCodigo(e: React.FormEvent) {
-    e.preventDefault();
-    setCodigoErr(null);
-    setCodigoMsg(null);
-    setPwErr(null);
-    setPwMsg(null);
+        const data = await r.json();
+        if (!data.ok) throw new Error(data.error || "Falha ao finalizar primeiro acesso.");
 
-    if (!email.trim()) {
-      setCodigoErr("Informe o e-mail.");
-      return;
-    }
-    if (!codigo.trim()) {
-      setCodigoErr("Informe o código (TC-XXXXXXXX).");
-      return;
-    }
-
-    setLoadingCodigo(true);
-    try {
-      const r = await fetch("/api/convites/finalizar-primeiro-acesso", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), code: codigo.trim(), senha: pw1 }),
-      });
-
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.error || "Código inválido.");
-
-      // finaliza primeiro acesso (código + senha) e loga normal
+        // Login normal (email + senha)
         await signInWithEmailAndPassword(auth, email.trim(), pw1);
 
-        setCodigoValidado(true);
-      setCodigoMsg("✅ Código validado. Agora crie sua senha abaixo.");
-    } catch (e: any) {
-      setCodigoValidado(false);
-      setCodigoErr(e?.message || "Falha ao validar código.");
-    } finally {
-      setLoadingCodigo(false);
-    }
-  }
-
-  async function handleSetPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setPwErr(null);
-    setPwMsg(null);
-
-    if (!codigoValidado) {
-      setPwErr("Valide o código acima para liberar a criação de senha.");
-      return;
-    }
-
-    if (!isStrongEnough(pw1)) {
-      setPwErr("A senha precisa ter pelo menos 8 caracteres.");
-      return;
-    }
-    if (pw1 !== pw2) {
-      setPwErr("As senhas não conferem.");
-      return;
-    }
-
-    setLoadingSetPw(true);
-    try {
-      if (!auth.currentUser) throw new Error("Usuário não autenticado.");
-      await updatePassword(auth.currentUser, pw1);
-
-      setPwMsg("✅ Senha criada! Agora você já pode entrar normalmente.");
-      setTimeout(() => router.push("/painel"), 800);
-    } catch (e: any) {
+        setPwMsg("✅ Senha criada! Você entrou com sucesso.");
+        setTimeout(() => router.push("/painel"), 800);
+      } catch (e: any) {
       setPwErr(e?.message || "Falha ao criar senha.");
     } finally {
       setLoadingSetPw(false);
     }
   }
 
-  return (
+    async function handleValidarCodigo(e: React.FormEvent) {
+      e.preventDefault();
+      setCodigoErr(null);
+      setCodigoMsg(null);
+      setPwErr(null);
+      setPwMsg(null);
+
+      if (!email.trim()) {
+        setCodigoErr("Informe o e-mail.");
+        return;
+      }
+      if (!codigo.trim()) {
+        setCodigoErr("Informe o código (TC-XXXXXXXX).");
+        return;
+      }
+
+      // Agora o fluxo é 1 passo: a validação real acontece quando salvar a senha
+      setCodigoValidado(true);
+      setCodigoMsg("✅ Código pronto. Agora crie sua senha abaixo para finalizar o primeiro acesso.");
+    }
+
+    async function handleSetPassword(e: React.FormEvent) {
+      e.preventDefault();
+      setPwErr(null);
+      setPwMsg(null);
+
+      if (!email.trim()) {
+        setPwErr("Informe o e-mail acima.");
+        return;
+      }
+      if (!codigo.trim()) {
+        setPwErr("Informe o código (TC-XXXXXXXX) acima.");
+        return;
+      }
+
+      if (!isStrongEnough(pw1)) {
+        setPwErr("A senha precisa ter pelo menos 8 caracteres.");
+        return;
+      }
+      if (pw1 !== pw2) {
+        setPwErr("As senhas não conferem.");
+        return;
+      }
+
+      setLoadingSetPw(true);
+      try {
+        // 1) finaliza primeiro acesso (server: cria/atualiza usuário com senha + vinculo + membro + conclui convite)
+        const r = await fetch("/api/convites/finalizar-primeiro-acesso", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim(),
+            code: codigo.trim(),
+            senha: pw1,
+          }),
+        });
+
+        const data = await r.json().catch(() => null);
+        if (!data?.ok) throw new Error(data?.error || "Falha ao finalizar primeiro acesso.");
+
+        // 2) login normal
+        await signInWithEmailAndPassword(auth, email.trim(), pw1);
+
+        setPwMsg("✅ Primeiro acesso concluído! Entrando...");
+        setTimeout(() => router.push("/painel"), 500);
+      } catch (e: any) {
+        setPwErr(e?.message || "Falha ao finalizar primeiro acesso.");
+      } finally {
+        setLoadingSetPw(false);
+      }
+    }
+
+    return (
     <div className="relative min-h-screen overflow-hidden">
       {/* FUNDO PREMIUM */}
       <div className="absolute inset-0 bg-[#f7f2eb]" />
