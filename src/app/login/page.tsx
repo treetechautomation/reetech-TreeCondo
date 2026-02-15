@@ -2,13 +2,8 @@
 
 import * as React from "react";
 import Image from "next/image";
-import {
-  onAuthStateChanged, useRouter } from "next/navigation";
-import {
-  signInWithEmailAndPassword,
-  signInWithCustomToken,
-  updatePassword,
-} from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword, , updatePassword, onAuthStateChanged } from "firebase/auth";
 import { Eye, EyeOff } from "lucide-react";
 import { initializeFirebase } from "@/firebase";
 
@@ -30,7 +25,7 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) router.replace("/");
+      if (u) router.replace("/painel");
     });
     return () => unsub();
   }, [auth, router]);
@@ -70,7 +65,7 @@ export default function LoginPage() {
     setLoadingLogin(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), senha);
-      router.push("/");
+      router.push("/painel");
     } catch (e: any) {
       setErrorLogin(e?.message || "Falha ao entrar.");
     } finally {
@@ -96,19 +91,19 @@ export default function LoginPage() {
 
     setLoadingCodigo(true);
     try {
-      const r = await fetch("/api/convites/validar-codigo", {
+      const r = await fetch("/api/convites/finalizar-primeiro-acesso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), code: codigo.trim() }),
+        body: JSON.stringify({ email: email.trim(), code: codigo.trim(), senha: pw1 }),
       });
 
       const data = await r.json();
       if (!data.ok) throw new Error(data.error || "Código inválido.");
 
-      // login automático para permitir updatePassword
-      await signInWithCustomToken(auth, data.customToken);
+      // finaliza primeiro acesso (código + senha) e loga normal
+        await signInWithEmailAndPassword(auth, email.trim(), pw1);
 
-      setCodigoValidado(true);
+        setCodigoValidado(true);
       setCodigoMsg("✅ Código validado. Agora crie sua senha abaixo.");
     } catch (e: any) {
       setCodigoValidado(false);
@@ -143,7 +138,7 @@ export default function LoginPage() {
       await updatePassword(auth.currentUser, pw1);
 
       setPwMsg("✅ Senha criada! Agora você já pode entrar normalmente.");
-      setTimeout(() => router.push("/"), 800);
+      setTimeout(() => router.push("/painel"), 800);
     } catch (e: any) {
       setPwErr(e?.message || "Falha ao criar senha.");
     } finally {
