@@ -89,6 +89,10 @@ export async function POST(req: Request) {
           email,
           displayName: convite.nome ?? userData.displayName ?? "",
           updatedAt: FieldValue.serverTimestamp(),
+            activeCondominioId: condominioId,
+            activeRole: role,
+            activeBlocoId: convite.bloco ?? null,
+            activeUnidadeId: convite.apartamento ?? null,
           vinculos: [...filtrados, novo],
         },
         { merge: true }

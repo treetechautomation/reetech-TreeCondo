@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { adminDb, adminAuth } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -16,7 +16,8 @@ function normalizeCode(v: any) {
     .trim()
     .toUpperCase()
     .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[‐-‒–—−]/g, "-");
+    .replace(/[‐-‒–—−]/g, "-")
+    .replace(/^TC[‐-‒–—−]/, "TC-");
 }
 
 function sha256Hex(input: string) {
@@ -63,7 +64,7 @@ function buildMenuPermissions(role: string) {
     };
   }
 
-  if (r === "SINDICO" || r === "ADMIN" || r === "ADMIN_CONDOMINIO") {
+  if (r === "SINDICO") {
     return {
       dashboard: true,
       condominios: true,
@@ -84,29 +85,37 @@ function buildMenuPermissions(role: string) {
   return { ...base };
 }
 
+type Vinculo = {
+  condominioId: string;
+  role: "MORADOR" | "PORTEIRO" | "SINDICO" | "ADMIN";
+  blocoId?: string | null;
+  unidadeId?: string | null;
+  status: "ATIVO" | "INATIVO";
+};
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
-      code?: string;
       email?: string;
+      code?: string;
       senha?: string;
     };
 
-    const codeRaw = normalizeCode(body.code);
     const email = normalizeEmail(body.email);
+    const code = normalizeCode(body.code);
     const senha = String(body.senha ?? "");
 
-    const normalized = codeRaw.replace(/^TC[‐-‒–—−]/, "TC-");
-    if (!normalized || !/^TC-[A-Z0-9]{8}$/.test(normalized)) {
+    if (!email) return jsonError("Email é obrigatório", 400);
+    if (!code || !/^TC-[A-Z0-9]{8}$/.test(code)) {
       return jsonError("Código inválido. Use o formato: TC-XXXXXXXX", 400);
     }
-    if (!email) return jsonError("Email é obrigatório", 400);
     if (senha.length < 6) return jsonError("A senha precisa ter pelo menos 6 caracteres.", 400);
 
     const db = adminDb();
-    const aauth = adminAuth();
+    const auth = adminAuth();
 
-    const codigoHash = sha256Hex(normalized);
+    const codigoHash = sha256Hex(code);
+
     const q = await db.collection("convites").where("codigoHash", "==", codigoHash).limit(1).get();
     if (q.empty) return jsonError("Código não encontrado ou inválido.", 404);
 
@@ -116,62 +125,105 @@ export async function POST(req: Request) {
     const conviteEmail = normalizeEmail(convite.email);
     if (conviteEmail !== email) return jsonError("Este código não pertence a este e-mail.", 403);
 
-    const status = String(convite.status || "").toUpperCase();
+    const status = String(convite.status || "PENDENTE").toUpperCase();
+    if (status === "CONCLUIDO" || status === "ACEITO") {
+      // idempotente: se já concluiu, não quebra o usuário novo
+      return NextResponse.json({ ok: true, alreadyDone: true });
+    }
 
-    // Se já concluído, ainda deixamos entrar (idempotente): gera token e devolve
     const uid = String(convite.uidGerado || "").trim();
     const condominioId = String(convite.condominioId || "").trim();
+    const role = String(convite.tipo || convite.role || "").toUpperCase();
+
     if (!uid) return jsonError("Convite inválido (uid ausente).", 500);
     if (!condominioId) return jsonError("Convite inválido (condominioId ausente).", 500);
 
-    const role = String(convite.tipo || convite.role || "").toUpperCase() || "MORADOR";
-    const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
-
-    // 1) Se o convite ainda não foi concluído, aqui é o ponto crítico:
-    //    - seta senha server-side (não depende do client)
-    //    - marca convite como CONCLUIDO
-    //    - garante membro ATIVO + perms
-    if (status !== "CONCLUIDO" && status !== "ACEITO") {
-      // seta senha no Auth (server-side)
-      await aauth.updateUser(uid, { password: senha });
-
-      await db.runTransaction(async (tx) => {
-        tx.set(
-          conviteDoc.ref,
-          {
-            status: "CONCLUIDO",
-            processedAt: FieldValue.serverTimestamp(),
-            processedEmail: conviteEmail,
-          },
-          { merge: true }
-        );
-
-        tx.set(
-          membroRef,
-          {
-            status: "ATIVO",
-            role,
-            menuPermissions: buildMenuPermissions(role),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
+    // 1) garante usuário com senha (SEM customToken)
+    try {
+      await auth.updateUser(uid, {
+        email,
+        password: senha,
+        displayName: String(convite.nome || ""),
       });
+    } catch (e: any) {
+      // se não existir, cria
+      if (String(e?.code || "").includes("auth/user-not-found")) {
+        await auth.createUser({
+          uid,
+          email,
+          password: senha,
+          displayName: String(convite.nome || ""),
+        });
+      } else {
+        throw e;
+      }
     }
 
-    // 2) gera token para o front logar e redirecionar
-    const customToken = await aauth.createCustomToken(uid, {
-      condominioId,
-      conviteId: conviteDoc.id,
+    const userRef = db.collection("users").doc(uid);
+    const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
+
+    // 2) transação: vinculo + membro ativo + convite concluído
+    await db.runTransaction(async (tx) => {
+      const userSnap = await tx.get(userRef);
+      const userData = (userSnap.exists ? userSnap.data() : {}) as any;
+
+      const atuais: Vinculo[] = Array.isArray(userData.vinculos) ? userData.vinculos : [];
+      const filtrados = atuais.filter((v) => v?.condominioId !== condominioId);
+
+      const novo: Vinculo = {
+        condominioId,
+        role: (role as any) || "MORADOR",
+        blocoId: convite.bloco ?? convite.blocoId ?? null,
+        unidadeId: convite.apartamento ?? convite.unidadeId ?? null,
+        status: "ATIVO",
+      };
+
+      tx.set(
+        userRef,
+        {
+          email,
+          displayName: String(convite.nome || userData.displayName || ""),
+          activeCondominioId: condominioId,
+          updatedAt: FieldValue.serverTimestamp(),
+          vinculos: [...filtrados, novo],
+        },
+        { merge: true }
+      );
+
+      tx.set(
+        membroRef,
+        {
+          nome: String(convite.nome || ""),
+          email,
+          role: (role as any) || "MORADOR",
+          blocoId: convite.bloco ?? convite.blocoId ?? null,
+          unidadeId: convite.apartamento ?? convite.unidadeId ?? null,
+          status: "ATIVO",
+          menuPermissions: buildMenuPermissions(role),
+          updatedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      tx.set(
+        conviteDoc.ref,
+        {
+          status: "CONCLUIDO",
+          processedAt: FieldValue.serverTimestamp(),
+          acceptedByUid: uid,
+          acceptedByEmail: email,
+        },
+        { merge: true }
+      );
     });
 
+    // retorna ok pro front fazer login normal (email+senha)
     return NextResponse.json({
       ok: true,
-      uid,
+      email,
       condominioId,
-      conviteId: conviteDoc.id,
-      customToken,
-      email: conviteEmail,
+      uid,
       role,
     });
   } catch (err: any) {

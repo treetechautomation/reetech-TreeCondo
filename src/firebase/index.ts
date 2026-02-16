@@ -35,21 +35,12 @@ function parseCfg(raw: any): FirebaseWebConfig | null {
 
 /**
  * Resolve a config do Firebase de forma robusta:
- * 1) globalThis.FIREBASE_WEBAPP_CONFIG (Firebase App Hosting runtime) ✅ preferível no App Hosting
- * 2) NEXT_PUBLIC_FIREBASE_* (dev/local)
- * 3) NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG (opcional: JSON público)
+ * 1) Chaves individuais (dev/local override)
+ * 2) JSON string da env NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG (App Hosting client/server)
+ * 3) JSON string da env FIREBASE_WEBAPP_CONFIG (App Hosting server-side fallback)
  */
 function resolveFirebaseWebConfig(): FirebaseWebConfig {
-  // 1) App Hosting runtime injeta FIREBASE_WEBAPP_CONFIG global (browser/SSR)
-  const runtimeCfg =
-    typeof globalThis !== "undefined"
-      ? parseCfg((globalThis as any).FIREBASE_WEBAPP_CONFIG)
-      : null;
-
-  if (runtimeCfg) return runtimeCfg;
-
-  // 2) DEV/LOCAL (envs públicas clássicas)
-  // ⚠️ IMPORTANTÍSSIMO: acesso direto para o Next injetar no client bundle
+  // 1) Individual keys for local .env.local override
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -65,24 +56,30 @@ function resolveFirebaseWebConfig(): FirebaseWebConfig {
     };
   }
 
-  // 3) Fallback opcional: JSON público
-  const publicCfg = parseCfg(process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG);
-  if (publicCfg) return publicCfg;
+  // 2) JSON config string (primary method for App Hosting)
+  // This var is set by apphosting.yaml and is available in all environments.
+  const publicCfgJson = process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG;
+  if (publicCfgJson) {
+    const parsed = parseCfg(publicCfgJson);
+    if (parsed) return parsed;
+  }
+  
+  // 3) Fallback for server-side only var (less common, but safe to check)
+  // This will only work on the server.
+  if (typeof window === "undefined") {
+      const serverCfgJson = process.env.FIREBASE_WEBAPP_CONFIG;
+      if (serverCfgJson) {
+          const parsed = parseCfg(serverCfgJson);
+          if (parsed) return parsed;
+      }
+  }
 
-  // debug (pra você enxergar onde falhou)
-  // eslint-disable-next-line no-console
-  console.error("[firebase] Missing config:", {
-    hasRuntime: !!runtimeCfg,
-    hasApiKey: !!apiKey,
-    hasAuthDomain: !!authDomain,
-    hasProjectId: !!projectId,
-    hasPublicCfg: !!process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG,
-  });
-
+  // If we're here, no config was found.
   throw new Error(
-    "Configuração do Firebase inválida: no App Hosting garanta globalThis.FIREBASE_WEBAPP_CONFIG; no dev/local defina NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN e NEXT_PUBLIC_FIREBASE_PROJECT_ID."
+    "Configuração do Firebase não encontrada. Verifique as variáveis de ambiente."
   );
 }
+
 
 // ---------- singleton ----------
 let _app: FirebaseApp | null = null;

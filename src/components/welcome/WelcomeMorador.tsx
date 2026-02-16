@@ -22,15 +22,15 @@ export default function WelcomeMorador() {
       <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
       <div className="absolute -bottom-28 -left-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
 
-      <div className="relative flex items-center gap-4">
+      <div className="relative flex flex-col items-center text-center gap-3">
         <Image
             src={branding.logoUrl}
             alt="Logo TreeCondo"
-            width={180}
-            height={180}
+            width={140}
+            height={140}
             className="rounded-full border-4 border-white/50 shadow-lg"
         />
-        <div className="flex-1">
+        <div className="w-full">
             <div className="text-xs font-medium text-slate-700/80">
               TreeCondo • Seu painel
             </div>
@@ -41,7 +41,7 @@ export default function WelcomeMorador() {
         </div>
       </div>
        <div className="relative mt-4">
-        <p className="text-sm text-slate-700 max-w-2xl">
+        <p className="text-sm text-slate-700 max-w-2xl mx-auto">
           Aqui você encontra avisos do condomínio, reservas, documentos e tudo o que precisa
           para o dia a dia. Qualquer novidade importante vai aparecer primeiro aqui.
         </p>

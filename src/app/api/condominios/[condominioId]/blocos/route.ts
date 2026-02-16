@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ condominioId: string }> }
+  ctx: { params: { condominioId: string } }
 ) {
   try {
-    const { condominioId } = await ctx.params;
+    const { condominioId } = ctx.params;
     if (!condominioId) {
       return NextResponse.json({ ok: false, error: "condominioId ausente" }, { status: 400 });
     }
