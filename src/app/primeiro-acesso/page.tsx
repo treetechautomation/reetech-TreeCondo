@@ -1,27 +1,31 @@
 "use client";
 
-import { useMemo, useState, Suspense } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { initializeFirebase } from "@/firebase";
-import { signInWithCustomToken } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 type RespOk = {
   ok: true;
-  uid: string;
-  condominioId: string;
-  conviteId: string;
-  customToken: string;
   email: string;
+  condominioId: string;
+  uid: string;
   role: string;
+  alreadyDone?: boolean;
 };
 
 type RespErr = { ok: false; error: string };
 
 function normalizeCode(v: string) {
-  return (v || "").trim().toUpperCase();
+  return (v || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[‐-‒–—−]/g, "-")
+    .replace(/^TC[‐-‒–—−]/, "TC-");
 }
 
 function isValidCode(v: string) {
@@ -47,49 +51,32 @@ function PrimeiroAcessoInner() {
     setCode(v);
     setError(null);
 
-    if (!isValidCode(v)) {
-      setError("Código inválido. Use o formato TC-XXXXXXXX (8 caracteres).");
-      return;
-    }
-    if (!email.trim()) {
-      setError("Informe seu e-mail.");
-      return;
-    }
-    if (senha.length < 6) {
-      setError("A senha precisa ter pelo menos 6 caracteres.");
-      return;
-    }
-    if (senha !== senha2) {
-      setError("As senhas não conferem.");
-      return;
-    }
+    if (!isValidCode(v)) return setError("Código inválido. Use o formato TC-XXXXXXXX (8 caracteres).");
+    if (!email.trim()) return setError("Informe seu e-mail.");
+    if (senha.length < 6) return setError("A senha precisa ter pelo menos 6 caracteres.");
+    if (senha !== senha2) return setError("As senhas não conferem.");
 
     setLoading(true);
     try {
       const r = await fetch("/api/convites/finalizar-primeiro-acesso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: v, email, senha }),
+        body: JSON.stringify({ code: v, email: email.trim(), senha }),
       });
 
-      const data = (await r.json().catch(() => null)) as (RespOk | RespErr | null);
-      if (!data) {
-        setError("Resposta inválida do servidor.");
-        return;
-      }
-      if (!("ok" in data) || data.ok !== true) {
-        setError((data as any)?.error || "Não foi possível concluir o primeiro acesso.");
-        return;
-      }
+      const data = (await r.json().catch(() => null)) as RespOk | RespErr | null;
 
-      // login automático
+      if (!data) return setError("Resposta inválida do servidor.");
+      if (!("ok" in data) || data.ok !== true) return setError((data as any)?.error || "Não foi possível concluir o primeiro acesso.");
+
+      // login normal (sem customToken)
       const { auth } = initializeFirebase();
-      await signInWithCustomToken(auth, data.customToken);
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
 
       // opcional: guardar para debug/UX
       try {
         localStorage.setItem("tc_invite_code", v);
-        localStorage.setItem("tc_invite_id", data.conviteId);
+        localStorage.setItem("tc_invite_email", email.trim());
       } catch {}
 
       router.replace("/painel");
