@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
@@ -85,14 +86,6 @@ function buildMenuPermissions(role: string) {
   return { ...base };
 }
 
-type Vinculo = {
-  condominioId: string;
-  role: "MORADOR" | "PORTEIRO" | "SINDICO" | "ADMIN";
-  blocoId?: string | null;
-  unidadeId?: string | null;
-  status: "ATIVO" | "INATIVO";
-};
-
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -159,37 +152,41 @@ export async function POST(req: Request) {
       }
     }
 
-    const userRef = db.collection("users").doc(uid);
+    const vinculoRef = db.collection("userCondominios").doc(uid).collection("vinculos").doc(condominioId);
     const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
+    const userCondominioRootRef = db.collection("userCondominios").doc(uid);
+
+    console.warn(`[API/finalizar-acesso] Preparando transação para uid: ${uid}, condId: ${condominioId}`);
 
     // 2) transação: vinculo + membro ativo + convite concluído
     await db.runTransaction(async (tx) => {
-      const userSnap = await tx.get(userRef);
-      const userData = (userSnap.exists ? userSnap.data() : {}) as any;
-
-      const atuais: Vinculo[] = Array.isArray(userData.vinculos) ? userData.vinculos : [];
-      const filtrados = atuais.filter((v) => v?.condominioId !== condominioId);
-
-      const novo: Vinculo = {
+      // 2.1 Garante que o documento raiz do usuário exista em userCondominios
+      const userRootSnap = await tx.get(userCondominioRootRef);
+      if (!userRootSnap.exists) {
+        tx.set(userRootSnap.ref, {
+          email: email,
+          nome: String(convite.nome || ""),
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+      
+      // 2.2 Cria/atualiza o vínculo do usuário com o condomínio
+      const vinculoPayload = {
         condominioId,
+        condominioNome: String(convite.condominioNome || ""),
         role: (role as any) || "MORADOR",
         blocoId: convite.bloco ?? convite.blocoId ?? null,
         unidadeId: convite.apartamento ?? convite.unidadeId ?? null,
         status: "ATIVO",
+        source: "finalizar-primeiro-acesso",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       };
+      
+      console.warn(`[API/finalizar-acesso] Payload do vínculo a ser salvo:`, vinculoPayload);
+      tx.set(vinculoRef, vinculoPayload, { merge: true });
 
-      tx.set(
-        userRef,
-        {
-          email,
-          displayName: String(convite.nome || userData.displayName || ""),
-          activeCondominioId: condominioId,
-          updatedAt: FieldValue.serverTimestamp(),
-          vinculos: [...filtrados, novo],
-        },
-        { merge: true }
-      );
-
+      // 2.3 Atualiza o membro para ATIVO
       tx.set(
         membroRef,
         {
@@ -201,11 +198,11 @@ export async function POST(req: Request) {
           status: "ATIVO",
           menuPermissions: buildMenuPermissions(role),
           updatedAt: FieldValue.serverTimestamp(),
-          createdAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
 
+      // 2.4 Marca o convite como CONCLUIDO
       tx.set(
         conviteDoc.ref,
         {

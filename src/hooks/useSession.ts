@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -100,6 +101,10 @@ export function useSessionBase() {
         const list = snap.docs
           .map((d) => d.data() as Vinculo)
           .filter((v) => v.status === "ATIVO");
+        
+        // LOG REQUESTED BY USER
+        console.warn(`[SessionContext] Vínculos carregados para UID ${user.uid}:`, list);
+        
         setVinculos(list);
         setIsVinculosLoading(false);
       },
