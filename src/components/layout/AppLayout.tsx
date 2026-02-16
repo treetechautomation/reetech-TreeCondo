@@ -86,21 +86,24 @@ export type AppLayoutProps = {
 export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { session, isSessionLoading } = useSessionCtx();
+  const { session, isSessionLoading, isAuthenticated } = useSessionCtx();
 
 /** AUTO_REDIRECT_LOGIN_GUARD **/
 React.useEffect(() => {
-  // se está carregando, não faz nada
-  if (isSessionLoading) return;
+    if (isSessionLoading) return;
 
-  // se está no /login, não redireciona
-  if (pathname?.startsWith("/login")) return;
+    const isPublicRoute =
+      pathname?.startsWith("/login") ||
+      pathname?.startsWith("/definir-senha") ||
+      pathname?.startsWith("/primeiro-acesso");
 
-  // sem sessão => manda pro login
-  if (!session) {
-    router.replace("/login");
-  }
-}, [isSessionLoading, session, pathname, router]);
+    if (isPublicRoute) return;
+
+    // ✅ usa isAuthenticated (não depende da session estar "completa")
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isSessionLoading, isAuthenticated, pathname, router]);
 /** /AUTO_REDIRECT_LOGIN_GUARD **/
 
 

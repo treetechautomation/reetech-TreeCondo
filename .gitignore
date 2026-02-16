@@ -68,3 +68,12 @@ public/sw.js
 serviceAccountKey.json
 *.pem
 *.p12
+
+# backups locais
+*.bak_*
+
+# debug endpoints (não subir)
+src/app/api/_debug/
+
+# debug endpoints (não subir)
+src/app/api/_debug/

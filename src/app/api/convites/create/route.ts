@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 
 import { createHash, randomBytes } from "crypto";
@@ -80,7 +79,6 @@ function buildMenuPermissions(role: string) {
   return { ...base };
 }
 
-
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
@@ -88,7 +86,8 @@ function jsonError(message: string, status = 400) {
 function randomPassword(len = 10) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
   let out = "";
-  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < len; i++)
+    out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
 
@@ -111,15 +110,27 @@ async function sendEmailResend(params: {
   html: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-    const apiKeyLen = (process.env.RESEND_API_KEY || "").length;
-    console.log("[convites/create] RESEND_API_KEY presente?", Boolean(process.env.RESEND_API_KEY), "len=", apiKeyLen);
-    console.log("[convites/create] RESEND_FROM=", process.env.RESEND_FROM || "(default)");
-  
-    const fallbackFrom = "TreeCondo <no-reply@treetechautomation.com>";
-    const rawFrom = (process.env.RESEND_FROM || "").trim();
-    const isValidFrom = /^([^<>@\n]+\s<[^<>@\s\n]+@[^<>@\s\n]+\.[^<>@\s\n]+>|[^<>@\s\n]+@[^<>@\s\n]+\.[^<>@\s\n]+)$/.test(rawFrom);
-    const from = isValidFrom ? rawFrom : fallbackFrom;
-  if (!apiKey) return { skipped: true, reason: "RESEND_API_KEY não configurada" };
+  const apiKeyLen = (process.env.RESEND_API_KEY || "").length;
+  console.log(
+    "[convites/create] RESEND_API_KEY presente?",
+    Boolean(process.env.RESEND_API_KEY),
+    "len=",
+    apiKeyLen,
+  );
+  console.log(
+    "[convites/create] RESEND_FROM=",
+    process.env.RESEND_FROM || "(default)",
+  );
+
+  const fallbackFrom = "TreeCondo <no-reply@treetechautomation.com>";
+  const rawFrom = (process.env.RESEND_FROM || "").trim();
+  const isValidFrom =
+    /^([^<>@\n]+\s<[^<>@\s\n]+@[^<>@\s\n]+\.[^<>@\s\n]+>|[^<>@\s\n]+@[^<>@\s\n]+\.[^<>@\s\n]+)$/.test(
+      rawFrom,
+    );
+  const from = isValidFrom ? rawFrom : fallbackFrom;
+  if (!apiKey)
+    return { skipped: true, reason: "RESEND_API_KEY não configurada" };
 
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -137,8 +148,8 @@ async function sendEmailResend(params: {
 
   if (!r.ok) {
     const txt = await r.text().catch(() => "");
-          console.error("[convites/create] Resend erro", r.status, txt);
-      throw new Error(`Resend erro: ${r.status} ${txt}`);
+    console.error("[convites/create] Resend erro", r.status, txt);
+    throw new Error(`Resend erro: ${r.status} ${txt}`);
   }
 
   return { ok: true };
@@ -151,10 +162,11 @@ export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
+    if (!token)
+      return jsonError("Token ausente (Authorization: Bearer ...)", 401);
 
     const decoded = await aauth.verifyIdToken(token);
-    
+
     // Lê o corpo da requisição uma única vez
     const body = (await req.json().catch(() => ({}))) as any;
 
@@ -163,47 +175,61 @@ export async function POST(req: Request) {
 
     // Permissão: SUPER_ADMIN global OU gestor (SINDICO/ADMIN) do condomínio ativo
     const isSuper =
-        decoded.super_admin === true ||
-        (decoded as any).superAdmin === true ||
-        requesterEmail === "treecommunity@treetechautomation.com";
-
+      decoded.super_admin === true ||
+      (decoded as any).superAdmin === true ||
+      String((decoded as any).role || "").toUpperCase() === "SUPER_ADMIN" ||
+      (Array.isArray((decoded as any).roles) &&
+        (decoded as any).roles.includes("SUPER_ADMIN")) ||
+      requesterEmail === "treecommunity@treetechautomation.com" ||
+      requesterEmail === "treetechautomation@treetechautomation.com";
     // Se não for super, valida vínculo ATIVO no condomínio
     if (!isSuper) {
-        const condominioIdPeek = String(body?.condominioId || "").trim();
-        if (!condominioIdPeek) return jsonError("condominioId é obrigatório", 400);
+      const condominioIdPeek = String(body?.condominioId || "").trim();
+      if (!condominioIdPeek)
+        return jsonError("condominioId é obrigatório", 400);
 
-        const vincRef = db
-            .collection("userCondominios")
-            .doc(requesterUid)
-            .collection("vinculos")
-            .doc(condominioIdPeek);
+      const vincRef = db
+        .collection("userCondominios")
+        .doc(requesterUid)
+        .collection("vinculos")
+        .doc(condominioIdPeek);
 
-        const vincSnap = await vincRef.get();
-        const role = (vincSnap.exists ? (vincSnap.data()?.role as string) : "") || "";
-        const status = (vincSnap.exists ? (vincSnap.data()?.status as string) : "") || "";
+      const vincSnap = await vincRef.get();
+      const role =
+        (vincSnap.exists ? (vincSnap.data()?.role as string) : "") || "";
+      const status =
+        (vincSnap.exists ? (vincSnap.data()?.status as string) : "") || "";
 
-        const canManage = status === "ATIVO" && (role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO");
-        if (!canManage) return jsonError("Sem permissão para criar convites.", 403);
+      const canManage =
+        status === "ATIVO" &&
+        (role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO");
+
+      if (!canManage)
+        return jsonError("Sem permissão para criar convites.", 403);
     }
-    
     const condominioId = body.condominioId?.trim();
     const nome = (body.nome || "").trim();
     const email = (body.email || "").trim().toLowerCase();
     const role = (body.role || "MORADOR") as Role;
-    const blocoId = (body as any).blocoId ? String((body as any).blocoId).trim()
-        : ((body as any).bloco ? String((body as any).bloco).trim() : null);
+    const blocoId = (body as any).blocoId
+      ? String((body as any).blocoId).trim()
+      : (body as any).bloco
+        ? String((body as any).bloco).trim()
+        : null;
 
-    const unidadeId = (body as any).unidadeId ? String((body as any).unidadeId).trim()
-        : (((body as any).apartamento ?? (body as any).unidade) ? String(((body as any).apartamento ?? (body as any).unidade)).trim() : null);
-
+    const unidadeId = (body as any).unidadeId
+      ? String((body as any).unidadeId).trim()
+      : ((body as any).apartamento ?? (body as any).unidade)
+        ? String((body as any).apartamento ?? (body as any).unidade).trim()
+        : null;
     // Regras por tipo:
     // - MORADOR: bloco + unidade obrigatórios
     // - SINDICO / PORTEIRO / FUNCIONARIO: bloco opcional, unidade nula
     if (role === "MORADOR") {
-        if (!blocoId) return jsonError("blocoId é obrigatório para morador", 400);
-        if (!unidadeId) return jsonError("unidadeId é obrigatório para morador", 400);
+      if (!blocoId) return jsonError("blocoId é obrigatório para morador", 400);
+      if (!unidadeId)
+        return jsonError("unidadeId é obrigatório para morador", 400);
     }
-
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
     if (!nome) return jsonError("nome é obrigatório", 400);
@@ -231,12 +257,13 @@ export async function POST(req: Request) {
     const conviteRef = db.collection("convites").doc();
     const conviteId = conviteRef.id;
 
-
     // Código de primeiro acesso (sem link obrigatório)
     const inviteCode = generateInviteCode();
     const inviteCodeHash = hashInviteCode(inviteCode);
     const inviteCodeLast4 = inviteCode.slice(-4);
-    const expiresAt = Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    const expiresAt = Timestamp.fromDate(
+      new Date(Date.now() + 24 * 60 * 60 * 1000),
+    );
     // link para primeiro acesso (ajuste o BASE_URL em produção)
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -246,9 +273,30 @@ export async function POST(req: Request) {
     const primeiroAcessoUrl = `${baseUrl}/primeiro-acesso?conviteId=${conviteId}`;
 
     // 3) grava convites + membro PENDENTE
-    const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
+    const membroRef = db
+      .collection("condominios")
+      .doc(condominioId)
+      .collection("membros")
+      .doc(uid);
+    const userCondominioRootRef = db.collection("userCondominios").doc(uid);
 
     await db.runTransaction(async (tx) => {
+      // Garante que o documento raiz do usuário exista em userCondominios
+      const rootSnap = await tx.get(userCondominioRootRef);
+      if (!rootSnap.exists) {
+        tx.set(
+          userCondominioRootRef,
+          {
+            email,
+            nome,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            source: "convite-create",
+          },
+          { merge: true },
+        );
+      }
+
       tx.set(
         conviteRef,
         {
@@ -258,7 +306,7 @@ export async function POST(req: Request) {
           tentativas: 0,
           nome,
           email,
-          tipo: role === "FUNCIONARIO" ? "PORTEIRO" : role, // se quiser separar depois, ajusta
+          tipo: role === "FUNCIONARIO" ? "PORTEIRO" : role,
           condominioId,
           blocoId,
           unidadeId,
@@ -268,10 +316,10 @@ export async function POST(req: Request) {
           createdByUid: requesterUid,
           createdByEmail: requesterEmail,
           uidGerado: uid,
-          senhaTemporaria: senhaTemporaria, // se usuário já existia, fica null
+          senhaTemporaria: senhaTemporaria,
           status: "PENDENTE",
         },
-        { merge: true }
+        { merge: true },
       );
 
       tx.set(
@@ -286,7 +334,7 @@ export async function POST(req: Request) {
           unidadeId: role === "MORADOR" ? (unidadeId ?? null) : null,
           status: "PENDENTE",
         },
-        { merge: true }
+        { merge: true },
       );
     });
 

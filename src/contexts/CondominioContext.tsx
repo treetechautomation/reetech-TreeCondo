@@ -107,10 +107,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   const [blocos, setBlocos] = useState<Bloco[]>([]);
   const [isLoadingBlocos, setIsLoadingBlocos] = useState(false);
-  const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(() => {
-      if (typeof window === "undefined") return null;
-      return localStorage.getItem("condominioAtivoId") || null;
-    });
+  const [blocoAtivoId, setBlocoAtivoIdState] = useState<string | null>(null);
 
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [isLoadingUnidades, setIsLoadingUnidades] = useState(false);
