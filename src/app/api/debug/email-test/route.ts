@@ -10,6 +10,10 @@ function unauthorized() {
 }
 
 export async function POST(req: Request) {
+  // 🔒 Segurança: desativa em produção (reabilitamos depois quando rollout estabilizar)
+  // Em produção, permite SOMENTE com DEBUG_TOKEN válido (não remove o endpoint)
+
+
   try {
     const token = req.headers.get("x-debug-token");
     const expected = process.env.DEBUG_TOKEN;
@@ -25,8 +29,6 @@ export async function POST(req: Request) {
 
     const from =
       process.env.RESEND_FROM ||
-      process.env.RESEND_FROM_EMAIL ||
-      process.env.RESEND_EMAIL_FROM ||
       "TreeCondo <suportetreecondo@treetechautomation.com>";
 
     const result = await resend.emails.send({
