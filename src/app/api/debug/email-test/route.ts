@@ -5,42 +5,39 @@ export const dynamic = "force-dynamic";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function POST(req) {
+function unauthorized() {
+  return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+}
+
+export async function POST(req: Request) {
   try {
-    const debugToken = req.headers.get("x-debug-token");
+    const token = req.headers.get("x-debug-token");
+    const expected = process.env.DEBUG_TOKEN;
 
-    if (!debugToken || debugToken !== process.env.DEBUG_TOKEN) {
-      return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    if (!expected || !token || token !== expected) return unauthorized();
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const to = body?.to;
 
-    if (!to) {
-      return NextResponse.json(
-        { ok: false, error: "Missing 'to'" },
-        { status: 400 }
-      );
+    if (!to || typeof to !== "string") {
+      return NextResponse.json({ ok: false, error: "Missing 'to' (string)" }, { status: 400 });
     }
 
+    const from =
+      process.env.RESEND_FROM ||
+      process.env.RESEND_FROM_EMAIL ||
+      process.env.RESEND_EMAIL_FROM ||
+      "TreeCondo <suportetreecondo@treetechautomation.com>";
+
     const result = await resend.emails.send({
-      from:
-        process.env.RESEND_FROM ||
-        "TreeCondo <suportetreecondo@treetechautomation.com>",
+      from,
       to,
       subject: "TreeCondo Email Test",
-      html: "<h2>TreeCondo</h2><p>Email funcionando corretamente.</p>",
+      html: "<h2>TreeCondo</h2><p>Email funcionando corretamente ✅</p>",
     });
 
     return NextResponse.json({ ok: true, result });
-
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e.message },
-      { status: 500 }
-    );
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }
 }
