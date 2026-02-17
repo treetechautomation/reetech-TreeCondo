@@ -153,3 +153,199 @@ html, body { overflow-x: hidden; }
   border-radius: 20px;
   box-shadow: 0 18px 60px rgba(0,0,0,.10);
 }
+
+/* =========================
+   TreeCondo Premium Background v2
+   com profundidade slate (#0f172a)
+   ========================= */
+
+.tc-app-bg{
+  position: relative;
+  min-height: 100vh;
+
+  background:
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(0,208,230,0.18),
+      transparent 45%
+    ),
+
+    radial-gradient(
+      circle at 85% 80%,
+      rgba(185,207,14,0.18),
+      transparent 45%
+    ),
+
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(15,23,42,0.20),
+      transparent 70%
+    ),
+
+    linear-gradient(
+      135deg,
+      #F7F2EB 0%,
+      #EEF4F3 40%,
+      #E6F4F6 70%,
+      #F7F2EB 100%
+    );
+
+}
+
+/* camada profunda opcional */
+.tc-app-bg::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background:
+    radial-gradient(
+      circle at 50% 100%,
+      rgba(15,23,42,0.25),
+      transparent 60%
+    );
+
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* garantir que conteúdo fique acima */
+.tc-app-bg > *{
+  position: relative;
+  z-index: 1;
+}
+
+
+.tc-glass::after {
+
+  content: "";
+
+  position: absolute;
+
+  inset: 0;
+
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255,255,255,0.25),
+    transparent
+  );
+
+  opacity: 0;
+
+  transition: opacity 0.3s;
+
+}
+
+.tc-glass:hover::after {
+
+  opacity: 1;
+
+}
+
+
+/* =========================
+
+/* =========================
+   TreeCondo Background (app-wide)
+   Fundo premium com navy + brand glows
+   ========================= */
+.tc-app-bg{
+  background:
+    radial-gradient(900px 520px at 18% 20%, rgba(0, 208, 230, .22), transparent 60%),
+    radial-gradient(900px 520px at 82% 28%, rgba(185, 207, 14, .18), transparent 62%),
+    radial-gradient(900px 520px at 50% 92%, rgba(5, 109, 255, .14), transparent 62%),
+    radial-gradient(1200px 720px at 50% 55%, rgba(15, 94, 59, .18), transparent 62%),
+    linear-gradient(180deg, rgba(15, 23, 42, .12), rgba(247, 242, 235, .92));
+}
+
+.tc-bg{
+  background-color: #F7F2EB;
+  background-image: none;
+}
+
+/* TC_TOKENS_START */
+/* =========================
+   TreeCondo Design Tokens
+   Paleta harmonizada:
+   primary: #0F5E3B
+   brand-cyan: #00D0E6
+   brand-lime: #B9CF0E
+   brand-blue: #056dff
+   foreground: #0f172a
+   background: #F7F2EB
+   ========================= */
+:root{
+  --background: 36 33% 94%;          /* #F7F2EB */
+  --foreground: 222 47% 11%;         /* #0f172a */
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  /* primary = menu / CTA */
+  --primary: 151 72% 21%;            /* #0F5E3B */
+  --primary-foreground: 0 0% 98%;
+
+  /* neutros */
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  /* accent = brand cyan */
+  --accent: 187 100% 45%;            /* #00D0E6 */
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+
+  /* focus ring */
+  --ring: 187 100% 45%;              /* #00D0E6 */
+
+  --radius: 1rem;
+
+  /* brand extras */
+  --tc-cyan: 187 100% 45%;           /* #00D0E6 */
+  --tc-lime:  68  87% 43%;           /* #B9CF0E */
+  --tc-blue: 214 100% 51%;           /* #056dff */
+  --tc-navy: 222 47% 11%;            /* #0f172a */
+  --tc-green:151 72% 21%;            /* #0F5E3B */
+}
+
+.dark{
+  --background: 222 47% 7%;
+  --foreground: 0 0% 98%;
+
+  --card: 222 47% 9%;
+  --card-foreground: 0 0% 98%;
+
+  --popover: 222 47% 9%;
+  --popover-foreground: 0 0% 98%;
+
+  --primary: 151 72% 21%;
+  --primary-foreground: 0 0% 98%;
+
+  --secondary: 217 33% 14%;
+  --secondary-foreground: 0 0% 98%;
+
+  --muted: 217 33% 14%;
+  --muted-foreground: 215 20% 65%;
+
+  --accent: 187 100% 45%;
+  --accent-foreground: 222 47% 7%;
+
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 217 33% 16%;
+  --input: 217 33% 16%;
+  --ring: 187 100% 45%;
+}
+/* TC_TOKENS_END */
