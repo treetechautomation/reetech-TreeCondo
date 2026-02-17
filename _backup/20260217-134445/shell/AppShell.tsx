@@ -2,13 +2,11 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-
 import { cn } from "@/lib/utils";
 import { BottomNav } from "./BottomNav";
-import { SplashScreen } from "@/components/splash/SplashScreen";
+import { IntroOverlay } from "@/components/onboarding/IntroOverlay";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-
   const pathname = usePathname();
 
   const hideBottomNav =
@@ -17,13 +15,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen w-full">
+      <IntroOverlay />
 
-      <SplashScreen />
-
-      <div className={cn(
-        "min-h-screen",
-        !hideBottomNav && "pb-16"
-      )}>
+      <div className={cn("min-h-screen", !hideBottomNav && "pb-16")}>
         {children}
       </div>
 
@@ -32,7 +26,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <BottomNav />
         </div>
       )}
-
     </div>
   );
 }
