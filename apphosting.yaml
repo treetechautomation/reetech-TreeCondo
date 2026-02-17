@@ -17,3 +17,15 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  - variable: RESEND_FROM
+    value: "TreeCondo <suportetreecondo@treetechautomation.com>"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: RESEND_REPLY_TO
+    value: "suportetreecondo@treetechautomation.com"
+    availability:
+      - BUILD
+      - RUNTIME
