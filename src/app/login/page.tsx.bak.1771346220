@@ -249,7 +249,7 @@ export default function LoginPage() {
                     <Button
                       disabled={loadingLogin}
                       className="w-full h-11 rounded-xl text-white shadow-lg"
-                      style={{ background: "linear-gradient(135deg, #0d9488, #22c55e)" }}
+                      style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
                       type="submit"
                     >
                       {loadingLogin ? "Entrando..." : "Entrar"}
@@ -297,7 +297,7 @@ export default function LoginPage() {
                       <Button
                         disabled={loadingCodigo}
                         className="w-full h-11 rounded-xl text-white shadow-lg"
-                        style={{ background: "linear-gradient(135deg, #0d9488, #22c55e)" }}
+                        style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
                         type="submit"
                       >
                         {loadingCodigo ? "Validando..." : "Validar código"}
@@ -380,10 +380,10 @@ export default function LoginPage() {
                         <Button
                           disabled={loadingSetPw || !codigoValidado}
                           className="w-full h-11 rounded-xl text-white shadow-lg"
-                          style={{ background: "linear-gradient(135deg, #0d9488, #22c55e)" }}
+                          style={{ background: "linear-gradient(135deg, #0ea5a4, #22c55e)" }}
                           type="submit"
                         >
-                          {loadingSetPw ? "Criando..." : "Criar senha"}
+                          {loadingSetPw ? "Salvando..." : "Criar senha"}
                         </Button>
                       </form>
                     </div>

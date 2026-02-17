@@ -108,41 +108,6 @@ html, body { overflow-x: hidden; }
 
 /* ===== TreeCondo Glass Card ===== */
 /* ===== TreeCondo Premium Background (Global) ===== */
-.tc-app-bg{
-  position: relative;
-  min-height: 100vh;
-
-  /* fundo igual sensação do menu + glows da marca */
-  background:
-    radial-gradient(900px 520px at 18% 22%, rgba(0, 208, 230, .22), transparent 60%),
-    radial-gradient(900px 520px at 82% 28%, rgba(185, 207, 14, .16), transparent 62%),
-    radial-gradient(900px 520px at 50% 92%, rgba(5, 109, 255, .12), transparent 62%),
-    radial-gradient(1200px 720px at 30% 85%, rgba(15, 94, 59, .18), transparent 65%),
-
-    linear-gradient(135deg,
-      #0f172a 0%,
-      #0a1c2c 35%,
-      #091223 70%,
-      #0f172a 100%
-    );
-}
-
-.tc-app-bg::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-
-  background:
-    radial-gradient(900px 520px at 50% 10%, rgba(255,255,255,.06), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,.04), transparent 30%);
-}
-
-.tc-app-bg > *{
-  position: relative;
-  z-index: 1;
-}
 /* Container padrão premium */
 .tc-page {
   padding: 16px 12px;
@@ -185,63 +150,8 @@ html, body { overflow-x: hidden; }
    com profundidade slate (#0f172a)
    ========================= */
 
-.tc-app-bg{
-  position: relative;
-  min-height: 100vh;
-
-  background:
-    radial-gradient(
-      circle at 15% 20%,
-      rgba(0,208,230,0.18),
-      transparent 45%
-    ),
-
-    radial-gradient(
-      circle at 85% 80%,
-      rgba(185,207,14,0.18),
-      transparent 45%
-    ),
-
-    radial-gradient(
-      circle at 50% 50%,
-      rgba(15,23,42,0.20),
-      transparent 70%
-    ),
-
-    linear-gradient(
-      135deg,
-      #F7F2EB 0%,
-      #EEF4F3 40%,
-      #E6F4F6 70%,
-      #F7F2EB 100%
-    );
-
-}
-
 /* camada profunda opcional */
-.tc-app-bg::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-
-  background:
-    radial-gradient(
-      circle at 50% 100%,
-      rgba(15,23,42,0.25),
-      transparent 60%
-    );
-
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* garantir que conteúdo fique acima */
-.tc-app-bg > *{
-  position: relative;
-  z-index: 1;
-}
-
-
 .tc-glass::after {
 
   content: "";
@@ -271,20 +181,9 @@ html, body { overflow-x: hidden; }
 
 
 /* =========================
-
-/* =========================
    TreeCondo Background (app-wide)
    Fundo premium com navy + brand glows
    ========================= */
-.tc-app-bg{
-  background:
-    radial-gradient(900px 520px at 18% 20%, rgba(0, 208, 230, .22), transparent 60%),
-    radial-gradient(900px 520px at 82% 28%, rgba(185, 207, 14, .18), transparent 62%),
-    radial-gradient(900px 520px at 50% 92%, rgba(5, 109, 255, .14), transparent 62%),
-    radial-gradient(1200px 720px at 50% 55%, rgba(15, 94, 59, .18), transparent 62%),
-    linear-gradient(180deg, rgba(15, 23, 42, .12), rgba(247, 242, 235, .92));
-}
-
 .tc-bg{
   background-color: #F7F2EB;
   background-image: none;
@@ -375,3 +274,41 @@ html, body { overflow-x: hidden; }
   --ring: 187 100% 45%;
 }
 /* TC_TOKENS_END */
+
+/* =========================
+   TreeCondo Background (menu-grade)
+   Só fundo: navy + glows da marca
+   ========================= */
+.tc-app-bg{
+  position: relative;
+  min-height: 100vh;
+
+  background:
+    radial-gradient(900px 520px at 18% 22%, rgba(0, 208, 230, .22), transparent 60%),
+    radial-gradient(900px 520px at 82% 28%, rgba(185, 207, 14, .16), transparent 62%),
+    radial-gradient(900px 520px at 50% 92%, rgba(5, 109, 255, .12), transparent 62%),
+    radial-gradient(1200px 720px at 30% 85%, rgba(15, 94, 59, .18), transparent 65%),
+    linear-gradient(135deg,
+      #0f172a 0%,
+      #0a1c2c 35%,
+      #091223 70%,
+      #0f172a 100%
+    );
+}
+
+.tc-app-bg::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  background:
+    radial-gradient(900px 520px at 50% 10%, rgba(255,255,255,.06), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.04), transparent 30%);
+}
+
+.tc-app-bg > *{
+  position: relative;
+  z-index: 1;
+}
