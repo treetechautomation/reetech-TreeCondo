@@ -77,3 +77,9 @@ src/app/api/_debug/
 
 # debug endpoints (não subir)
 src/app/api/_debug/
+
+# local backups
+backups/
+src/app/globals.css.bak.*
+*.bak_*
+*.BAK_*
