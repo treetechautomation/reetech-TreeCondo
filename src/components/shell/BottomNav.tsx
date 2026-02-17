@@ -9,7 +9,7 @@ const items = [
   { href: "/", label: "Início", icon: Home },
   { href: "/reservas", label: "Reservas", icon: CalendarDays },
   { href: "/acesso", label: "Acesso", icon: KeyRound },
-  { href: "/comunicacao", label: "Comunicação", icon: Megaphone },
+  { href: "/comunicacao", label: "Anúncios", icon: Megaphone },
   { href: "/encomendas", label: "Encomendas", icon: Package },
 ];
 
