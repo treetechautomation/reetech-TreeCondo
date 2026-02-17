@@ -29,3 +29,9 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  - variable: DEBUG_TOKEN
+    secret: DEBUG_TOKEN
+    availability:
+      - BUILD
+      - RUNTIME
