@@ -1,10 +1,12 @@
-html, body { background: #000; }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+html, body { min-height: 100%; overflow-x: hidden; }
+* { -webkit-tap-highlight-color: transparent; }
 
 @layer base {
-  :root {
+:root {
     --background: 32 81% 92%;
     --foreground: 20 15% 25%;
     --card: 32 81% 96%;
@@ -80,9 +82,6 @@ html, body { background: #000; }
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
 }
 
 /* ===== TreeCondo Premium Background (global) ===== */
@@ -93,15 +92,6 @@ html, body { background: #000; }
 html, body {
   min-height: 100%;
 }
-
-body {
-  background: radial-gradient(1200px circle at 10% 10%, rgba(16,185,129,.18), transparent 45%),
-              radial-gradient(900px circle at 95% 20%, rgba(34,211,238,.12), transparent 40%),
-              radial-gradient(900px circle at 30% 90%, rgba(99,102,241,.10), transparent 45%),
-              linear-gradient(180deg, rgba(247,242,235,1) 0%, rgba(247,242,235,1) 100%);
-  background-attachment: fixed;
-}
-
 /* evita “barras pretas/overflow” em mobile */
 * { -webkit-tap-highlight-color: transparent; }
 html, body { overflow-x: hidden; }
@@ -174,19 +164,18 @@ html, body { overflow-x: hidden; }
 }
 
 .tc-glass:hover::after {
-
   opacity: 1;
-
 }
 
 
-/* =========================
-   TreeCondo Background (app-wide)
-   Fundo premium com navy + brand glows
-   ========================= */
-.tc-bg{
-  background-color: #F7F2EB;
-  background-image: none;
+body {
+  background:
+    radial-gradient(1200px circle at 10% 12%, rgba(16,185,129,.34), transparent 46%),
+    radial-gradient(1050px circle at 92% 18%, rgba(34,211,238,.28), transparent 44%),
+    radial-gradient(980px circle at 65% 92%, rgba(99,102,241,.24), transparent 46%),
+    radial-gradient(900px circle at 22% 88%, rgba(185,207,14,.26), transparent 50%),
+    linear-gradient(180deg, rgba(247,242,235,1) 0%, rgba(243,234,223,1) 100%);
+  background-attachment: fixed;
 }
 
 /* TC_TOKENS_START */
@@ -279,36 +268,23 @@ html, body { overflow-x: hidden; }
    TreeCondo Background (menu-grade)
    Só fundo: navy + glows da marca
    ========================= */
+
+/* ===== TreeCondo App Background Wrapper (uses BODY background) ===== */
+
+/* ===== TreeCondo App Background Wrapper (uses BODY background) ===== */
 .tc-app-bg{
   position: relative;
   min-height: 100vh;
-
-  background:
-    radial-gradient(900px 520px at 18% 22%, rgba(0, 208, 230, .22), transparent 60%),
-    radial-gradient(900px 520px at 82% 28%, rgba(185, 207, 14, .16), transparent 62%),
-    radial-gradient(900px 520px at 50% 92%, rgba(5, 109, 255, .12), transparent 62%),
-    radial-gradient(1200px 720px at 30% 85%, rgba(15, 94, 59, .18), transparent 65%),
-    linear-gradient(135deg,
-      #0f172a 0%,
-      #0a1c2c 35%,
-      #091223 70%,
-      #0f172a 100%
-    );
 }
-
-.tc-app-bg::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-
-  background:
-    radial-gradient(900px 520px at 50% 10%, rgba(255,255,255,.06), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,.04), transparent 30%);
-}
-
 .tc-app-bg > *{
   position: relative;
   z-index: 1;
+}
+
+/* ===== TreeCondo Menu Glow (intensificado) ===== */
+.tc-menu-glow{
+  background:
+    radial-gradient(520px 380px at 15% 18%, rgba(0,208,230,.28), transparent 62%),
+    radial-gradient(520px 380px at 82% 26%, rgba(185,207,14,.22), transparent 66%),
+    radial-gradient(640px 420px at 50% 88%, rgba(5,109,255,.16), transparent 70%);
 }

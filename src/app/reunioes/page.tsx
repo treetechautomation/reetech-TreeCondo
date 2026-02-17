@@ -92,7 +92,7 @@ function buildDateFromDayAndTime(day: Date, hhmm: string) {
 
 function ReuniaoCard({ reuniao, canManage, onEdit, onCancel }: { reuniao: Reuniao; canManage: boolean; onEdit: (r: Reuniao) => void; onCancel: (id: string) => void; }) {
     return (
-        <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+        <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
             <CardHeader>
                 <div className="flex justify-between items-start">
                     <div>
@@ -417,7 +417,7 @@ export default function ReunioesPage() {
                 />
             </div>
             <div className="space-y-4">
-                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
                     <CardHeader>
                         <CardTitle>Próximas Reuniões</CardTitle>
                         <CardDescription>Eventos agendados a partir de hoje.</CardDescription>
@@ -431,7 +431,7 @@ export default function ReunioesPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
                     <CardHeader>
                         <CardTitle>Reuniões do dia {selectedDateStr}</CardTitle>
                     </CardHeader>

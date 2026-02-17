@@ -17,7 +17,7 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="h-16 border-t border-black/10 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <nav className="h-16 border-t border-black/10 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/30">
       <div className="mx-auto flex h-full max-w-lg items-center justify-around px-2">
 
         {items.map(({ href, label, icon: Icon }) => {

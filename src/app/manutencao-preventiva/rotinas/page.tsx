@@ -197,7 +197,7 @@ export default function RotinasManutencaoPage() {
         </Dialog>
       }
     >
-      <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
         <CardHeader>
           <CardTitle>Rotinas</CardTitle>
           <CardDescription>Gerencie as rotinas de manutenção preventiva do condomínio.</CardDescription>

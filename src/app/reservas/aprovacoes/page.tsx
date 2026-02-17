@@ -60,7 +60,7 @@ export default function ReservasAprovacoesPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
+          <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
             <div className="flex items-center gap-3">
               <div className="text-sm text-muted-foreground">Dia</div>
               <input
@@ -76,7 +76,7 @@ export default function ReservasAprovacoesPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
             <div className="font-semibold">Pendentes</div>
 
             {loadingReservas ? (

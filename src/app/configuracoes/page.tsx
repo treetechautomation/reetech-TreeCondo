@@ -179,12 +179,12 @@ export default function ConfiguracoesPage() {
         </div>
         
         {!condominioAtivoId ? (
-           <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-6 shadow-sm space-y-4">
+           <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
             <div className="font-medium">PIN de Encomendas</div>
              <p className="text-sm text-muted-foreground">Selecione um condomínio para poder definir seu PIN.</p>
            </div>
         ) : (
-           <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-6 shadow-sm space-y-4">
+           <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
             <div>
               <div className="font-medium">PIN de Encomendas</div>
               <div className="text-sm text-muted-foreground">

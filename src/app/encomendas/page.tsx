@@ -542,7 +542,7 @@ export default function EncomendasPage() {
                   </div>
 
                   {lastCreated?.codigo ? (
-                    <div className="rounded-xl border bg-white/60 p-4 text-sm">
+                    <div className="rounded-xl border bg-white/30 p-4 text-sm">
                       <div className="font-semibold mb-2">✅ Encomenda registrada!</div>
                       <div className="flex items-center gap-2">
                         <QrCode className="h-4 w-4" />
@@ -584,7 +584,7 @@ export default function EncomendasPage() {
             </TabsList>
 
             <TabsContent value="waiting">
-              <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+              <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
                 {loading ? (
                   <div className="text-sm text-muted-foreground">Carregando encomendas...</div>
                 ) : waiting.length === 0 ? (
@@ -642,7 +642,7 @@ export default function EncomendasPage() {
             </TabsContent>
 
             <TabsContent value="history">
-              <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+              <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
                 {history.length === 0 ? (
                   <div className="text-sm text-muted-foreground">Nenhuma encomenda retirada ainda.</div>
                 ) : (
@@ -723,7 +723,7 @@ export default function EncomendasPage() {
               </DialogHeader>
 
               <div className="grid gap-4 py-4">
-                <div className="flex items-center justify-between rounded-lg border bg-white/60 p-3">
+                <div className="flex items-center justify-between rounded-lg border bg-white/30 p-3">
                   <div>
                     <div className="text-sm font-medium">Morador esqueceu o celular?</div>
                     <div className="text-xs text-muted-foreground">Use o PIN pessoal do morador para validar a retirada.</div>
@@ -815,7 +815,7 @@ export default function EncomendasPage() {
                 ) : (
                   // ✅ ELSE com leitor
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between rounded-lg border bg-white/60 p-3">
+                    <div className="flex items-center justify-between rounded-lg border bg-white/30 p-3">
                       <div>
                         <div className="text-sm font-medium">Ler QR Code</div>
                         <div className="text-xs text-muted-foreground">Aponte a câmera para o QR Code da encomenda.</div>
@@ -827,7 +827,7 @@ export default function EncomendasPage() {
                     </div>
 
                     {scanOpen && (
-                      <div className="rounded-lg border bg-white/60 p-3">
+                      <div className="rounded-lg border bg-white/30 p-3">
                         <QrScanner
                           onResult={(text) => {
                             setCodigoInput(String(text || "").trim());

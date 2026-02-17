@@ -146,7 +146,7 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-screen overflow-hidden">
       {/* FUNDO PREMIUM */}
-      <div className="absolute inset-0 bg-transparent" />
+      <div className="absolute inset-0 bg-[#f7f2eb]" />
       <div className="pointer-events-none absolute inset-0">
         {/* gradiente principal */}
         <div className="absolute -top-48 -left-48 h-[520px] w-[520px] rounded-full bg-emerald-400/25 blur-3xl" />
@@ -248,8 +248,8 @@ export default function LoginPage() {
 
                     <Button
                       disabled={loadingLogin}
-                      className="w-full h-11 rounded-xl text-foreground shadow-lg"
-                      style={{ background: "linear-gradient(135deg, hsl(var(--tc-cyan)), hsl(var(--tc-lime)))" }}
+                      className="w-full h-11 rounded-xl text-white shadow-lg"
+                      style={{ background: "linear-gradient(135deg, #0d9488, #22c55e)" }}
                       type="submit"
                     >
                       {loadingLogin ? "Entrando..." : "Entrar"}
@@ -296,8 +296,8 @@ export default function LoginPage() {
 
                       <Button
                         disabled={loadingCodigo}
-                        className="w-full h-11 rounded-xl text-foreground shadow-lg"
-                        style={{ background: "linear-gradient(135deg, hsl(var(--tc-cyan)), hsl(var(--tc-lime)))" }}
+                        className="w-full h-11 rounded-xl text-white shadow-lg"
+                        style={{ background: "linear-gradient(135deg, #0d9488, #22c55e)" }}
                         type="submit"
                       >
                         {loadingCodigo ? "Validando..." : "Validar código"}
@@ -379,8 +379,8 @@ export default function LoginPage() {
 
                         <Button
                           disabled={loadingSetPw || !codigoValidado}
-                          className="w-full h-11 rounded-xl text-foreground shadow-lg"
-                          style={{ background: "linear-gradient(135deg, hsl(var(--tc-cyan)), hsl(var(--tc-lime)))" }}
+                          className="w-full h-11 rounded-xl text-white shadow-lg"
+                          style={{ background: "linear-gradient(135deg, #0d9488, #22c55e)" }}
                           type="submit"
                         >
                           {loadingSetPw ? "Criando..." : "Criar senha"}

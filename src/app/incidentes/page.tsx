@@ -171,7 +171,7 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
   }, [firestore, condominioAtivoId, incidente.id]);
 
   return (
-    <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+    <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
@@ -593,7 +593,7 @@ export default function IncidentesPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {incidentesAbertos.length === 0 ? (
-                <div className="col-span-full text-center p-6 border-black/5 bg-white/55 backdrop-blur-xl shadow-sm rounded-2xl">
+                <div className="col-span-full text-center p-6 border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] rounded-2xl">
                   Nenhum chamado aberto encontrado.
                 </div>
               ) : (
@@ -611,7 +611,7 @@ export default function IncidentesPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {incidentesFinalizados.length === 0 ? (
-                <p className="col-span-full text-center p-6 border-black/5 bg-white/55 backdrop-blur-xl shadow-sm rounded-2xl">
+                <p className="col-span-full text-center p-6 border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] rounded-2xl">
                   Nenhum chamado finalizado encontrado.
                 </p>
               ) : (

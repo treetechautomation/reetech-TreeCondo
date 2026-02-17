@@ -10,7 +10,7 @@ export default function CadastrosPage() {
   return (
     <AppLayout pageTitle="Gestão de Cadastros">
       <div className="space-y-6">
-        <Card className="border-black/5 bg-white/60 backdrop-blur-md">
+        <Card className="border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
           <CardHeader>
             <CardTitle>Cadastros</CardTitle>
             <CardDescription>

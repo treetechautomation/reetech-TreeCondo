@@ -336,7 +336,7 @@ export default function EnquetesPage() {
         </Dialog>
       ) : null
     }>
-      <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
         <CardHeader>
           <CardTitle>Enquetes</CardTitle>
           <CardDescription>Votações do condomínio (dados em tempo real).</CardDescription>
@@ -355,7 +355,7 @@ export default function EnquetesPage() {
                 const aberta = poll.status === "ABERTA";
 
                 return (
-                  <Card key={poll.id} className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+                  <Card key={poll.id} className="rounded-2xl border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
                     <CardHeader className="flex flex-row items-start justify-between gap-3">
                       <div className="min-w-0">
                         <CardTitle className="truncate">{poll.titulo}</CardTitle>

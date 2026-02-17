@@ -238,7 +238,7 @@ export default function ReservasPage() {
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
             </TabsList>
             <TabsContent value="proximas">
-                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
                     <CardHeader>
                         <CardTitle>Minhas Próximas Reservas</CardTitle>
                         <CardDescription>Gerencie a lista de convidados para suas reservas futuras.</CardDescription>
@@ -275,7 +275,7 @@ export default function ReservasPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="historico">
-                <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
                     <CardHeader>
                         <CardTitle>Histórico de Reservas</CardTitle>
                         <CardDescription>Suas reservas passadas.</CardDescription>
@@ -313,7 +313,7 @@ export default function ReservasPage() {
             </TabsContent>
         </Tabs>
 
-        <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm mt-6">
+        <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] mt-6">
             <CardHeader>
                 <CardTitle>Reservar Nova Área</CardTitle>
                 <CardDescription>Selecione uma área abaixo para ver a disponibilidade e reservar.</CardDescription>

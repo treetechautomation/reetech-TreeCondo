@@ -140,7 +140,7 @@ export default function AgendaReservasPage() {
       ) : (
         <div className="space-y-6">
           {/* Top bar */}
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
+          <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
             <div className="flex items-center gap-3">
               <div className="text-sm text-muted-foreground">Dia</div>
               <input
@@ -157,7 +157,7 @@ export default function AgendaReservasPage() {
           </div>
 
           {/* Lista */}
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+          <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Reservas aprovadas do dia</div>
               <div className="text-xs text-muted-foreground">

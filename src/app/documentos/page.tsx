@@ -369,7 +369,7 @@ export default function DocumentosPage() {
         ) : null
       }
     >
-      <Card className="border-black/5 bg-white/55 backdrop-blur-xl shadow-sm">
+      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
         <CardHeader>
           <CardTitle>Documentos do Condomínio</CardTitle>
           <CardDescription>Organize arquivos importantes por categoria.</CardDescription>

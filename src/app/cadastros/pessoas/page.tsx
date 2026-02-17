@@ -392,7 +392,7 @@ setLoading(true);
       <div className="space-y-1.5">
         <label className="text-sm text-slate-700">Bloco</label>
         <select
-          className="h-11 w-full rounded-xl border bg-white/60 px-3 text-sm"
+          className="h-11 w-full rounded-xl border bg-white/30 px-3 text-sm"
           value={form.blocoId}
           onChange={(e) => setForm((f) => ({ ...f, blocoId: e.target.value, unidadeId: "" }))}
           disabled={!condominioAtivoId || loadingBlocos}
@@ -416,7 +416,7 @@ setLoading(true);
           <input
             value={form.unidadeId}
             onChange={(e) => setForm((f) => ({ ...f, unidadeId: e.target.value }))}
-            className="h-11 w-full rounded-xl border bg-white/60 px-3 text-sm"
+            className="h-11 w-full rounded-xl border bg-white/30 px-3 text-sm"
             placeholder="Ex: 101, 12B, Casa 3..."
           />
           <div className="text-xs text-slate-600">Obrigatório para morador.</div>

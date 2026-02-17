@@ -68,7 +68,7 @@ export function AreaCard({
   return (
     <div
       className={cn(
-        "w-full rounded-2xl border bg-white/55 backdrop-blur-xl shadow-sm",
+        "w-full rounded-2xl border bg-white/26 backdrop-blur-2xl shadow-sm",
         selected ? "border-primary ring-2 ring-primary/30" : "border-black/5"
       )}
     >

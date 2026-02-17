@@ -58,7 +58,7 @@ export default function ManutencaoPreventivaPage() {
             ))}
         </div>
 
-        <Card className="border-black/5 bg-white/60 backdrop-blur-md">
+        <Card className="border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
           <CardHeader>
             <CardTitle>Acesso Rápido</CardTitle>
             <CardDescription>
@@ -71,7 +71,7 @@ export default function ManutencaoPreventivaPage() {
           {navCards.map((card) => (
             <Card
               key={card.href}
-              className="border-black/5 bg-white/60 backdrop-blur-md hover:bg-white/80 transition-all"
+              className="border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] hover:bg-white/80 transition-all"
             >
               <CardHeader className="flex flex-row items-center gap-4 space-y-0">
                 <div className="rounded-lg bg-primary/10 p-3 text-primary">

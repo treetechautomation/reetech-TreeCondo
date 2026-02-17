@@ -35,7 +35,7 @@ export function IntroOverlay() {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 backdrop-blur-xl"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-background"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -66,7 +66,7 @@ export function IntroOverlay() {
             onClick={(e) => e.stopPropagation()}
           >
             <motion.div
-              className="mx-auto mb-4 h-14 w-14 rounded-2xl border border-border/60 bg-black/35 backdrop-blur-xl/60"
+              className="mx-auto mb-4 h-14 w-14 rounded-2xl border border-border/60 bg-background/60"
               initial={{ rotate: -6, scale: 0.9, opacity: 0 }}
               animate={{ rotate: 0, scale: 1, opacity: 1 }}
               transition={{ delay: 0.05, type: "spring", stiffness: 260, damping: 18 }}

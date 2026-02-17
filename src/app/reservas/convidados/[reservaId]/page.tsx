@@ -223,7 +223,7 @@ export default function ConvidadosPage() {
   return (
     <AppLayout pageTitle="Lista de Convidados">
       <div className="space-y-4">
-        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+        <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
           <div className="font-semibold">Adicionar à lista</div>
           <div className="text-xs text-muted-foreground">
             A lista é usada pela portaria para o check-in no dia.
@@ -248,7 +248,7 @@ export default function ConvidadosPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+        <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="font-semibold">Convidados</div>
             <Input

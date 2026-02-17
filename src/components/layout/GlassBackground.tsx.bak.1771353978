@@ -7,7 +7,7 @@ export function GlassBackground({ className }: { className?: string }) {
   return (
     <div className={cn("fixed inset-0 -z-10 overflow-hidden", className)}>
       {/* base */}
-      <div className="absolute inset-0 bg-transparent" />
+      <div className="absolute inset-0 bg-[#f7f2eb]" />
 
       {/* aurora / blobs */}
       <div className="absolute -top-44 -left-40 h-[520px] w-[520px] rounded-full bg-emerald-500/20 blur-3xl" />

@@ -174,13 +174,13 @@ React.useEffect(() => {
   const SidebarPanel = ({ onNavigate }: { onNavigate?: () => void }) => (
     <div className="relative h-full w-full text-white overflow-hidden">
       {/* Fundo “aurora” */}
-      <div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_10%_10%,rgba(16,185,129,.25),transparent_55%),radial-gradient(900px_circle_at_90%_25%,rgba(34,211,238,.20),transparent_52%),radial-gradient(900px_circle_at_70%_90%,rgba(99,102,241,.18),transparent_55%),linear-gradient(180deg,rgba(2,6,23,.96)_0%,rgba(2,6,23,.92)_100%)]" />
+      <div className="absolute inset-0 bg-slate-900" />
       <div className="absolute -top-28 -left-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
       <div className="absolute top-40 -right-28 h-80 w-80 rounded-full bg-cyan-500/15 blur-3xl" />
       <div className="absolute bottom-0 left-10 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
 
       {/* Painel glass */}
-      <div className="relative m-3 h-[calc(100dvh-24px)] rounded-[26px] border border-white/15 bg-black/20 backdrop-blur-2xl shadow-[0_20px_90px_rgba(0,0,0,.65)] overflow-hidden flex flex-col">
+      <div className="relative m-3 h-[calc(100dvh-24px)] rounded-[26px] border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,.45)] overflow-hidden flex flex-col">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_circle_at_-20%_-20%,rgba(255,255,255,.18),transparent_45%),radial-gradient(900px_circle_at_120%_20%,rgba(255,255,255,.10),transparent_40%)]" />
 
         {/* Header */}
@@ -243,10 +243,10 @@ React.useEffect(() => {
 
                       <SheetContent
                         side="left"
-                        className="p-0 w-[88vw] max-w-[360px] border-r border-white/10 bg-black/30 backdrop-blur-2xl"
+                        className="p-0 w-[88vw] max-w-[360px] border-r border-white/10 bg-transparent"
                       >
                         {/* Topbar do drawer com setas */}
-                        <div className="flex items-center justify-between px-3 py-2 bg-white/15 backdrop-blur-xl border-b border-white/10">
+                        <div className="flex items-center justify-between px-3 py-2 bg-black/40 backdrop-blur border-b border-white/10">
                           <div className="flex items-center gap-2">
                             <Button
                               variant="ghost"
