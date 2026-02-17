@@ -1,0 +1,29 @@
+"use client";
+
+import * as React from "react";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { BottomNav } from "./BottomNav";
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  // Rotas que NÃO devem mostrar BottomNav (login, páginas públicas, etc.)
+  const hideBottomNav =
+    pathname?.startsWith("/login") ||
+    pathname?.startsWith("/_not-found");
+
+  return (
+    <div className="min-h-screen w-full">
+      <div className={cn("min-h-screen", !hideBottomNav && "pb-16")}>
+        {children}
+      </div>
+
+      {!hideBottomNav && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+          <BottomNav />
+        </div>
+      )}
+    </div>
+  );
+}
