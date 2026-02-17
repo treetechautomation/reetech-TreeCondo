@@ -108,15 +108,41 @@ html, body { overflow-x: hidden; }
 
 /* ===== TreeCondo Glass Card ===== */
 /* ===== TreeCondo Premium Background (Global) ===== */
-.tc-app-bg {
-  background:
-    radial-gradient(900px circle at 10% 10%, rgba(16,185,129,.18), transparent 40%),
-    radial-gradient(800px circle at 90% 20%, rgba(34,211,238,.14), transparent 45%),
-    radial-gradient(900px circle at 40% 95%, rgba(99,102,241,.12), transparent 45%),
-    linear-gradient(180deg, #f7f2eb 0%, #f3eadf 55%, #f7f2eb 100%);
+.tc-app-bg{
+  position: relative;
   min-height: 100vh;
+
+  /* fundo igual sensação do menu + glows da marca */
+  background:
+    radial-gradient(900px 520px at 18% 22%, rgba(0, 208, 230, .22), transparent 60%),
+    radial-gradient(900px 520px at 82% 28%, rgba(185, 207, 14, .16), transparent 62%),
+    radial-gradient(900px 520px at 50% 92%, rgba(5, 109, 255, .12), transparent 62%),
+    radial-gradient(1200px 720px at 30% 85%, rgba(15, 94, 59, .18), transparent 65%),
+
+    linear-gradient(135deg,
+      #0f172a 0%,
+      #0a1c2c 35%,
+      #091223 70%,
+      #0f172a 100%
+    );
 }
 
+.tc-app-bg::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  background:
+    radial-gradient(900px 520px at 50% 10%, rgba(255,255,255,.06), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.04), transparent 30%);
+}
+
+.tc-app-bg > *{
+  position: relative;
+  z-index: 1;
+}
 /* Container padrão premium */
 .tc-page {
   padding: 16px 12px;
