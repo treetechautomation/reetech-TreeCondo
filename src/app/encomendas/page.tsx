@@ -171,19 +171,32 @@ export default function EncomendasPage() {
   const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
 
   async function showQrCode(pkg: EncomendaDoc) {
-    if (!pkg.codigo) return;
-    try {
-        const url = await QRCode.toDataURL(pkg.codigo, { width: 300, margin: 2 });
-        setQrCodeUrl(url);
+      try {
+        // abre o modal imediatamente e reseta a imagem
         setSelectedPkgForQr(pkg);
+        setQrCodeUrl("");
         setIsQrDialogOpen(true);
-    } catch (err) {
-        console.error('Failed to generate QR code', err);
-        alert('Não foi possível gerar o QR Code.');
+
+        const code = String((pkg as any)?.codigo ?? "").trim();
+        if (!code) {
+          console.warn("[encomendas] showQrCode: pkg sem codigo:", pkg?.id, pkg);
+          return;
+        }
+
+        const url = await QRCode.toDataURL(code, {
+          width: 320,
+          margin: 2,
+          errorCorrectionLevel: "M",
+        });
+
+        setQrCodeUrl(url);
+      } catch (e) {
+        console.error("[encomendas] erro ao gerar QR:", e, pkg);
+        setQrCodeUrl("");
+      }
     }
-  }
-  
-  React.useEffect(() => {
+
+    React.useEffect(() => {
     if (!isMorador || !condId || !firestore || !session?.user?.uid) {
         setMoradorInfo(null);
         return;
@@ -641,7 +654,7 @@ export default function EncomendasPage() {
           </Tabs>
 
           <Dialog open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
-            <DialogContent>
+            <DialogContent className="tc-dialog-center">
                 <DialogHeader>
                     <DialogTitle>Código de Retirada</DialogTitle>
                     <DialogDescription>
@@ -649,7 +662,17 @@ export default function EncomendasPage() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col items-center justify-center p-4">
-                    {qrCodeUrl && <img src={qrCodeUrl} alt="QR Code" />}
+                    {qrCodeUrl ? (
+                        <img
+                          src={qrCodeUrl}
+                          alt="QR Code"
+                          className="w-[220px] max-w-full rounded-lg border bg-white p-2"
+                        />
+                      ) : (
+                        <div className="w-[220px] max-w-full rounded-lg border bg-white/60 p-6 text-center text-sm text-muted-foreground">
+                          Gerando QR Code...
+                        </div>
+                      )}
                     <code className="mt-4 text-lg font-bold tracking-wider">{selectedPkgForQr?.codigo}</code>
                 </div>
                 <DialogFooter>
@@ -753,5 +776,3 @@ export default function EncomendasPage() {
     </AppLayout>
   );
 }
-
-    
