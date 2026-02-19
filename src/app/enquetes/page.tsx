@@ -281,7 +281,7 @@ export default function EnquetesPage() {
           <DialogTrigger asChild>
             <Button>Nova Enquete</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[650px]">
+          <DialogContent className="sm:max-w-[650px] tc-dialog-center">
             <DialogHeader>
               <DialogTitle>Nova Enquete</DialogTitle>
               <DialogDescription>Crie uma enquete para os moradores votarem.</DialogDescription>
