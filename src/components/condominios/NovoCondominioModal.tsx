@@ -143,7 +143,7 @@ export function NovoCondominioModal({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[560px]">
+      <DialogContent className="max-w-[560px] tc-dialog-center">
         <DialogHeader>
           <DialogTitle>Novo Condomínio</DialogTitle>
           <DialogDescription>

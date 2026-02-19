@@ -68,6 +68,19 @@ export type Session = {
   superAdmin: boolean;
   role: RoleKey;
   vinculos: Vinculo[];
+
+  // Permissões por módulo (opcional)
+  menuPermissions?: {
+    anuncios?: boolean;
+    reservas?: boolean;
+    encomendas?: boolean;
+    incidentes?: boolean;
+    documentos?: boolean;
+    cadastros?: boolean;
+    configuracoes?: boolean;
+    [key: string]: boolean | undefined;
+  };
+
 };
 
 export function useSessionBase() {

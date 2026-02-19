@@ -42,6 +42,7 @@
     "_backup",
     "**/_backup/**",
     "**/*.bak*",
-    "**/*.backup*"
+    "**/*.backup*",
+    "**/*.backup_*"
   ]
 }
