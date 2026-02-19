@@ -340,7 +340,7 @@ export default function ReunioesPage() {
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="sm:max-w-[520px]">
+              <DialogContent className="sm:max-w-[520px] tc-dialog-center">
                 <DialogHeader>
                   <DialogTitle>{editingId ? "Editar Reunião" : "Agendar Nova Reunião"}</DialogTitle>
                   <DialogDescription>
