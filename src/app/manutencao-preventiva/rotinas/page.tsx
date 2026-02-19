@@ -169,7 +169,7 @@ export default function RotinasManutencaoPage() {
           <DialogTrigger asChild>
             <Button>Nova Rotina</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[640px]" aria-describedby="nova-rotina-desc">
+          <DialogContent className="sm:max-w-[640px] tc-dialog-center" aria-describedby="nova-rotina-desc">
             <DialogHeader>
               <DialogTitle>Nova Rotina de Manutenção</DialogTitle>
               <DialogDescription id="nova-rotina-desc">Crie uma tarefa de manutenção preventiva recorrente.</DialogDescription>
@@ -197,7 +197,7 @@ export default function RotinasManutencaoPage() {
         </Dialog>
       }
     >
-      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+      <Card className="border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
         <CardHeader>
           <CardTitle>Rotinas</CardTitle>
           <CardDescription>Gerencie as rotinas de manutenção preventiva do condomínio.</CardDescription>
