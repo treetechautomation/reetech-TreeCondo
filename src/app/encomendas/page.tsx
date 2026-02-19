@@ -431,7 +431,7 @@ export default function EncomendasPage() {
                 </Button>
                 </DialogTrigger>
 
-                <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
+                <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-[520px] max-h-[85vh] overflow-y-auto tc-dialog-center">
                 <DialogHeader>
                     <DialogTitle>Registrar Nova Encomenda</DialogTitle>
                     <DialogDescription>
@@ -753,3 +753,5 @@ export default function EncomendasPage() {
     </AppLayout>
   );
 }
+
+    
