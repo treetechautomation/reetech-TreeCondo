@@ -19,11 +19,11 @@ export default function WelcomeMorador() {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-white/10 p-6 backdrop-blur-2xl
 shadow-[0_30px_120px_rgba(0,0,0,.85),0_0_0_1px_rgba(255,255,255,.04),inset_0_0_80px_rgba(0,208,230,.05)]
-bg-[radial-gradient(1200px_circle_at_50%_35%,rgba(15,23,42,.55),rgba(2,6,23,.92)_65%,rgba(2,6,23,1)_100%)]">
+bg-[linear-gradient(90deg,rgba(0,208,230,.22)_0%,rgba(15,23,42,.55)_48%,rgba(34,197,94,.20)_100%)]">
         {/* WELCOME_ULTRA_LAYER */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_18%_22%,rgba(16,185,129,.18),transparent_55%),radial-gradient(900px_circle_at_85%_25%,rgba(0,208,230,.16),transparent_52%),radial-gradient(900px_circle_at_70%_88%,rgba(99,102,241,.16),transparent_55%)]" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_50%_40%,rgba(255,255,255,.07),transparent_55%)]" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_50%_40%,rgba(2,6,23,.0),rgba(2,6,23,.65)_70%,rgba(2,6,23,.92)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,208,230,.22)_0%,rgba(15,23,42,.55)_48%,rgba(34,197,94,.20)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,208,230,.22)_0%,rgba(15,23,42,.55)_48%,rgba(34,197,94,.20)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,208,230,.22)_0%,rgba(15,23,42,.55)_48%,rgba(34,197,94,.20)_100%)]" />
 
       
       
@@ -38,7 +38,7 @@ bg-[radial-gradient(1200px_circle_at_50%_35%,rgba(15,23,42,.55),rgba(2,6,23,.92)
             className="rounded-full border border-white/15 shadow-[0_0_40px_rgba(0,208,230,.30),0_12px_40px_rgba(0,0,0,.55)]"
         />
         <div className="w-full">
-            <div className="text-xs font-medium text-white/60 tracking-wide">
+            <div className="text-xs font-medium text-white/65 tracking-wide">
               TreeCondo • Plataforma oficial do condomínio
             </div>
 
@@ -48,7 +48,7 @@ bg-[radial-gradient(1200px_circle_at_50%_35%,rgba(15,23,42,.55),rgba(2,6,23,.92)
         </div>
       </div>
        <div className="relative mt-4">
-        <p className="text-sm text-white/70 max-w-2xl mx-auto">
+        <p className="text-sm text-white/75 max-w-2xl mx-auto">
           Tudo o que você precisa do condomínio, em um só lugar — com clareza, rapidez e segurança.
 Acompanhe avisos importantes, gerencie reservas e tenha acesso a documentos e enquetes em segundos.
         </p>

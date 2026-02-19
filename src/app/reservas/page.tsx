@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,22 +6,20 @@ import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
-import { useCondominio } from "@/contexts/CondominioContext";
-import { useFirestore, useMemoFirebase } from "@/firebase";
-import { useReservas, type AreaReservavel } from "@/hooks/useReservas";
-import { isSunday, getPoliticasReservas, getStatusForNewReserva } from "@/lib/reservasPoliticas";
-import { isDiaDisponivelPorArea } from "@/lib/reservasDisponibilidade";
-import { addDoc, collection, serverTimestamp, Timestamp, query, where, orderBy, onSnapshot} from "firebase/firestore";
-
+import { useReservas } from "@/hooks/useReservas";
 import { AreaCard } from "@/components/reservas/AreaCard";
 import { CalendarMonth } from "@/components/reservas/CalendarMonth";
 import { AreaOpcaoDialog } from "@/components/reservas/AreaOpcaoDialog";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { List } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { useFirestore } from "@/firebase";
+import { addDoc, collection, Timestamp, serverTimestamp, getDoc, doc } from "firebase/firestore";
+import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
+
+import { isSunday, getStatusForNewReserva, requiresApproval, getPoliticasReservas, type ReservasPoliticas } from "@/lib/reservasPoliticas";
+function moneyBRLFromCentavos(v?: number) {
+  const n = Number(v ?? 0) / 100;
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
 function toISODateLocal(d: Date) {
   const y = d.getFullYear();
@@ -29,337 +28,429 @@ function toISODateLocal(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-function startOfTodayTs() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return Timestamp.fromDate(d);
-}
 
-type Reserva = {
-  id: string;
-  areaId: string;
-  status: string;
-  uid: string;
-  condominioId: string;
-  data: Timestamp;
-  dataFim?: Timestamp;
-  valorCobrado?: number; // centavos
-  criadoEm?: Timestamp;
-  areaNome?: string;
-};
+function isBlockedISODate(dateStrYYYYMMDD: string, politicas: any) {
+  // domingo bloqueado pela política
+  if ((politicas?.bloquearDomingo ?? true) && isSunday(dateStrYYYYMMDD)) return true;
+  return false;
+}
 
 export default function ReservasPage() {
   const { session, isSessionLoading } = useSessionCtx();
-  const { condominioAtivoId } = useCondominio();
+  const condId = session?.activeCondominioId ?? null;
+  const user = session?.user ?? null;
+  const role = session?.role ?? null;
+
+
+  const meuUid = user?.uid ?? null;
   const firestore = useFirestore();
-  const { toast } = useToast();
+  const podeVer = !isSessionLoading && !!session && !!condId;
 
-  const condId = condominioAtivoId ?? (session as any)?.activeCondominioId ?? session?.activeCondominioId ?? null;
-  const uid = session?.user?.uid ?? null;
+  const isAdminLike = role === "SINDICO" || role === "ADMIN" || role === "ADMIN_CONDOMINIO";
+  const isMoradorLike = role === "MORADOR" || role === "SINDICO";
 
-
-  const roleRaw: any = (session as any)?.role ?? session?.role ?? null;
-  const roleUpper = String(roleRaw ?? "").toUpperCase().trim();
-  const isPorteiro = roleUpper === "PORTEIRO";
   const [dateStr, setDateStr] = React.useState(() => toISODateLocal(new Date()));
-  const { areas, loadingAreas } = useReservas(condId, dateStr);
+  const [areaFilter, setAreaFilter] = React.useState<string | "ALL">("ALL");
 
-  const [selectedAreaId, setSelectedAreaId] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState(false);
+  const [selectedAreaId, setSelectedAreaId] = React.useState<string>("ALL");
 
-  const [minhasReservasFuturas, setMinhasReservasFuturas] = React.useState<Reserva[]>([]);
-  const [isLoadingMinhasReservas, setIsLoadingMinhasReservas] = React.useState(true);
-  const [historicoReservas, setHistoricoReservas] = React.useState<Reserva[]>([]);
-  const [isLoadingHistorico, setIsLoadingHistorico] = React.useState(true);
+  const [opcoesOpen, setOpcoesOpen] = React.useState(false);
+  const [areaParaOpcaoId, setAreaParaOpcaoId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (!firestore || !condId || !uid) {
-      setMinhasReservasFuturas([]);
-      setIsLoadingMinhasReservas(false);
-      setHistoricoReservas([]);
-      setIsLoadingHistorico(false);
-      return;
-    }
+  const [selectedOpcaoId, setSelectedOpcaoId] = React.useState<string | null>(null);
 
-    setIsLoadingMinhasReservas(true);
-    setIsLoadingHistorico(true);
+  const [selectedOpcaoMeta, setSelectedOpcaoMeta] = React.useState<{
+    opcaoId: string;
+    opcaoNome: string;
+    precoCentavos: number;
+    bloqueiaAreaId?: string | null;
+  } | null>(null);
 
-    const base = collection(firestore, "condominios", String(condId), "reservas");
-    const today = startOfTodayTs();
-    const uidsToQuery = ['uid', 'userId', 'moradorUid', 'createdByUid'];
+  const [isChecking, setIsChecking] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
 
-    // --- Futuras ---
-    const futureQueries = uidsToQuery.map(field => 
-        query(base, where(field, "==", uid), where("data", ">=", today), orderBy("data", "asc"))
-    );
-    const futureMap = new Map();
-    let pendingFuture = futureQueries.length;
-    const unsubFuture = futureQueries.map((q) => 
-        onSnapshot(q, (snap) => {
-            snap.forEach((d) => futureMap.set(d.id, { id: d.id, ...(d.data() || {}) }));
-            pendingFuture--;
-            if (pendingFuture <= 0) {
-                const arr = Array.from(futureMap.values())
-                    .filter((r: any) => r && r.data && typeof r.data.toDate === "function")
-                    .sort((a, b) => (a.data?.toMillis?.() ?? 0) - (b.data?.toMillis?.() ?? 0));
-                setMinhasReservasFuturas(arr as Reserva[]);
-                setIsLoadingMinhasReservas(false);
-            }
-        }, (err) => { 
-            console.error("[reservas] erro ao carregar minhas reservas futuras:", err);
-            pendingFuture--;
-            if(pendingFuture <= 0) setIsLoadingMinhasReservas(false);
-        })
-    );
-
-    // --- Histórico ---
-    const pastQueries = uidsToQuery.map(field => 
-        query(base, where(field, "==", uid), where("data", "<", today), orderBy("data", "desc"))
-    );
-    const pastMap = new Map();
-    let pendingPast = pastQueries.length;
-    const unsubPast = pastQueries.map((q) => 
-        onSnapshot(q, (snap) => {
-            snap.forEach((d) => pastMap.set(d.id, { id: d.id, ...(d.data() || {}) }));
-            pendingPast--;
-            if (pendingPast <= 0) {
-                const arr = Array.from(pastMap.values())
-                    .filter((r: any) => r && r.data && typeof r.data.toDate === "function")
-                    .sort((a, b) => (b.data?.toMillis?.() ?? 0) - (a.data?.toMillis?.() ?? 0));
-                setHistoricoReservas(arr as Reserva[]);
-                setIsLoadingHistorico(false);
-            }
-        }, (err) => {
-             console.error("[reservas] erro ao carregar histórico de reservas:", err);
-            pendingPast--;
-            if(pendingPast <= 0) setIsLoadingHistorico(false);
-        })
-    );
-
-    return () => {
-      unsubFuture.forEach(u => u());
-      unsubPast.forEach(u => u());
-    };
-  }, [firestore, condId, uid]);
+  const { areas, reservas, loadingAreas, loadingReservas } = useReservas(condId, dateStr);
 
 
-  // state para o dialog de opções
-  const [showOptionsDialog, setShowOptionsDialog] = React.useState(false);
-  const [areaForOptions, setAreaForOptions] = React.useState<AreaReservavel | null>(null);
+    const [politicas, setPoliticas] = React.useState<ReservasPoliticas | null>(null);
 
-  const handleSelectArea = (areaId: string) => {
-    if (selectedAreaId === areaId) {
-      setSelectedAreaId(null); // toggle off
-    } else {
-      setSelectedAreaId(areaId);
-    }
-  };
-  
-  async function handleConfirmReserva(
-    area: AreaReservavel,
-    selectedDate: string,
-    opcao?: { opcaoId: string; opcaoNome: string; precoCentavos: number; bloqueiaAreaId?: string | null; }
-  ) {
-    if (!firestore || !condId || !uid) {
-      toast({ variant: "destructive", title: "Erro", description: "Sessão inválida." });
-      return;
-    }
-    
-    setBusy(true);
-    
-    try {
-      // 1. Validar políticas
-      const politicas = await getPoliticasReservas(firestore, condId);
-      if (politicas.bloquearDomingo && isSunday(selectedDate)) {
-        throw new Error("Não é permitido reservar aos domingos.");
+    // carrega políticas de reserva por condomínio (dinâmico)
+    React.useEffect(() => {
+      let cancelledP = false;
+
+      async function loadPoliticas() {
+        try {
+          if (!firestore || !condId) {
+            if (!cancelledP) setPoliticas(null);
+            return;
+          }
+          const p = await getPoliticasReservas(firestore, condId);
+          if (!cancelledP) setPoliticas(p);
+        } catch (e) {
+          console.error("[Reservas] erro ao carregar politicas:", e);
+          if (!cancelledP) setPoliticas(null);
+        }
       }
 
-      // 2. Validar disponibilidade
-      const { disponivel } = await isDiaDisponivelPorArea(firestore, condId, area.id, selectedDate);
-      if (!disponivel) {
-        throw new Error("Esta data não está mais disponível para a área selecionada.");
-      }
-      
-      const status = getStatusForNewReserva(selectedDate, politicas);
-      
-      const [y, m, d] = selectedDate.split("-").map(Number);
-      const dataReserva = Timestamp.fromDate(new Date(Date.UTC(y, m - 1, d, 12, 0, 0, 0))); // Salva ao meio-dia UTC
-
-      const payload: any = {
-        areaId: area.id,
-        areaNome: area.nome,
-        data: dataReserva,
-        status,
-        uid,
-        condominioId: condId,
-        criadoEm: serverTimestamp(),
-        valorCobrado: opcao ? opcao.precoCentavos : area.preco,
-        opcaoId: opcao?.opcaoId ?? null,
-        opcaoNome: opcao?.opcaoNome ?? null,
-        bloqueiaAreaId: opcao?.bloqueiaAreaId ?? null,
+      loadPoliticas();
+      return () => {
+        cancelledP = true;
       };
+    }, [firestore, condId]);
 
-      await addDoc(collection(firestore, "condominios", condId, "reservas"), payload);
+  const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
 
-      toast({
-        title: "Reserva solicitada!",
-        description: `Sua reserva para ${area.nome} em ${selectedDate} foi enviada. Status: ${status}`,
-      });
-      
-      setSelectedAreaId(null);
+  const reservasFiltradas = React.useMemo(() => {
+    if (areaFilter === "ALL") return reservas;
+    return reservas.filter((r) => r.areaId === areaFilter);
+  }, [reservas, areaFilter]);
 
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao reservar", description: e.message });
+  const reservasVisiveis = React.useMemo(() => {
+    return reservasFiltradas || [];
+  }, [reservasFiltradas]);
+
+React.useEffect(() => {
+    let cancelled = false;
+
+    async function fetchMembros() {
+      if (!firestore || !condId || !isAdminLike || reservasVisiveis.length === 0) {
+        return;
+      }
+
+      const uidsToFetch = Array.from(new Set(reservasVisiveis.map(r => r.uid).filter(Boolean)))
+        .filter(uid => !membrosByUid[uid]);
+
+      if (uidsToFetch.length === 0) return;
+
+      const newMembros: Record<string, any> = {};
+      for (const uid of uidsToFetch) {
+        try {
+          const snap = await getDoc(doc(firestore, "condominios", condId, "membros", uid));
+          if (snap.exists()) {
+            newMembros[uid] = snap.data();
+          }
+        } catch (e) {
+          console.error(`Falha ao buscar membro ${uid}:`, e);
+        }
+      }
+
+      if (!cancelled && Object.keys(newMembros).length > 0) {
+        setMembrosByUid(prev => ({ ...prev, ...newMembros }));
+      }
+    }
+
+    fetchMembros();
+
+    return () => { cancelled = true; }
+  }, [firestore, condId, isAdminLike, reservasVisiveis, membrosByUid]);
+
+  const areaParaOpcao = React.useMemo(() => {
+    if (!areaParaOpcaoId) return null;
+    return (areas || []).find((x: any) => x.id === areaParaOpcaoId) ?? null;
+  }, [areas, areaParaOpcaoId]);
+
+  function handleSelectAll() {
+    setSelectedAreaId("ALL");
+    setAreaFilter("ALL");
+    setSelectedOpcaoId(null);
+    setSelectedOpcaoMeta(null);
+    setAreaParaOpcaoId(null);
+    setOpcoesOpen(false);
+  }
+
+  function handleSelectArea(area: any) {
+    if (!area?.id) return;
+
+    setSelectedAreaId(area.id);
+    setAreaFilter(area.id);
+
+    const hasOpcoes = Array.isArray(area.opcoes) && area.opcoes.length > 0;
+
+    if (hasOpcoes) {
+      setSelectedOpcaoId(null);
+      setSelectedOpcaoMeta(null);
+      setAreaParaOpcaoId(area.id);
+      setOpcoesOpen(true);
+      return;
+    }
+
+    setAreaParaOpcaoId(null);
+    setOpcoesOpen(false);
+    setSelectedOpcaoId("base");
+    setSelectedOpcaoMeta({
+      opcaoId: "base",
+      opcaoNome: String(area.nome ?? area.id),
+      precoCentavos: Number(area.preco || 0),
+      bloqueiaAreaId: null,
+    });
+  }
+
+  const podeReservar =
+    podeVer && isMoradorLike && selectedAreaId !== "ALL" && !!selectedOpcaoMeta && !isChecking && !isCreating;
+
+  async function handleSolicitarReserva() {
+      if (!podeVer || !podeReservar) return;
+
+      if ((politicas?.bloquearDomingo ?? true) && isSunday(dateStr)) {
+        alert("❌ Não é permitido fazer reservas aos domingos.");
+        return;
+      }
+
+      if (!condId || selectedAreaId === "ALL" || !selectedOpcaoMeta) {
+        alert("Selecione uma área e uma opção para reservar.");
+        return;
+      }
+      if (!firestore || !user?.uid) {
+        alert("Sessão inválida. Recarregue a página.");
+        return;
+      }
+
+      const statusInicial = getStatusForNewReserva(dateStr, politicas || { bloquearDomingo: true, autoAprovarAposHoras: 24, exigirAprovacaoQuandoMenosQueHoras: 24, cancelamentoMinHoras: 48 });
+      const precisaAprovacao = requiresApproval(dateStr, politicas || { bloquearDomingo: true, autoAprovarAposHoras: 24, exigirAprovacaoQuandoMenosQueHoras: 24, cancelamentoMinHoras: 48 });
+
+      setIsChecking(true);
+    try {
+      const chk = await isDiaDisponivelPorArea(firestore, condId, selectedAreaId, dateStr);
+      if (!chk.disponivel) {
+        alert("❌ Já existe uma reserva para esta área neste dia.");
+        return;
+      }
+    } catch (e) {
+      console.error("[Reservas] erro ao verificar disponibilidade:", e);
+      alert("❌ Erro ao verificar disponibilidade. Veja o console.");
+      return;
     } finally {
-      setBusy(false);
+      setIsChecking(false);
+    }
+
+    setIsCreating(true);
+    try {
+      const dataIni = startOfDayUTC(dateStr);
+
+
+        const areaSel = (areas || []).find((a: any) => String(a.id) === String(selectedAreaId)) ?? null;
+        const capacidadeMaxSel = (Number.isFinite(Number(areaSel?.capacidadeMax)) ? Number(areaSel?.capacidadeMax) : null);
+      await addDoc(collection(firestore, "condominios", condId, "reservas"), {
+        areaId: selectedAreaId,
+        condominioId: condId,
+        uid: user.uid,
+        status: statusInicial,
+        data: Timestamp.fromDate(dataIni),
+        valorCobrado: Number(selectedOpcaoMeta.precoCentavos) || 0,
+        criadoEm: serverTimestamp(),
+          precisaAprovacao: precisaAprovacao,
+        opcaoId: selectedOpcaoMeta.opcaoId,
+        opcaoNome: selectedOpcaoMeta.opcaoNome,
+          capacidadeMax: capacidadeMaxSel,
+      });
+
+      alert("✅ Reserva enviada (PENDENTE).");
+    } catch (e) {
+      console.error("[Reservas] erro ao criar reserva:", e);
+      alert("❌ Erro ao criar reserva. Veja o console.");
+    } finally {
+      setIsCreating(false);
     }
   }
-
-  async function handleSelectDate(area: AreaReservavel, selectedDate: string) {
-    setDateStr(selectedDate);
-    
-    if (area.opcoes && area.opcoes.length > 0) {
-      setAreaForOptions(area);
-      setShowOptionsDialog(true);
-    } else {
-      await handleConfirmReserva(area, selectedDate);
-    }
-  }
-
-  if (isSessionLoading) return <AppLayout pageTitle="Reservas">Carregando...</AppLayout>;
-  if (!condId) return <AppLayout pageTitle="Reservas">Selecione um condomínio.</AppLayout>;
 
   return (
-    <AppLayout pageTitle="Reservar Área Comum">
-      <div className="space-y-6">
-        <Tabs defaultValue="proximas">
-            <TabsList>
-                <TabsTrigger value="proximas">Próximas Reservas</TabsTrigger>
-                <TabsTrigger value="historico">Histórico</TabsTrigger>
-            </TabsList>
-            <TabsContent value="proximas">
-                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
-                    <CardHeader>
-                        <CardTitle>Minhas Próximas Reservas</CardTitle>
-                        <CardDescription>Gerencie a lista de convidados para suas reservas futuras.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoadingMinhasReservas ? (
-                            <p>Carregando suas reservas...</p>
-                        ) : minhasReservasFuturas && minhasReservasFuturas.length > 0 ? (
-                            <div className="space-y-2">
-                                {minhasReservasFuturas.map(reserva => (
-                                    <div key={reserva.id} className="flex flex-col sm:flex-row justify-between sm:items-center p-3 border rounded-lg gap-3">
-                                        <div>
-                                            <p className="font-semibold">{reserva.areaNome}</p>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="text-sm text-muted-foreground">
-                                                    {reserva.data.toDate().toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                                                </p>
-                                                <Badge variant={reserva.status === 'APROVADA' ? 'default' : 'secondary'}>{reserva.status}</Badge>
-                                            </div>
-                                        </div>
-                                        <Button asChild variant="outline" size="sm">
-                                            <Link href={isPorteiro ? `/reservas/convidados-checkin/${reserva.id}` : `/reservas/convidados/${reserva.id}`}>
-                                                <List className="mr-2 h-4 w-4" />
-                                                Lista de Convidados
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Você não tem nenhuma reserva futura.</p>
-                        )}
-                    </CardContent>
-                </Card>
-            </TabsContent>
-            <TabsContent value="historico">
-                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
-                    <CardHeader>
-                        <CardTitle>Histórico de Reservas</CardTitle>
-                        <CardDescription>Suas reservas passadas.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoadingHistorico ? (
-                            <p>Carregando seu histórico...</p>
-                        ) : historicoReservas && historicoReservas.length > 0 ? (
-                            <div className="space-y-2">
-                                {historicoReservas.map(reserva => (
-                                    <div key={reserva.id} className="flex flex-col sm:flex-row justify-between sm:items-center p-3 border rounded-lg gap-3 opacity-70">
-                                        <div>
-                                            <p className="font-semibold">{reserva.areaNome}</p>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="text-sm text-muted-foreground">
-                                                    {reserva.data.toDate().toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                                                </p>
-                                                <Badge variant={reserva.status === 'CANCELADA' || reserva.status === 'REJEITADA' ? 'destructive' : 'secondary'}>{reserva.status}</Badge>
-                                            </div>
-                                        </div>
-                                        <Button asChild variant="outline" size="sm">
-                                            <Link href={isPorteiro ? `/reservas/convidados-checkin/${reserva.id}` : `/reservas/convidados/${reserva.id}`}>
-                                                <List className="mr-2 h-4 w-4" />
-                                                Ver Detalhes
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Nenhuma reserva em seu histórico.</p>
-                        )}
-                    </CardContent>
-                </Card>
-            </TabsContent>
-        </Tabs>
-
-        <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] mt-6">
-            <CardHeader>
-                <CardTitle>Reservar Nova Área</CardTitle>
-                <CardDescription>Selecione uma área abaixo para ver a disponibilidade e reservar.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+    <AppLayout
+      pageTitle="Reservas"
+      headerActions={
+        isMoradorLike ? (
+          <Button variant="default" onClick={handleSolicitarReserva} disabled={!podeReservar}>
+            {isChecking ? "Verificando..." : isCreating ? "Enviando..." : "Confirmar reserva"}
+          </Button>
+        ) : (
+          <Button asChild variant="default">
+            <Link href="/reservas/agenda">
+              Ver solicitações
+            </Link>
+          </Button>
+        )
+      }
+    >
+      {!podeVer ? (
+        <div className="rounded-2xl border bg-card p-6">
+          <div className="text-sm text-[#0D4459]">Carregando sessão/condomínio...</div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          
+          
+<div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between shadow-sm">
+  <div className="text-sm text-[#0D4459]">
+    <span className="text-[#0D4459] font-medium">
+  Selecione um dia no calendário da área desejada.
+  </span>
+  </div>
+  <div className="text-xs text-[#0D4459]">
+    {selectedAreaId === "ALL" ? "Selecione um dia no calendário da área desejada" : "Área selecionada"}
+    {selectedOpcaoMeta ? ` • ${moneyBRLFromCentavos(selectedOpcaoMeta.precoCentavos)}` : ""}
+    {dateStr ? ` • ${dateStr}` : ""}
+  </div>
+</div>
+<div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">Áreas reserváveis</div>
+              <div className="text-xs text-[#0D4459]">{loadingAreas ? "Carregando..." : `${areas.length} área(s)`}</div>
+            </div>
             {loadingAreas ? (
-              <p>Carregando áreas...</p>
+              <div className="mt-4 text-sm text-[#0D4459]">Buscando áreas...</div>
             ) : areas.length === 0 ? (
-              <p>Nenhuma área de reserva encontrada para este condomínio.</p>
+              <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm">
+                <div className="font-medium">Nenhuma área configurada neste condomínio.</div>
+              </div>
             ) : (
-              areas.map((area) => (
-                <AreaCard
-                  key={area.id}
-                  area={area}
-                  selected={selectedAreaId === area.id}
-                  onSelect={() => handleSelectArea(area.id)}
-                >
-                  {selectedAreaId === area.id && (
-                    <CalendarMonth
-                      firestore={firestore}
-                      condominioId={condId}
-                      areaId={area.id}
-                      selectedDateStr={dateStr}
-                      onSelectDateStr={(newDate) => handleSelectDate(area, newDate)}
-                    />
-                  )}
-                </AreaCard>
-              ))
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant={areaFilter === "ALL" ? "default" : "secondary"} onClick={handleSelectAll}>
+                    Todas
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {areas.map((a: any) => (
+  <AreaCard
+    key={a.id}
+    area={a as any}
+    selected={selectedAreaId === a.id}
+    onSelect={() => handleSelectArea(a)}
+  >
+    <CalendarMonth
+      firestore={firestore as any}
+      condominioId={condId}
+      areaId={String(a.id)}
+      selectedDateStr={dateStr}
+      bloquearDomingo={Boolean(politicas?.bloquearDomingo ?? true)}
+      onSelectDateStr={(iso: string) => {
+        setDateStr(iso);
+        handleSelectArea(a);
+      }}
+    />
+  </AreaCard>
+))}
+                </div>
+              </div>
             )}
-            </CardContent>
-        </Card>
-      </div>
-      
-      {areaForOptions && (
-        <AreaOpcaoDialog
-            open={showOptionsDialog}
-            onOpenChange={setShowOptionsDialog}
-            areaNome={areaForOptions.nome}
-            precoBaseCentavos={areaForOptions.preco}
-            opcoes={areaForOptions.opcoes ?? []}
-            selectedOpcaoId={null} // Começa sem seleção
-            onConfirm={(opcaoSelecionada) => {
-                handleConfirmReserva(areaForOptions, dateStr, opcaoSelecionada);
-                setShowOptionsDialog(false);
-            }}
-        />
+          </div>
+          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">Reservas do dia</div>
+              <div className="text-xs text-[#0D4459]">
+                {loadingReservas ? "Carregando..." : `${reservasVisiveis.length} reserva(s)`}
+              </div>
+            </div>
+            {loadingReservas ? (
+              <div className="mt-4 text-sm text-[#0D4459]">Buscando reservas...</div>
+            ) : reservasVisiveis.length === 0 ? (
+              <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-[#0D4459]">
+                Nenhuma reserva encontrada para este dia.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {reservasVisiveis.map((r: any) => {
+                  if (isAdminLike) {
+                    const m = membrosByUid[r.uid] || null;
+                    const nome = m?.nome || m?.displayName || m?.name || "";
+                    const bloco = m?.blocoId || m?.bloco || m?.blocoNome || "";
+                    const unidade = m?.unidadeId || m?.unidade || m?.unidadeNome || m?.apto || "";
+
+                    return (
+                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium">
+                            Área: <span className="text-[#0D4459]">{r.areaId}</span>
+                          </div>
+                          <div className="text-sm">
+                            Status: <span className="font-semibold">{r.status}</span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-[#0D4459]">
+                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
+                        </div>
+                        <div className="text-sm text-[#0D4459]">
+                          Morador: <span className="font-medium">{nome || r.uid}</span>
+                          {bloco || unidade ? (
+                            <span className="text-[#0D4459]"> • {bloco ? `Bloco ${bloco}` : ""}{bloco && unidade ? " • " : ""}{unidade ? `Unidade ${unidade}` : ""}</span>
+                          ) : null}
+                        </div>
+                        <div className="text-xs text-[#0D4459]">
+                          Reserva ID: {r.id} • UID: {r.uid}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // MORADOR
+                  if (meuUid && r.uid === meuUid) {
+                    const isAprovada = String(r.status) === "APROVADA";
+                     return (
+                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium">
+                            Área: <span className="text-[#0D4459]">{r.areaId}</span>
+                          </div>
+                          <div className="text-sm">
+                            Status: <span className="font-semibold">{r.status}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-[#0D4459]">
+                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
+                        </div>
+
+                        {isAprovada && (
+                            <div className="flex items-center justify-end gap-2">
+                                <Button asChild variant="outline">
+                                    <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
+                                </Button>
+                            </div>
+                        )}
+
+                        <div className="text-xs text-[#0D4459]">
+                          Reserva ID: {r.id}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Outros moradores veem apenas que está reservado
+                  return (
+                    <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
+                      <div className="font-medium">
+                        Área: <span className="text-[#0D4459]">{r.areaId}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-primary">
+                        Reservado
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {areaParaOpcao ? (
+            <AreaOpcaoDialog
+              open={opcoesOpen}
+              onOpenChange={(v: boolean) => {
+                setOpcoesOpen(v);
+                if (!v) setAreaParaOpcaoId(null);
+              }}
+              areaNome={String(areaParaOpcao.nome ?? areaParaOpcao.id)}
+              precoBaseCentavos={Number(areaParaOpcao.preco || 0)}
+              opcoes={(areaParaOpcao.opcoes || []) as any}
+              selectedOpcaoId={selectedOpcaoId}
+              onConfirm={(p: any) => {
+                setSelectedOpcaoId(p.opcaoId);
+                setSelectedOpcaoMeta(p);
+                setSelectedAreaId(areaParaOpcao.id);
+                setAreaFilter(areaParaOpcao.id);
+                setOpcoesOpen(false);
+                setAreaParaOpcaoId(null);
+              }}
+            />
+          ) : null}
+        </div>
       )}
     </AppLayout>
   );

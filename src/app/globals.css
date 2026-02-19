@@ -116,15 +116,42 @@ html, body { overflow-x: hidden; }
 /* (Você já criou .tc-card — perfeito. Se quiser, reforço aqui um padrão) */
 
 /* ===== TreeCondo Global Background (Aurora + Glass) ===== */
-.tc-bg {
-  background:
-    radial-gradient(1100px circle at 10% 10%, rgba(16,185,129,.18), transparent 45%),
-    radial-gradient(900px circle at 90% 25%, rgba(34,211,238,.14), transparent 40%),
-    radial-gradient(900px circle at 70% 90%, rgba(99,102,241,.12), transparent 42%),
-    linear-gradient(180deg, #f7f2eb 0%, #f3eadf 100%);
-  min-height: 100vh;
+.tc-bg{
+  min-height: 100dvh;
+  /* Premium linear background (global) */
+  background-image:
+    linear-gradient(90deg,
+      rgba(0,208,230,.18) 0%,
+      rgba(15,23,42,.58) 48%,
+      rgba(34,197,94,.16) 100%
+    ),
+    radial-gradient(1200px circle at 15% 10%, rgba(0,208,230,.12), transparent 55%),
+    radial-gradient(1200px circle at 90% 20%, rgba(34,197,94,.10), transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
+.tc-bg::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: .55;
+}
+
+/* optional: subtle softening */
+.tc-bg::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: .65;
+}
 /* Glass card padrão (use em todas as páginas) */
 .tc-card {
   border: 1px solid rgba(255,255,255,.16);
@@ -287,4 +314,684 @@ body {
     radial-gradient(520px 380px at 15% 18%, rgba(0,208,230,.28), transparent 62%),
     radial-gradient(520px 380px at 82% 26%, rgba(185,207,14,.22), transparent 66%),
     radial-gradient(640px 420px at 50% 88%, rgba(5,109,255,.16), transparent 70%);
+}
+
+
+
+/* TreeCondo Login - Ultra Neon Stripe Depth */
+.tc-login-bg{
+  /* base: horizontal neon + dark core no centro */
+  background:
+    /* depth: vinheta vertical (top/bottom) */
+    radial-gradient(1200px 700px at 50% 42%,
+      rgba(15,23,42,0.00) 0%,
+      rgba(15,23,42,0.55) 55%,
+      rgba(15,23,42,0.85) 78%,
+      rgba(2,6,23,0.95) 100%),
+    /* dark core reforçado só no meio (faixa) */
+    linear-gradient(90deg,
+      rgba(0,208,230,0.95) 0%,
+      rgba(0,208,230,1) 20%,
+      rgba(15,23,42,1) 42%,
+      rgba(15,23,42,1) 58%,
+      rgba(34,197,94,1) 80%,
+      rgba(34,197,94,0.95) 100%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+/* brilho/recorte premium: tira “cara chapada” e dá profundidade */
+.tc-login-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+
+  background:
+    /* bloom neon (cyan/green) */
+    radial-gradient(900px 600px at 18% 32%, rgba(0,208,230,0.38), transparent 60%),
+    radial-gradient(900px 700px at 82% 42%, rgba(34,197,94,0.34), transparent 62%),
+
+    /* highlight suave no topo (Stripe-like) */
+    linear-gradient(to bottom, rgba(255,255,255,0.12), transparent 38%),
+
+    /* micro-vinheta para foco no card */
+    radial-gradient(900px 520px at 50% 52%, rgba(2,6,23,0.00) 0%, rgba(2,6,23,0.35) 62%, rgba(2,6,23,0.55) 100%);
+  mix-blend-mode: normal;
+}
+/* GLOW NEON FORTE */
+.tc-login-bg::before{
+  content: "";
+  position: absolute;
+  inset: -30%;
+
+  background:
+
+    radial-gradient(circle at 18% 50%,
+      rgba(0,208,230,0.85),
+      rgba(0,208,230,0.45),
+      transparent 45%
+    ),
+
+    radial-gradient(circle at 82% 50%,
+      rgba(34,197,94,0.85),
+      rgba(34,197,94,0.45),
+      transparent 45%
+    );
+
+  filter: blur(140px);
+  opacity: 1;
+  pointer-events: none;
+}
+
+
+/* contraste extra */
+.tc-login-bg::after{
+  content:"";
+  position:absolute;
+  inset:0;
+
+  background:
+    radial-gradient(circle at center,
+      rgba(0,0,0,0.0) 0%,
+      rgba(0,0,0,0.25) 55%,
+      rgba(0,0,0,0.55) 100%
+    );
+
+  pointer-events:none;
+}
+
+
+/* glow neon lateral */
+.tc-login-bg::before{
+  content:"";
+  position:absolute;
+  inset:-25%;
+
+  background:
+
+    radial-gradient(circle at 12% 50%,
+      rgba(0,208,230,0.75),
+      transparent 40%
+    ),
+
+    radial-gradient(circle at 88% 50%,
+      rgba(34,197,94,0.75),
+      transparent 40%
+    );
+
+  filter: blur(120px);
+  pointer-events:none;
+}
+
+
+/* reforço do centro */
+.tc-login-bg::after{
+  content:"";
+  position:absolute;
+  inset:0;
+
+  background:
+    radial-gradient(circle at center,
+      rgba(15,23,42,0.95) 0%,
+      rgba(15,23,42,0.85) 20%,
+      rgba(15,23,42,0.45) 40%,
+      transparent 60%
+    );
+
+  pointer-events:none;
+}
+
+
+/* faixa escura vertical forte no centro */
+.tc-login-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(15,23,42,0.85) 45%,
+    rgba(15,23,42,1) 50%,
+    rgba(15,23,42,0.85) 55%,
+    transparent 65%,
+    transparent 100%
+  );
+
+  pointer-events:none;
+}
+
+
+/* glow neon lateral */
+.tc-login-bg::after{
+  content:"";
+  position:absolute;
+  inset:-20%;
+
+  background:
+
+    linear-gradient(
+      90deg,
+      rgba(0,208,230,0.6),
+      transparent 30%
+    ),
+
+    linear-gradient(
+      -90deg,
+      rgba(34,197,94,0.6),
+      transparent 30%
+    );
+
+  filter: blur(120px);
+  pointer-events:none;
+}
+
+
+/* DARK CORE CENTRAL MUITO MAIS FORTE */
+.tc-login-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+
+  background: linear-gradient(
+    90deg,
+
+    transparent 0%,
+    transparent 25%,
+
+    rgba(15,23,42,0.92) 35%,
+    rgba(15,23,42,1) 45%,
+    rgba(15,23,42,1) 55%,
+    rgba(15,23,42,0.92) 65%,
+
+    transparent 75%,
+    transparent 100%
+  );
+
+  pointer-events:none;
+}
+
+
+/* glow neon lateral */
+.tc-login-bg::after{
+  content:"";
+  position:absolute;
+  inset:-20%;
+
+  background:
+
+    linear-gradient(
+      90deg,
+      rgba(0,208,230,0.7),
+      transparent 40%
+    ),
+
+    linear-gradient(
+      -90deg,
+      rgba(34,197,94,0.7),
+      transparent 40%
+    );
+
+  filter: blur(140px);
+  pointer-events:none;
+}
+
+
+
+
+/* reforço absoluto do centro */
+.tc-login-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+
+  background: linear-gradient(
+    90deg,
+
+    transparent 0%,
+    transparent 30%,
+
+    #0f172a 40%,
+    #0f172a 60%,
+
+    transparent 70%,
+    transparent 100%
+  );
+
+  pointer-events:none;
+}
+
+
+/* neon lateral */
+.tc-login-bg::after{
+  content:"";
+  position:absolute;
+  inset:-25%;
+
+  background:
+
+    linear-gradient(
+      90deg,
+      rgba(0,208,230,0.9),
+      transparent 45%
+    ),
+
+    linear-gradient(
+      -90deg,
+      rgba(34,197,94,0.9),
+      transparent 45%
+    );
+
+  filter: blur(160px);
+  pointer-events:none;
+}
+
+
+/* TreeCondo ULTRA DARK CORE — PURE CENTER (WIDE) */
+.tc-login-bg{
+  position: relative;
+
+  /* faixa vertical escura (band) no meio */
+  background: linear-gradient(
+    90deg,
+    #00D0E6 0%,
+    #00D0E6 22%,
+    #0f172a 38%,
+    #0f172a 62%,
+    #0f5e3b 78%,
+    #0f5e3b 100%
+  ) !important;
+
+  background-color: #0f172a !important;
+  background-attachment: fixed;
+}
+
+/* reforça a faixa do centro com borda dura */
+.tc-login-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 30%,
+    #0f172a 40%,
+    #0f172a 60%,
+    transparent 70%,
+    transparent 100%
+  ) !important;
+}
+
+/* neon nas laterais (sem encostar no centro) */
+.tc-login-bg::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+
+  background:
+    radial-gradient(1200px 900px at 0% 50%, rgba(0,208,230,.95), transparent 55%),
+    radial-gradient(1200px 900px at 100% 50%, rgba(34,197,94,.95), transparent 55%);
+
+  filter: blur(120px);
+  opacity: 1;
+}
+
+
+/* ============================================================
+   TreeCondo Signature Background™
+   ============================================================ */
+
+.tc-bg-signature {
+  position: relative;
+  background:
+    linear-gradient(
+      90deg,
+      #00D0E6 0%,
+      #0f172a 38%,
+      #0f172a 62%,
+      #0f5e3b 100%
+    );
+}
+
+.tc-bg-signature::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 60% 140% at center,
+      transparent 0%,
+      transparent 35%,
+      rgba(15,23,42,0.92) 55%,
+      rgba(15,23,42,0.97) 70%,
+      rgba(15,23,42,1) 85%
+    );
+  pointer-events: none;
+}
+
+.tc-bg-signature::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 80% 180% at center,
+      rgba(0,208,230,0.18) 0%,
+      transparent 40%
+    ),
+    radial-gradient(
+      ellipse 80% 180% at center,
+      rgba(34,197,94,0.18) 0%,
+      transparent 45%
+    );
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* ============================================================
+   TreeCondo Signature Card™
+   ============================================================ */
+
+.tc-card-signature {
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(255,255,255,0.03) inset,
+    0 0 60px rgba(0,208,230,0.08),
+    0 0 60px rgba(34,197,94,0.08);
+
+  transition: all 0.25s ease;
+}
+
+.tc-card-signature:hover {
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.45),
+    0 0 80px rgba(0,208,230,0.12),
+    0 0 80px rgba(34,197,94,0.12);
+}
+
+
+
+/* ============================================================
+   TreeCondo Typography Signature
+   ============================================================ */
+.tc-typography {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+.tc-typography h1, .tc-typography h2, .tc-typography h3 {
+  letter-spacing: -0.02em;
+}
+
+
+
+/* ===== TreeCondo Signature Depth v1 ===== */
+
+/* Card com profundidade real (tipo Stripe) */
+.tc-card-depth{
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06),
+    0 22px 70px rgba(2,6,23,0.55),
+    0 0 140px rgba(0,208,230,0.10);
+}
+
+/* Botão neon com micro-boost no hover */
+.tc-btn-neon{
+  transition: filter .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.tc-btn-neon:hover{
+  filter: brightness(1.08) saturate(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px rgba(2,6,23,0.35), 0 0 60px rgba(0,208,230,0.10);
+}
+.tc-btn-neon:active{
+  transform: translateY(0px);
+  filter: brightness(1.03) saturate(1.03);
+}
+
+/* Grain ultra sutil (premium) */
+.tc-grain{
+  position: relative;
+}
+.tc-grain::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .055; /* bem leve */
+  mix-blend-mode: overlay;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Se você quiser que o grain já entre automaticamente no login, ative: */
+/* .tc-login-bg{ position: relative; } */
+/* .tc-login-bg::after{ ... mesmo do .tc-grain::after ... } */
+
+/* ===== End TreeCondo Signature Depth v1 ===== */
+
+
+/* ===== TreeCondo Z-INDEX FIX v1 =====
+   Garante que overlays do fundo fiquem ATRÁS do conteúdo
+*/
+.tc-app-bg,
+.tc-bg,
+.tc-bg-signature,
+.tc-login-bg{
+  position: relative !important;
+  isolation: isolate !important; /* cria um stacking context seguro */
+}
+
+/* Qualquer pseudo-elemento do background fica atrás */
+.tc-app-bg::before, .tc-app-bg::after,
+.tc-bg::before, .tc-bg::after,
+.tc-bg-signature::before, .tc-bg-signature::after,
+.tc-login-bg::before, .tc-login-bg::after{
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Conteúdo sempre na frente */
+.tc-app-bg > *, .tc-bg > *, .tc-bg-signature > *, .tc-login-bg > *{
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Grain NÃO pode lavar o conteúdo */
+.tc-grain::after{
+  z-index: 0 !important;
+  opacity: .035 !important; /* mais sutil */
+  pointer-events: none !important;
+}
+/* ===== End TreeCondo Z-INDEX FIX v1 ===== */
+
+
+/* === TREECONDO PREMIUM CARDS (do not change background signature) === */
+.tc-glass-card{
+  /* Card nítido por cima do tc-app-bg (sem alterar as 3 cores do fundo) */
+  @apply relative isolate z-10 overflow-hidden rounded-2xl border border-white/15;
+  @apply bg-slate-950/55 backdrop-blur-xl;
+  @apply shadow-[0_20px_80px_rgba(0,0,0,.55)];
+}
+.tc-glass-card::before{
+  /* brilho suave (não muda o fundo, só dá “depth” no card) */
+  content:"";
+  position:absolute;
+  inset:-1px;
+  background: radial-gradient(900px circle at 20% 10%, rgba(255,255,255,.12), transparent 45%),
+              radial-gradient(700px circle at 90% 30%, rgba(34,211,238,.10), transparent 52%);
+  pointer-events:none;
+  z-index:0;
+}
+.tc-glass-card > *{
+  position:relative;
+  z-index:1;
+}
+
+.tc-glass-card__header{
+  @apply border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4;
+}
+.tc-glass-card__title{
+  @apply text-sm sm:text-base font-semibold tracking-tight text-white/85;
+}
+.tc-glass-card__subtle{
+  @apply text-xs sm:text-sm text-white/60;
+}
+
+.tc-table-wrap{
+  @apply overflow-x-auto;
+}
+.tc-table{
+  @apply w-full text-sm;
+}
+.tc-thead{
+  @apply bg-white/[0.06] text-[11px] sm:text-xs uppercase tracking-wide text-white/60;
+}
+.tc-tr{
+  @apply border-t border-white/10;
+}
+.tc-th{
+  @apply px-4 sm:px-6 py-3 text-left font-semibold;
+}
+.tc-td{
+  @apply px-4 sm:px-6 py-3 text-white/80;
+}
+/* === /TREECONDO PREMIUM CARDS === */
+
+
+/* === TREECONDO PORTAL ROOT (Radix Popper fix) === */
+#tc-portal-root{
+  position: relative;
+  z-index: 2147483647;
+}
+
+/* === TREECONDO CADASTROS: Disabled Tab/Button Premium v1 === */
+.tc-cadastros-disabled{
+  background: rgba(2, 6, 23, .55) !important; /* slate-950 glass */
+  border: 1px solid rgba(0, 208, 230, .28) !important; /* #00d0e6 */
+  color: #00d0e6 !important;
+  opacity: 1 !important;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  box-shadow: 0 18px 60px rgba(0,0,0,.45);
+  backdrop-filter: blur(14px);
+}
+
+/* garante que o texto dentro (span) não fique lavado */
+.tc-cadastros-disabled *{
+  color: #00d0e6 !important;
+  opacity: 1 !important;
+}
+/* === /TREECONDO CADASTROS === */
+
+/* === TREECONDO CADASTROS: Force disabled visibility v2 === */
+button.tc-cadastros-disabled:disabled,
+.tc-cadastros-disabled[disabled],
+.tc-cadastros-disabled[aria-disabled="true"]{
+  opacity: 1 !important;
+  filter: none !important;
+  -webkit-text-fill-color: #00d0e6 !important; /* Safari/Chromium */
+}
+
+button.tc-cadastros-disabled:disabled span,
+.tc-cadastros-disabled *{
+  opacity: 1 !important;
+  color: #00d0e6 !important;
+}
+/* === /TREECONDO CADASTROS v2 === */
+
+/* === TREECONDO ACESSO: White + Contrast === */
+.tc-acesso-tabs [data-state="inactive"]{
+  color: rgba(255,255,255,.70) !important;
+}
+.tc-acesso-tabs [data-state="inactive"]:hover{
+  color: rgba(255,255,255,.90) !important;
+}
+.tc-acesso-tabs [data-state="active"]{
+  /* ativo fica em cima do cyan, então texto escuro continua ok */
+  color: rgba(2,6,23,.95) !important; /* slate-950 */
+}
+
+/* tabela do Acesso */
+.tc-acesso-table th{
+  color: rgba(255,255,255,.72) !important;
+  font-weight: 600;
+}
+.tc-acesso-table td{
+  color: rgba(255,255,255,.86) !important;
+}
+.tc-acesso-table .tc-muted{
+  color: rgba(255,255,255,.55) !important;
+}
+
+/* === TREECONDO ACESSO: garantir subtítulos (VISITANTE etc) legíveis === */
+.tc-acesso-table .text-slate-400,
+.tc-acesso-table .text-slate-500,
+.tc-acesso-table .text-slate-600,
+.tc-acesso-table .text-muted-foreground,
+.tc-acesso-table .text-gray-400,
+.tc-acesso-table .text-gray-500,
+.tc-acesso-table .text-gray-600{
+  color: rgba(255,255,255,.62) !important;
+  opacity: 1 !important;
+}
+
+/* se tiver subtexto em uppercase pequeno */
+.tc-acesso-table .uppercase{
+  color: rgba(255,255,255,.60) !important;
+  letter-spacing: .06em;
+}
+
+/* === TREECONDO DIALOG: center hard-fix (evita deslocamento por containers transform) === */
+.tc-dialog-center{
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  max-height: 85vh;
+  overflow: auto;
+}
+
+/* === TREECONDO ACESSO: tipografia branca/nítida === */
+.tc-acesso-white h1,
+.tc-acesso-white h2,
+.tc-acesso-white .tc-acesso-title,
+.tc-acesso-white .tc-acesso-subtitle{
+  color: rgba(255,255,255,.92) !important;
+}
+
+.tc-acesso-white .text-muted-foreground{
+  color: rgba(255,255,255,.62) !important;
+}
+
+.tc-acesso-white th,
+.tc-acesso-white thead,
+.tc-acesso-white .tc-acesso-head{
+  color: rgba(255,255,255,.68) !important;
+}
+
+.tc-acesso-white td{
+  color: rgba(255,255,255,.82) !important;
+}
+/* === /TREECONDO ACESSO === */
+
+/* ---- Radix (Dialog/Sheet) scroll-lock: remove "gap" na direita ---- */
+html, body {
+  overflow-x: hidden;
+}
+
+body[data-scroll-locked] {
+  padding-right: 0 !important;
 }

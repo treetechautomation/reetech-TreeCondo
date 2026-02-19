@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 
 
@@ -74,9 +75,32 @@ export default function PessoasPage() {
 
   const [abaLista, setAbaLista] = useState<
     "MORADORES" | "SINDICOS" | "PORTEIROS" | "ZELADORES" | "FUNCIONARIOS" | "TODOS"
-  >("MORADORES");
+  >("TODOS");
 
-  const membrosFiltrados = useMemo(() => {
+  
+
+  const ABA_LISTA_ORDER = [
+    "TODOS",
+    "MORADORES",
+    "SINDICOS",
+    "PORTEIROS",
+    "ZELADORES",
+    "FUNCIONARIOS",
+  ] as const;
+
+  const ABA_LISTA_LABEL: Record<string, string> = {
+    TODOS: "Todos",
+    MORADORES: "Moradores",
+    SINDICOS: "Síndicos",
+    PORTEIROS: "Porteiros",
+    ZELADORES: "Zeladores",
+    FUNCIONARIOS: "Funcionários",
+  };
+
+  const abaListaIndex = Math.max(0, (ABA_LISTA_ORDER as any).indexOf(abaLista));
+  const abaListaPrev = ABA_LISTA_ORDER[(abaListaIndex - 1 + ABA_LISTA_ORDER.length) % ABA_LISTA_ORDER.length];
+  const abaListaNext = ABA_LISTA_ORDER[(abaListaIndex + 1) % ABA_LISTA_ORDER.length];
+const membrosFiltrados = useMemo(() => {
     switch (abaLista) {
       case "MORADORES":
         return membros.filter((m) => m.role === "MORADOR");
@@ -440,14 +464,42 @@ setLoading(true);
           <h2 className="mb-4 text-lg font-semibold text-slate-900">Pessoas cadastradas</h2>
 
             <Tabs value={abaLista} onValueChange={(v) => setAbaLista(v as any)} className="space-y-4">
-              <TabsList className="w-full justify-start flex flex-wrap gap-2">
-                <TabsTrigger value="MORADORES">Moradores</TabsTrigger>
-                <TabsTrigger value="SINDICOS">Síndicos</TabsTrigger>
-                <TabsTrigger value="PORTEIROS">Porteiros</TabsTrigger>
-                <TabsTrigger value="ZELADORES">Zeladores</TabsTrigger>
-                <TabsTrigger value="FUNCIONARIOS">Funcionários</TabsTrigger>
-                <TabsTrigger value="TODOS">Todos</TabsTrigger>
-              </TabsList>
+              <div className="md:hidden flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-xl border-white/15 bg-slate-950/35 text-white/80 backdrop-blur hover:bg-slate-950/45"
+                    onClick={() => setAbaLista(abaListaPrev as any)}
+                    aria-label="Filtro anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  <div className="flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-center text-sm font-semibold text-white/85 backdrop-blur">
+                    {ABA_LISTA_LABEL[abaLista] ?? "Todos"}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-xl border-white/15 bg-slate-950/35 text-white/80 backdrop-blur hover:bg-slate-950/45"
+                    onClick={() => setAbaLista(abaListaNext as any)}
+                    aria-label="Próximo filtro"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <TabsList className="hidden md:flex w-full justify-start flex-wrap gap-2">
+                  <TabsTrigger value="MORADORES">Moradores</TabsTrigger>
+                  <TabsTrigger value="SINDICOS">Síndicos</TabsTrigger>
+                  <TabsTrigger value="PORTEIROS">Porteiros</TabsTrigger>
+                  <TabsTrigger value="ZELADORES">Zeladores</TabsTrigger>
+                  <TabsTrigger value="FUNCIONARIOS">Funcionários</TabsTrigger>
+                  <TabsTrigger value="TODOS">Todos</TabsTrigger>
+                </TabsList>
 
           <Table>
             <TableHeader>

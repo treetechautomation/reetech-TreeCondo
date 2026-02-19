@@ -113,7 +113,7 @@ export default function CondominioSelect({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="text-xs font-medium text-slate-800">{label}</div>
+      <div className="text-xs font-medium text-[#00d0e6]">{label}</div>
 
       <Select
         value={safeValue}
@@ -132,7 +132,13 @@ export default function CondominioSelect({
           <SelectValue placeholder={loading ? "Carregando..." : "Selecione um condomínio"} />
         </SelectTrigger>
 
-        <SelectContent className="rounded-2xl border-white/10 bg-[#0b1220]/90 text-white backdrop-blur">
+        <SelectContent
+            side="bottom"
+            align="center"
+            sideOffset={8}
+            position="popper"
+            className="rounded-2xl border-white/10 bg-[#0b1220]/90 text-white backdrop-blur z-[9999]"
+          >
           {items.length === 0 ? (
             <SelectItem value="__empty" disabled>
               {loading ? "Carregando..." : "Nenhum condomínio encontrado"}
@@ -147,7 +153,7 @@ export default function CondominioSelect({
         </SelectContent>
       </Select>
 
-      <div className="text-[11px] text-slate-700/80">
+      <div className="text-[11px] text-[#00d0e6]/70">
         Dica: este seletor salva o condomínio ativo para filtrar Anúncios, Encomendas, etc.
       </div>
     </div>

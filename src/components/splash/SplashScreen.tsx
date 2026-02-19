@@ -24,7 +24,7 @@ export function SplashScreen() {
       {visible && (
 
         <motion.div
-          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none"
           style={{
             background:
               "linear-gradient(135deg, #F7F2EB 0%, #F7F2EB 100%)"

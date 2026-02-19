@@ -38,6 +38,10 @@
     "node_modules",
     "functions/**",
     "functions-src/**",
-    ".next"
+    ".next",
+    "_backup",
+    "**/_backup/**",
+    "**/*.bak*",
+    "**/*.backup*"
   ]
 }

@@ -431,13 +431,13 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
 
               <div className="flex justify-end gap-2">
                 <Button
-                  variant="outline"
-                  size="icon"
-                  title="Detalhes"
-                  onClick={() => setDetailedItem(it)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
+  variant="outline"
+  size="icon"
+  title="Detalhes"
+  className="border-white/40 bg-white/85 backdrop-blur hover:bg-white shadow-sm group transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(0,208,230,.35),0_8px_30px_rgba(0,208,230,.25)]"
+>
+  <Eye className="h-4 w-4 text-[#0f172a] group-hover:text-[#00d0e6] transition-colors duration-200" />
+</Button>
 
                 {/* Morador pode AUTORIZAR/CANCELAR o próprio enquanto PENDENTE */}
                 {isMorador && it.moradorUid === uid && it.status === "PENDENTE" && (
@@ -484,7 +484,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
     </div>
   );
   return (
-    <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid}><Plus className="mr-2 h-4 w-4" />Novo Acesso</Button></DialogTrigger><DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto max-h-[85dvh] overflow-y-auto"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
+    <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid}><Plus className="mr-2 h-4 w-4" />Novo Acesso</Button></DialogTrigger><DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto max-h-[85dvh] overflow-y-auto tc-dialog-center"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
       <div className="grid gap-1"><Label>Tipo</Label><select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value as TipoAcesso)}><option value="VISITANTE">Visitante</option><option value="PRESTADOR">Prestador</option></select></div>
       
       {blocoId && unidadeId ? (
@@ -501,7 +501,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
 
       <div className="grid gap-1"><Label>Nome do Visitante/Prestador</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João da Silva" /></div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Telefone (opcional)</Label><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(00) 00000-0000" /></div><div className="grid gap-1"><Label>Documento (opcional)</Label><Input value={documento} onChange={(e) => setDocumento(e.target.value)} placeholder="CPF/RG" /></div></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Placa (opcional)</Label><Input value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-1234" /></div><div className="grid gap-1"><Label>Empresa (prestador) (opcional)</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ex: Manutenção Elétrica" disabled={tipo !== "PRESTADOR"} /></div></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Janela - Início</Label><Input type="datetime-local" value={janelaInicio} onChange={(e) => setJanelaInicio(e.target.value)} /></div><div className="grid gap-1"><Label>Janela - Fim</Label><Input type="datetime-local" value={janelaFim} onChange={(e) => setJanelaFim(e.target.value)} /></div></div><div className="grid gap-1"><Label>Observação (opcional)</Label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: vai entregar material / vai instalar internet / etc." /></div></div><DialogFooter><Button onClick={criarAcesso} disabled={saving}>{saving ? "Salvando..." : "Criar"}</Button></DialogFooter></DialogContent></Dialog>}>
-      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] tc-acesso-white">
         <CardHeader><CardTitle>Acessos</CardTitle><CardDescription>Pré-autorizações para visitantes e prestadores de serviço.</CardDescription></CardHeader>
         <CardContent>
           {!condominioId ? <div className="p-4 text-sm text-muted-foreground">Selecione um condomínio para ver/criar acessos.</div> :
@@ -561,7 +561,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
   {/* DESKTOP/TABLET (md+): tabs */}
   <div className="hidden md:block">
     <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-      <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-black/5 p-2 h-auto md:flex md:flex-wrap md:justify-start md:gap-2 md:w-full lg:flex-nowrap bg-gradient-to-r from-[#B7CD0C]/20 via-[#00D0E6]/20 to-[#F4EFE9]/80 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,.06)]">
+      <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-black/5 p-2 h-auto md:flex md:flex-wrap md:justify-start md:gap-2 md:w-full lg:flex-nowrap bg-gradient-to-r from-[#B7CD0C]/20 via-[#00D0E6]/20 to-[#F4EFE9]/80 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,.06)] tc-acesso-tabs">
         <TabsTrigger value="PENDENTE" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Pendentes</TabsTrigger>
         <TabsTrigger value="AUTORIZADO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Autorizados</TabsTrigger>
         <TabsTrigger value="ENTROU" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60"><span className="lg:hidden">Dentro</span><span className="hidden lg:inline">Dentro do Condomínio</span></TabsTrigger>
@@ -581,9 +581,10 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
       </Card>
       
       <Dialog open={!!detailedItem} onOpenChange={(open) => !open && setDetailedItem(null)}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto tc-dialog-center">
             <DialogHeader>
                 <DialogTitle>Detalhes do Acesso</DialogTitle>
+                <DialogDescription className="sr-only">Informações detalhadas do acesso selecionado.</DialogDescription>
             </DialogHeader>
             {detailedItem && (
                 <div className="grid gap-3 text-sm">

@@ -1,0 +1,161 @@
+
+"use client";
+
+import * as React from "react";
+import { initializeFirebase } from "@/firebase";
+import { useSession } from "@/hooks/useSession";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+} from "firebase/firestore";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+type CondoItem = { id: string; nome: string };
+
+type Props = {
+  value: string | null;
+  onChange: (id: string) => void;
+  className?: string;
+  label?: string;
+};
+
+export default function CondominioSelect({
+  value,
+  onChange,
+  className,
+  label = "Condomínio",
+}: Props) {
+  const [items, setItems] = React.useState<CondoItem[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const { session, isSessionLoading } = useSession();
+  const superAdmin = !!session?.superAdmin;
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    // Não faz nada até a sessão estar pronta
+    if (isSessionLoading || !session?.user) return;
+
+    const run = async () => {
+      setLoading(true);
+      try {
+        const { firestore } = initializeFirebase();
+
+        // Lógica para SUPER_ADMIN: busca todos de `condominiosPublicos`
+        if (superAdmin) {
+          console.log("[CondominioSelect] Modo SUPER_ADMIN: buscando condominiosPublicos...");
+          const q = query(collection(firestore, "condominiosPublicos"), orderBy("nome"));
+          const snap = await getDocs(q);
+          const out: CondoItem[] = snap.docs.map((d) => ({
+            id: d.id,
+            nome: (d.data() as any)?.nome ?? d.id,
+          }));
+          if (mounted) setItems(out);
+          console.log("[CondominioSelect] SUPER_ADMIN carregou", out.length, "condomínios.");
+          return;
+        }
+
+        // Lógica para USUÁRIO COMUM: busca nomes a partir dos vínculos
+        const vinculos = session.vinculos || [];
+        console.log("[CondominioSelect] Modo Usuário Comum: resolvendo nomes para", vinculos.length, "vínculos...");
+        if (vinculos.length === 0) {
+          if (mounted) setItems([]);
+          return;
+        }
+
+        const promises = vinculos.map(async (v) => {
+          try {
+            const pubSnap = await getDoc(doc(firestore, "condominiosPublicos", v.condominioId));
+            return {
+              id: v.condominioId,
+              nome: (pubSnap.data() as any)?.nome ?? v.condominioId,
+            };
+          } catch {
+            return { id: v.condominioId, nome: v.condominioId }; // Fallback
+          }
+        });
+
+        const out = await Promise.all(promises);
+        out.sort((a, b) => a.nome.localeCompare(b.nome));
+
+        if (mounted) {
+          setItems(out);
+          console.log("[CondominioSelect] Usuário Comum carregou", out.length, "condomínios.");
+        }
+      } catch (e: any) {
+        console.error("[CondominioSelect] erro ao carregar condomínios:", e);
+        if (mounted) setItems([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    run();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isSessionLoading, session?.user?.uid, superAdmin, session?.vinculos]);
+
+  const safeValue = value ?? "";
+
+  return (
+    <div className={cn("space-y-2", className)}>
+      <div className="text-xs font-medium text-slate-800">{label}</div>
+
+      <Select
+        value={safeValue}
+        onValueChange={(v) => {
+          if (v === "__empty") return;
+          onChange(v);
+        }}
+        disabled={loading || items.length === 0}
+      >
+        <SelectTrigger
+          className={cn(
+            "h-11 rounded-2xl border-white/15 bg-white/10 text-slate-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)] backdrop-blur",
+            "focus:ring-0 focus:ring-offset-0"
+          )}
+        >
+          <SelectValue placeholder={loading ? "Carregando..." : "Selecione um condomínio"} />
+        </SelectTrigger>
+
+        <SelectContent
+            side="bottom"
+            align="center"
+            sideOffset={8}
+            position="popper"
+            className="rounded-2xl border-white/10 bg-[#0b1220]/90 text-white backdrop-blur z-[9999]"
+          >
+          {items.length === 0 ? (
+            <SelectItem value="__empty" disabled>
+              {loading ? "Carregando..." : "Nenhum condomínio encontrado"}
+            </SelectItem>
+          ) : (
+            items.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+
+      <div className="text-[11px] text-slate-700/80">
+        Dica: este seletor salva o condomínio ativo para filtrar Anúncios, Encomendas, etc.
+      </div>
+    </div>
+  );
+}

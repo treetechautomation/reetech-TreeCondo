@@ -1,35 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
-import { PlusCircle } from "lucide-react";
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-
 import AppLayout from "@/components/layout/AppLayout";
-import { useCondominio } from "@/contexts/CondominioContext";
-import { useSessionCtx } from "@/contexts/SessionContext";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MensagensSection } from "@/modules/comunicacao/components/MensagensSection";
+import CondominioSelect from "@/components/condominios/CondominioSelect";
+import { useSession } from "@/hooks/useSession";
+import { initializeFirebase } from "@/firebase";
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { hasRole } from "@/lib/acl";
+import { PlusCircle } from "lucide-react";
 
 type Anuncio = {
   id: string;
   titulo: string;
   mensagem: string;
-  createdAt?: {
-    toDate: () => Date;
-  };
-  createdByUid?: string;
+  createdAt?: any;
 };
 
 function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
+  // GLASS CLARO + TEXTO ESCURO (combina com o fundo do sistema)
   return (
     <Card
       className={cn(
@@ -41,22 +32,73 @@ function GlassCard({ className, ...props }: React.ComponentProps<typeof Card>) {
   );
 }
 
-// Componente para criar anúncios, visível apenas para admins.
-function CreateAnuncioForm() {
-  const { session } = useSessionCtx();
-  const firestore = useFirestore();
-  const { condominioAtivoId } = useCondominio();
+export default function AnunciosPage() {
+  const { session, isSessionLoading, setActiveCondominioId } = useSession();
+  const canManageAnuncios = session?.menuPermissions?.anuncios === true;
+  const [condominioId, setCondominioId] = React.useState<string | null>(null);
+
+  const [anuncios, setAnuncios] = React.useState<Anuncio[]>([]);
+  const [loading, setLoading] = React.useState(false);
 
   const [titulo, setTitulo] = React.useState("");
   const [mensagem, setMensagem] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  async function createAnuncio() {
-    if (!condominioAtivoId) {
-      setErr("Selecione um condomínio para criar um anúncio.");
+  React.useEffect(() => {
+    if (isSessionLoading) return;
+
+    const fromSession = session?.activeCondominioId ?? null;
+    const fromLocal =
+      typeof window !== "undefined" ? window.localStorage.getItem("treecondo_condominioId") : null;
+
+    const resolved = fromSession ?? fromLocal;
+    setCondominioId(resolved);
+
+    if (!fromSession && resolved) setActiveCondominioId(resolved);
+  }, [isSessionLoading, session?.activeCondominioId, setActiveCondominioId]);
+
+  React.useEffect(() => {
+    if (!condominioId) {
+      setAnuncios([]);
       return;
     }
+
+    const { firestore } = initializeFirebase();
+    setLoading(true);
+
+    const colRef = collection(firestore, "condominios", condominioId, "anuncios");
+    const q = query(colRef, orderBy("createdAt", "desc"));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: Anuncio[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+        setAnuncios(list);
+        setLoading(false);
+      },
+      (e) => {
+        console.error(e);
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
+  }, [condominioId]);
+
+  function onPickCondo(id: string) {
+    setCondominioId(id);
+    setActiveCondominioId(id);
+    if (typeof window !== "undefined") window.localStorage.setItem("treecondo_condominioId", id);
+  }
+
+  async function createAnuncio() {
+    if (!condominioId) return;
+      if (!canManageAnuncios) { setErr("Sem permissão para criar anúncios."); return; }
+    setErr(null);
 
     const t = titulo.trim();
     const m = mensagem.trim();
@@ -66,10 +108,9 @@ function CreateAnuncioForm() {
     }
 
     setSaving(true);
-    setErr(null);
-
     try {
-      await addDoc(collection(firestore, "condominios", condominioAtivoId, "anuncios"), {
+      const { firestore } = initializeFirebase();
+      await addDoc(collection(firestore, "condominios", condominioId, "anuncios"), {
         titulo: t,
         mensagem: m,
         createdAt: serverTimestamp(),
@@ -77,112 +118,118 @@ function CreateAnuncioForm() {
       });
       setTitulo("");
       setMensagem("");
-    } catch(e: any) {
-        setErr(e?.message || "Ocorreu um erro ao publicar.")
+    } catch (e: any) {
+      setErr(e?.message ?? "Falha ao criar anúncio.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <GlassCard className="lg:col-span-1">
-      <CardHeader>
-        <CardTitle>Criar anúncio</CardTitle>
-        <CardDescription>Publicar avisos para os moradores.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!condominioAtivoId && <p className="text-sm text-amber-700">Selecione um condomínio para criar um anúncio.</p>}
-        <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título do anúncio" disabled={!condominioAtivoId} />
-        <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="min-h-[120px] w-full rounded-xl border p-3 disabled:opacity-50" placeholder="Mensagem" disabled={!condominioAtivoId} />
-        {err && <div className="text-red-600 text-sm">{err}</div>}
-        <Button onClick={createAnuncio} disabled={saving || !condominioAtivoId}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          {saving ? 'Publicando...' : 'Publicar'}
-        </Button>
-      </CardContent>
-    </GlassCard>
-  );
-}
+    <AppLayout pageTitle="Anúncios">
+      {/* Fundo premium (bem leve, SEM sobrepor conteúdo) */}
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="h-[240px] rounded-[36px] bg-gradient-to-r from-emerald-200/35 via-cyan-200/25 to-emerald-100/30" />
+          <div className="absolute -top-20 left-10 h-72 w-72 rounded-full bg-emerald-400/20 blur-3xl" />
+          <div className="absolute top-10 right-10 h-72 w-72 rounded-full bg-cyan-400/18 blur-3xl" />
+        </div>
 
-// Componente para listar anúncios, visível para todos.
-function AnnouncementsList() {
-  const { condominioAtivoId } = useCondominio();
-  const firestore = useFirestore();
+        <div className="grid gap-6 lg:grid-cols-3">
+          {canManageAnuncios ? (
+<GlassCard className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-slate-900">Criar anúncio</CardTitle>
+              <CardDescription className="text-slate-600">
+                Publique avisos para os moradores do condomínio selecionado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-black/5 bg-white/55 p-3 backdrop-blur-xl">
+                <CondominioSelect value={condominioId} onChange={onPickCondo} />
+              </div>
 
-  const anunciosQuery = useMemoFirebase(() => {
-    if (!firestore || !condominioAtivoId) return null;
-    return query(collection(firestore, "condominios", condominioAtivoId, "anuncios"), orderBy("createdAt", "desc"));
-  }, [firestore, condominioAtivoId]);
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-slate-700">Título</div>
+                <Input
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  className="h-11 rounded-2xl border-black/10 bg-white/70 text-slate-900 placeholder:text-slate-400 backdrop-blur"
+                  placeholder="Ex: Manutenção no elevador"
+                />
+              </div>
 
-  const { data: anuncios, isLoading, error } = useCollection<Anuncio>(anunciosQuery);
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-slate-700">Mensagem</div>
+                <textarea
+                  value={mensagem}
+                  onChange={(e) => setMensagem(e.target.value)}
+                  className="min-h-[120px] w-full rounded-2xl border border-black/10 bg-white/70 p-3 text-sm text-slate-900 placeholder:text-slate-400 backdrop-blur outline-none"
+                  placeholder="Escreva o aviso completo..."
+                />
+              </div>
 
-  return (
-    <GlassCard className="lg:col-span-2">
-      <CardHeader>
-        <CardTitle>Últimos anúncios</CardTitle>
-        <CardDescription>Avisos importantes para todos os moradores.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {isLoading && <div>Carregando anúncios...</div>}
-        {error && <div className="text-red-600 text-sm">{error.message}</div>}
-        {!isLoading && !condominioAtivoId && (
-            <div className="text-sm text-slate-600">Selecione um condomínio para ver os anúncios.</div>
-        )}
-        {!isLoading && condominioAtivoId && anuncios && anuncios.length === 0 && (
-          <div className="text-sm text-slate-600">Nenhum anúncio encontrado para este condomínio.</div>
-        )}
-        {!isLoading && anuncios && anuncios.map((a) => (
-          <div key={a.id} className="rounded-xl border p-4">
-            <div className="flex justify-between items-baseline">
-                <div className="font-semibold">{a.titulo}</div>
-                {a.createdAt && (
-                    <div className="text-xs text-slate-500">
-                        {formatDistanceToNow(a.createdAt.toDate(), { addSuffix: true, locale: ptBR })}
-                    </div>
-                )}
-            </div>
-            <div className="text-sm mt-1 whitespace-pre-wrap">{a.mensagem}</div>
-          </div>
-        ))}
-      </CardContent>
-    </GlassCard>
-  );
-}
+              {err && <div className="text-sm text-red-600">{err}</div>}
 
+              <Button
+                onClick={createAnuncio}
+                disabled={saving || !condominioId}
+                className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                {saving ? "Publicando..." : "Publicar anúncio"}
+              </Button>
 
-export default function AnunciosPage() {
-  const { session } = useSessionCtx();
-  const { condominioAtivoId } = useCondominio();
-const canManage = hasRole(session, ["SUPER_ADMIN", "ADMIN", "SINDICO"]);
-
-  const [aba, setAba] = React.useState<"ANUNCIOS" | "MENSAGENS">("ANUNCIOS");
-
-
-  return (
-    <AppLayout pageTitle="Comunicação">
-      <Tabs value={aba} onValueChange={(v) => setAba(v as any)} className="space-y-6">
-          <TabsList className="w-full justify-start flex flex-wrap gap-2">
-            <TabsTrigger value="ANUNCIOS">Anúncios</TabsTrigger>
-            <TabsTrigger value="MENSAGENS">Mensagens</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="ANUNCIOS" className="space-y-6">
-            <div className={cn("grid gap-6", canManage ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
-              {canManage ? (
-                <>
-                  <CreateAnuncioForm />
-                  <AnnouncementsList />
-                </>
-              ) : (
-                <AnnouncementsList />
+              {!condominioId && (
+                <div className="text-xs text-slate-500">
+                  Selecione um condomínio para habilitar o cadastro de anúncios.
+                </div>
               )}
-            </div>
-          </TabsContent>
+            </CardContent>
+          </GlassCard>
+) : (
+  <div className="rounded-2xl border border-black/5 bg-white/50 p-4 text-sm text-slate-700">
+    Você pode <b>ver</b> os anúncios, mas não tem permissão para <b>criar</b>. Fale com o síndico/administrador.
+  </div>
+)}
 
-          <TabsContent value="MENSAGENS" className="space-y-6">
-              <MensagensSection />
-            </TabsContent>
-        </Tabs>
+          <GlassCard className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-slate-900">Últimos anúncios</CardTitle>
+              <CardDescription className="text-slate-600">
+                {condominioId ? "Filtrado pelo condomínio ativo." : "Selecione um condomínio para ver os anúncios."}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-3">
+              {loading && <div className="text-sm text-slate-600">Carregando...</div>}
+
+              {!loading && !condominioId && (
+                <div className="rounded-2xl border border-black/5 bg-white/55 p-4 text-sm text-slate-600 backdrop-blur-xl">
+                  Escolha um condomínio no painel ao lado.
+                </div>
+              )}
+
+              {!loading && condominioId && anuncios.length === 0 && (
+                <div className="rounded-2xl border border-black/5 bg-white/55 p-4 text-sm text-slate-600 backdrop-blur-xl">
+                  Nenhum anúncio ainda. Publique o primeiro.
+                </div>
+              )}
+
+              {!loading &&
+                anuncios.map((a) => (
+                  <div
+                    key={a.id}
+                    className="rounded-2xl border border-black/5 bg-white/55 p-4 backdrop-blur-xl"
+                  >
+                    <div className="text-base font-semibold text-slate-900">{a.titulo}</div>
+                    <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{a.mensagem}</div>
+                  </div>
+                ))}
+            </CardContent>
+          </GlassCard>
+        </div>
+      </div>
     </AppLayout>
   );
 }

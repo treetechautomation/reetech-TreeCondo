@@ -144,49 +144,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="tc-login-bg tc-bg relative min-h-screen overflow-hidden tc-grain">
       {/* FUNDO PREMIUM */}
-      <div className="absolute inset-0 bg-transparent" />
-      <div className="pointer-events-none absolute inset-0">
-        {/* gradiente principal */}
-        <div className="absolute -top-48 -left-48 h-[520px] w-[520px] rounded-full bg-emerald-400/25 blur-3xl" />
-        <div className="absolute top-20 -right-40 h-[560px] w-[560px] rounded-full bg-cyan-400/20 blur-3xl" />
-        <div className="absolute bottom-[-220px] left-1/2 h-[640px] w-[640px] -translate-x-1/2 rounded-full bg-lime-300/20 blur-3xl" />
+<div className="absolute inset-0 bg-transparent" />
+{/* (sem overlays claros aqui — o dark core vem do CSS) */}
 
-        {/* brilho suave */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.55] via-white/[0.25] to-transparent" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.16),transparent_55%)]" />
-      </div>
-
-      {/* CARD GLASS */}
+{/* CARD GLASS */}
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-[980px] grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* LADO BRAND */}
-          <div
-            className="hidden lg:flex flex-col justify-center rounded-3xl p-10 text-white overflow-hidden relative"
-            style={{ background: "linear-gradient(135deg, rgba(13,148,136,0.95), rgba(34,197,94,0.85))" }}
-          >
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-white/15 blur-2xl" />
-              <div className="absolute bottom-[-80px] -left-24 h-72 w-72 rounded-full bg-black/10 blur-2xl" />
-            </div>
-
-            <div className="relative">
-              <TreeCondoBrand variant="login" />
-
-              <p className="mt-6 text-white/90 leading-relaxed text-center">
-                Centralize moradores, síndicos e operação com uma experiência premium.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-2 justify-center">
-                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Código no primeiro acesso</span>
-                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Senha criada pelo morador</span>
-                <span className="rounded-full bg-white/15 px-3 py-1 text-sm">Acesso seguro</span>
-              </div>
-            </div>
-          </div>
-
-          <Card className="rounded-3xl border-black/5 bg-white/35 backdrop-blur-xl shadow-[0_20px_70px_rgba(2,6,23,0.18)]">
+        <div className="w-full max-w-[560px] grid grid-cols-1 gap-6">
+<Card className="rounded-3xl border-black/5 bg-white/35 backdrop-blur-xl shadow-[0_20px_70px_rgba(2,6,23,0.18)] tc-card-depth">
             <CardHeader className="items-center pb-2 text-center">
               <Image src={logoSrc} alt="TreeCondo" width={64} height={64} className="mb-4 rounded-2xl" />
               <CardTitle className="text-2xl">
@@ -248,7 +214,7 @@ export default function LoginPage() {
 
                     <Button
                       disabled={loadingLogin}
-                      className="w-full h-11 rounded-xl text-foreground shadow-lg"
+                      className="w-full h-11 rounded-xl text-foreground shadow-lg tc-btn-neon"
                       style={{ background: "linear-gradient(135deg, hsl(var(--tc-cyan)), hsl(var(--tc-lime)))" }}
                       type="submit"
                     >

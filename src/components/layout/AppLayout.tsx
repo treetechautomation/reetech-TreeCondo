@@ -233,17 +233,17 @@ React.useEffect(() => {
                 {/* Esquerda: menu mobile + voltar */}
                 <div className="flex items-center gap-2 min-w-0">
                   {/* Drawer mobile */}
-                  <div className="lg:hidden">
+                  <div className="hidden">
                     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                       <SheetTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-xl">
-                          <Menu className="h-5 w-5" />
-                        </Button>
-                      </SheetTrigger>
+  <Button type="button" variant="ghost" size="icon" className="rounded-xl relative z-[2147483000] pointer-events-auto text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]">
+    <Menu className="h-5 w-5" />
+  </Button>
+</SheetTrigger>
 
                       <SheetContent
                         side="left"
-                        className="p-0 w-[88vw] max-w-[360px] border-r border-white/10 bg-black/30 backdrop-blur-2xl"
+                        className="p-0 w-[88vw] max-w-[360px] border-r border-white/10 bg-black/30 backdrop-blur-2xl z-[2147483647]"
                       >
                         {/* Topbar do drawer com setas */}
                         <div className="flex items-center justify-between px-3 py-2 bg-white/15 backdrop-blur-xl border-b border-white/10">
@@ -283,9 +283,7 @@ React.useEffect(() => {
                         </div>
 
                         {/* Menu */}
-                        <div className="h-[calc(100dvh-44px)]">
-                          <SidebarPanel onNavigate={() => setMobileOpen(false)} />
-                        </div>
+                        <SidebarPanel onNavigate={() => setMobileOpen(false)} />
                       </SheetContent>
                     </Sheet>
                   </div>

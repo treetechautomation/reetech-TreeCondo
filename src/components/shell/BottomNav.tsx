@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, CalendarDays, KeyRound, Megaphone, Package } from "lucide-react";
+import { CalendarDays, KeyRound, Menu, Megaphone, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const items = [
-  { href: "/", label: "Início", icon: Home },
+type NavItem = { href: string; label: string; icon: any; aliases?: string[] };
+
+const items: NavItem[] = [
   { href: "/reservas", label: "Reservas", icon: CalendarDays },
-  { href: "/acesso", label: "Acesso", icon: KeyRound },
-  { href: "/comunicacao", label: "Anúncios", icon: Megaphone },
+  { href: "/acesso", label: "Acessos", icon: KeyRound, aliases: ["/acessos"] },
+  { href: "/menu", label: "Menu", icon: Menu },
+  { href: "/anuncios", label: "Anúncios", icon: Megaphone, aliases: ["/comunicacao"] },
   { href: "/encomendas", label: "Encomendas", icon: Package },
 ];
 
@@ -22,32 +24,27 @@ export function BottomNav() {
 
         {items.map(({ href, label, icon: Icon }) => {
 
-          const active =
-            pathname === href ||
-            pathname?.startsWith(href + "/");
+          const all = [href, ...(items.find(i => i.href === href)?.aliases ?? [])];
 
-          return (
+const active = all.some((base) =>
+  pathname === base || pathname?.startsWith(base + "/")
+);
+return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "group flex w-full flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] transition-all duration-200",
-
-                active
-                  ? "text-[hsl(var(--brand-blue))]"
-                  : "text-slate-500 hover:text-[hsl(var(--accent))]"
-              )}
+"group flex w-full flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] transition-all duration-200",
+active ? "text-[#00d0e6] drop-shadow-[0_0_12px_rgba(0,208,230,.65)]" : "text-[#0D4459] hover:text-[#00d0e6]"
+)}
             >
 
               <Icon
-                className={cn(
-                  "h-5 w-5 transition-all duration-200",
-
-                  active
-                    ? "scale-110 text-[hsl(var(--brand-blue))]"
-                    : "group-hover:text-[hsl(var(--accent))]"
-                )}
-              />
+  className={cn(
+    "h-5 w-5 transition-all duration-200",
+    active ? "scale-110 text-[#00d0e6] drop-shadow-[0_0_12px_rgba(0,208,230,.65)]" : "text-[#0D4459] group-hover:text-[#00d0e6]"
+  )}
+/>
 
               <span
                 className={cn(
@@ -62,12 +59,9 @@ export function BottomNav() {
               {/* indicador ativo */}
               <div
                 className={cn(
-                  "mt-1 h-[3px] w-6 rounded-full transition-all duration-300",
-
-                  active
-                    ? "bg-[hsl(var(--brand-blue))] opacity-100"
-                    : "opacity-0"
-                )}
+  "mt-1 h-[3px] w-6 rounded-full transition-all duration-300",
+  active ? "bg-[#00d0e6] opacity-100 drop-shadow-[0_0_12px_rgba(0,208,230,.65)]" : "opacity-0"
+)}
               />
 
             </Link>

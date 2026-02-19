@@ -81,63 +81,63 @@ export function AreaCard({
           "hover:bg-background/60 hover:text-foreground"
         )}
       >
-        <div className="flex w-full items-center gap-4">
-          {/* FOTO 150x150 */}
-          <div className="h-[200px] w-[200px] shrink-0 overflow-hidden rounded-2xl border bg-muted/30">
-            {area.fotoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={area.fotoUrl}
-                alt={area.nome}
-                className="h-full w-full object-cover"
-                referrerPolicy="no-referrer"
-                data-ai-hint={area.fotoHint ?? undefined}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-muted-foreground">
-                SEM FOTO
-              </div>
-            )}
-          </div>
-
-          {/* TEXTO */}
-          <div className="min-w-0 flex-1 text-left">
-            <div className="flex items-start gap-2">
-              <div className="min-w-0">
-                <div className="truncate text-base font-semibold text-foreground">
-                  {area.nome}
+        <div className="flex w-full flex-col gap-3">
+            {/* FOTO (topo) */}
+            <div className="h-[220px] w-full overflow-hidden rounded-2xl border bg-muted/30">
+              {area.fotoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={area.fotoUrl}
+                  alt={area.nome}
+                  className="h-full w-full object-cover"
+                  referrerPolicy="no-referrer"
+                  data-ai-hint={area.fotoHint ?? undefined}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-muted-foreground">
+                  SEM FOTO
                 </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {priceLabel}
-                </div>
-
-                {Number.isFinite(Number(area.capacidadeMax)) &&
-                  Number(area.capacidadeMax) > 0 && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Capacidade:{" "}
-                      <span className="font-medium text-foreground">
-                        {Number(area.capacidadeMax)}
-                      </span>{" "}
-                      pessoas
-                    </div>
-                  )}
-              </div>
-
-              {hasOptions && (
-                <span className="ml-auto shrink-0 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
-                  opções
-                </span>
               )}
             </div>
 
-            {selected && (
-              <div className="mt-2">
-                <Badge>Selecionado</Badge>
+            {/* NOME + PREÇO (embaixo da imagem) */}
+            <div className="w-full text-left">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-base font-semibold text-foreground whitespace-normal break-words">
+                    {area.nome}
+                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {priceLabel}
+                  </div>
+
+                  {Number.isFinite(Number(area.capacidadeMax)) &&
+                    Number(area.capacidadeMax) > 0 && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Capacidade:{" "}
+                        <span className="font-medium text-foreground">
+                          {Number(area.capacidadeMax)}
+                        </span>{" "}
+                        pessoas
+                      </div>
+                    )}
+                </div>
+
+                {hasOptions && (
+                  <span className="shrink-0 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
+                    opções
+                  </span>
+                )}
               </div>
-            )}
+
+              {selected && (
+                <div className="mt-2">
+                  <Badge>Selecionado</Badge>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </Button>
+        </Button>
 
       {/* CALENDÁRIO SEMPRE ABAIXO */}
       <div className="px-3 pb-3">

@@ -73,41 +73,41 @@ export default function CondominiosPage() {
             />
           </div>
         )}
-<div className="rounded-lg border bg-card">
-        <div className="border-b px-6 py-4">
-          <h2 className="text-sm font-medium text-muted-foreground">
+<div className="tc-glass-card">
+<div className="tc-glass-card__header">
+            <h2 className="tc-glass-card__title">
             Condomínios cadastrados
           </h2>
-        </div>
+          </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+          <div className="tc-table-wrap">
+          <table className="tc-table">
+            <thead className="tc-thead">
               <tr>
-                <th className="px-6 py-3 text-left">Nome do Condomínio</th>
-                <th className="px-6 py-3 text-left">CNPJ</th>
-                <th className="px-6 py-3 text-left">Ativo</th>
+                <th className="tc-th">Nome do Condomínio</th>
+                <th className="tc-th">CNPJ</th>
+                <th className="tc-th">Ativo</th>
               </tr>
             </thead>
             <tbody>
               {condominios.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-6 text-center text-sm text-muted-foreground">
+                  <td colSpan={3} className="px-4 sm:px-6 py-8 text-center text-sm text-white/60">
                     Nenhum condomínio cadastrado.
                   </td>
                 </tr>
               ) : (
                 condominios.map((c) => (
-                  <tr key={c.id} className="border-t">
-                    <td className="px-6 py-3">{c.nome}</td>
-                    <td className="px-6 py-3">{c.cnpj ?? "-"}</td>
-                    <td className="px-6 py-3">
+                  <tr key={c.id} className="tc-tr">
+                    <td className="tc-td">{c.nome}</td>
+                    <td className="tc-td">{c.cnpj ?? "-"}</td>
+                    <td className="tc-td">
                       {c.ativo ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-200 border border-emerald-400/20">
                           Ativo
                         </span>
                       ) : (
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                        <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-semibold text-white/60 border border-white/15">
                           Inativo
                         </span>
                       )}
