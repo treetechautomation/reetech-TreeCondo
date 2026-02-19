@@ -15,9 +15,9 @@ import { FileText, Calendar, Users, AlertTriangle, CheckCircle, Clock } from "lu
 
 export default function ManutencaoPreventivaPage() {
   const summaryCards = [
-    { title: "Próximas 7 dias", value: "3", icon: <Clock className="h-4 w-4 text-muted-foreground" /> },
-    { title: "Atrasadas", value: "1", icon: <AlertTriangle className="h-4 w-4 text-muted-foreground" /> },
-    { title: "Concluídas no mês", value: "5", icon: <CheckCircle className="h-4 w-4 text-muted-foreground" /> },
+    { title: "Próximas 7 dias", value: "3", icon: <Clock className="h-4 w-4 text-white/80" /> },
+    { title: "Atrasadas", value: "1", icon: <AlertTriangle className="h-4 w-4 text-white/80" /> },
+    { title: "Concluídas no mês", value: "5", icon: <CheckCircle className="h-4 w-4 text-white/80" /> },
   ];
 
   const navCards = [
@@ -70,24 +70,24 @@ export default function ManutencaoPreventivaPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {navCards.map((card) => (
             <Card
-              key={card.href}
-              className="border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] hover:bg-white/80 transition-all"
-            >
+                key={card.href}
+                className="group border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] hover:bg-white/80 transition-all">
               <CardHeader className="flex flex-row items-center gap-4 space-y-0">
-                <div className="rounded-lg bg-primary/10 p-3 text-primary">
+                <div className="rounded-lg bg-primary/10 p-3 text-primary group-hover:text-slate-900">
                   {card.icon}
                 </div>
                 <div>
-                  <CardTitle>{card.title}</CardTitle>
+                  <CardTitle className="text-white group-hover:text-slate-900">{card.title}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  {card.description}
-                </p>
-                <Button asChild variant="outline">
-                  <Link href={card.href}>Acessar</Link>
-                </Button>
+                <p className="text-sm text-white/80 group-hover:text-slate-700">{card.description}</p>
+                <Button
+  asChild
+  className="rounded-2xl border border-white/25 bg-white/10 px-6 py-2 text-white hover:bg-[#00d0e6] hover:text-black hover:border-transparent transition-all duration-200 hover:shadow-[0_0_0_2px_rgba(0,208,230,.35),0_10px_30px_rgba(0,208,230,.25)] active:bg-[#00d0e6]"
+>
+  <Link href={card.href}>Acessar</Link>
+</Button>
               </CardContent>
             </Card>
           ))}

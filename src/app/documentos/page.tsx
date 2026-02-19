@@ -319,7 +319,7 @@ export default function DocumentosPage() {
               </Button>
             </DialogTrigger>
 
-            <DialogContent className="sm:max-w-[560px]">
+            <DialogContent className="sm:max-w-[560px] tc-dialog-center">
               <DialogHeader>
                 <DialogTitle>Carregar Documento</DialogTitle>
                 <DialogDescription>
@@ -437,7 +437,7 @@ export default function DocumentosPage() {
       </Card>
     
       <Dialog open={openViewer} onOpenChange={setOpenViewer}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl tc-dialog-center">
           <DialogHeader>
             <DialogTitle>{viewerTitle}</DialogTitle>
           </DialogHeader>

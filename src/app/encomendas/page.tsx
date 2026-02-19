@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { PlusCircle, QrCode, PackageCheck, Clock, History, KeyRound, RefreshCcw, Package, Info } from "lucide-react";
 import QRCode from "qrcode";
 
+import QrScanner from "@/components/qr/QrScanner";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -167,6 +168,7 @@ export default function EncomendasPage() {
 
   // QR Code Dialog state
   const [isQrDialogOpen, setIsQrDialogOpen] = React.useState(false);
+const [scanOpen, setScanOpen] = React.useState(false);
   const [qrCodeUrl, setQrCodeUrl] = React.useState<string>("");
   const [selectedPkgForQr, setSelectedPkgForQr] = React.useState<EncomendaDoc | null>(null);
 
@@ -197,6 +199,10 @@ export default function EncomendasPage() {
     }
 
     React.useEffect(() => {
+  if (!openRetirar) setScanOpen(false);
+}, [openRetirar]);
+
+React.useEffect(() => {
     if (!isMorador || !condId || !firestore || !session?.user?.uid) {
         setMoradorInfo(null);
         return;
@@ -740,13 +746,51 @@ export default function EncomendasPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="codigo" className="text-right">Código</Label>
-                    <Input id="codigo" placeholder="Ex: PKG-7Q9K2M" className="col-span-3" value={codigoInput} onChange={(e) => setCodigoInput(e.target.value)} />
-                  </div>
-                )}
+  <>
+    <div className="grid grid-cols-4 items-center gap-4">
+      <Label htmlFor="codigo" className="text-right">Código</Label>
+      <Input
+        id="codigo"
+        placeholder="Ex: PKG-7Q9K2M"
+        className="col-span-3"
+        value={codigoInput}
+        onChange={(e) => setCodigoInput(e.target.value)}
+      />
+    </div>
 
-                 {retirarError && (
+    <div className="space-y-3 rounded-xl border bg-white/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">Leitor de QR (Porteiro)</div>
+          <div className="text-xs text-muted-foreground">Aponte a câmera para o QR Code da encomenda.</div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setScanOpen((v) => !v)}
+        >
+          {scanOpen ? "Fechar câmera" : "Abrir câmera"}
+        </Button>
+      </div>
+
+      {scanOpen && (
+        <div className="rounded-xl border bg-black/5 p-2">
+          <QrScanner
+            onDecoded={(text) => {
+              const t = String(text || "").trim();
+              if (!t) return;
+              setCodigoInput(t);
+              setScanOpen(false);
+            }}
+            onError={(e) => console.warn("[QrScanner]", e)}
+          />
+        </div>
+      )}
+    </div>
+  </>
+)}
+{retirarError && (
                     <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
                         <p className="font-bold">Erro</p>
                         <p>{retirarError}</p>

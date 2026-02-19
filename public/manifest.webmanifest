@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#0b1f3a",
+  "theme_color": "#0b1f3a",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -43,5 +43,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "browser"
   ]
 }

@@ -216,7 +216,7 @@ export default function FornecedoresPage() {
         </CardContent>
       </Card>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="tc-dialog-center">
           <DialogHeader>
             <DialogTitle>
               {current ? "Editar Fornecedor" : "Novo Fornecedor"}

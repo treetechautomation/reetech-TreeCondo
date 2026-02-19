@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { AppShell } from "@/components/shell/AppShell";
 import Providers from "./providers";
-
+import BootSplash from "@/components/splash/BootSplash";
 export const metadata: Metadata = {
   icons: {
     icon: [
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   },
   title: "TreeCondo - Gestão inteligente de condomínios",
   description: "TreeCondo - Gestão inteligente de condomínios",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.webmanifest?v=20260219_1771518394714",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -49,8 +49,9 @@ export default function RootLayout({
       <body className="font-body antialiased tc-bg-signature tc-typography">
         <FirebaseClientProvider>
           <Providers>
-            <AppShell>{children}</AppShell>
-          </Providers>
+              <BootSplash />
+              <AppShell>{children}</AppShell>
+            </Providers>
         </FirebaseClientProvider>
 
         <Toaster />

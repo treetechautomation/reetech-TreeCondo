@@ -995,3 +995,10 @@ html, body {
 body[data-scroll-locked] {
   padding-right: 0 !important;
 }
+
+/* --- TreeCondo Splash (premium) --- */
+@keyframes tc-splash {
+  0% { transform: translateX(-40%); opacity: .55; }
+  50% { transform: translateX(90%); opacity: 1; }
+  100% { transform: translateX(-40%); opacity: .55; }
+}

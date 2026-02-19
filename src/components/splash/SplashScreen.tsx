@@ -1,88 +1,54 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 
-export function SplashScreen() {
-
-  const [visible, setVisible] = React.useState(true);
-
-  React.useEffect(() => {
-
-    const t = setTimeout(() => {
-      setVisible(false);
-    }, 1600);
-
-    return () => clearTimeout(t);
-
-  }, []);
-
+export default function SplashScreen() {
   return (
-    <AnimatePresence>
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
+      {/* Fundo premium (degradê igual referência) */}
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,#00d0e6_0%,#0b1f3a_52%,#166534_100%)]" />
 
-      {visible && (
+      {/* Luz suave premium */}
+      <div className="absolute inset-0 opacity-25 bg-[radial-gradient(900px_circle_at_20%_30%,rgba(255,255,255,.38),transparent_55%),radial-gradient(700px_circle_at_80%_65%,rgba(255,255,255,.18),transparent_60%)]" />
 
-        <motion.div
-          className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(135deg, #F7F2EB 0%, #F7F2EB 100%)"
-          }}
-          initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-
-          {/* glow */}
-          <motion.div
-            className="absolute w-64 h-64 rounded-full"
-            style={{
-              background: "#00D0E6",
-              filter: "blur(120px)",
-              opacity: 0.25,
-            }}
-            initial={{ scale: 0.6 }}
-            animate={{ scale: 1.2 }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut"
-            }}
-          />
-
-          {/* logo */}
-          <motion.div
-            initial={{
-              scale: 0.7,
-              opacity: 0,
-              filter: "blur(10px)"
-            }}
-            animate={{
-              scale: 1,
-              opacity: 1,
-              filter: "blur(0px)"
-            }}
-            transition={{
-              duration: 0.8,
-              ease: "easeOut"
-            }}
-          >
-
-            <Image
-              src="/logotreecondo.jpeg"
+      {/* Conteúdo */}
+      <div className="relative flex h-full w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-5 px-6">
+          <div className="rounded-3xl border border-white/25 bg-white/10 p-5 shadow-[0_25px_70px_rgba(0,0,0,.35)] backdrop-blur-2xl">
+            <img
+              src="/logo-treecondo.jpeg"
               alt="TreeCondo"
-              width={140}
-              height={140}
-              priority
-              className="rounded-xl shadow-xl"
+              className="h-20 w-20 rounded-2xl object-contain"
             />
+          </div>
 
-          </motion.div>
+          <div className="text-center">
+            <div className="text-white/95 text-xl font-semibold tracking-wide">
+              TreeCondo
+            </div>
+            <div className="text-white/80 text-sm">
+              Gestão inteligente de condomínios
+            </div>
+          </div>
 
-        </motion.div>
+          {/* Barra premium */}
+          <div className="h-1.5 w-44 overflow-hidden rounded-full bg-white/20">
+            <div
+              className="h-full w-1/2 rounded-full bg-white/85"
+              style={{ animation: "tc_splash 1.1s ease-in-out infinite" }}
+            />
+          </div>
+        </div>
+      </div>
 
-      )}
-
-    </AnimatePresence>
+      {/* CSS normal (SEM styled-jsx) */}
+      <style>{`
+        @keyframes tc_splash {
+          0% { transform: translateX(-40%); opacity: .5; }
+          50% { transform: translateX(90%); opacity: 1; }
+          100% { transform: translateX(-40%); opacity: .5; }
+        }
+      `}</style>
+    </div>
   );
 }

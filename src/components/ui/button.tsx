@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:inline-block",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold tracking-wide ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:inline-block",
   {
     variants: {
       variant: {
@@ -18,6 +18,15 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+          premium:
+            "relative overflow-hidden rounded-2xl text-black border border-white/25 " +
+            "bg-[linear-gradient(90deg,#00d0e6_0%,#0b1f3a_52%,#166534_100%)] " +
+            "shadow-[0_10px_30px_rgba(0,0,0,.25)] " +
+            "hover:shadow-[0_0_0_2px_rgba(0,208,230,.35),0_10px_30px_rgba(0,208,230,.25)] " +
+            "transition-all duration-200 " +
+            "focus-visible:ring-2 focus-visible:ring-[#00d0e6] focus-visible:ring-offset-2 " +
+            "active:scale-[0.99]",
+
       },
       size: {
         default: "h-11 px-4 py-2",
