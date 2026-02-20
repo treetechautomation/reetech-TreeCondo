@@ -43,7 +43,6 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        <script src="/pwa-register.js" defer></script>
       </head>
 
       <body className="font-body antialiased tc-bg-signature tc-typography">
