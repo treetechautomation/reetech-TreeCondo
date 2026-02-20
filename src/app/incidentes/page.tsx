@@ -110,7 +110,7 @@ async function apiPost(path: string, body: any) {
 
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${'\'\''}${token}` },
     body: JSON.stringify(body),
   });
 
@@ -272,7 +272,7 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
               <SelectTrigger className="h-8 w-[150px] text-xs bg-white/90 text-slate-900">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 <SelectItem value="ABERTO">Aberto</SelectItem>
                 <SelectItem value="EM_ANDAMENTO">Em Andamento</SelectItem>
                 <SelectItem value="RESOLVIDO">Resolvido</SelectItem>
@@ -366,7 +366,7 @@ const CreateIncidenteDialog = () => {
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start" sideOffset={6} collisionPadding={12} className="z-[10050]">
+              <SelectContent position="popper" side="bottom" align="start" sideOffset={6} collisionPadding={12}>
                 <SelectItem value="RECLAMACAO">Reclamação</SelectItem>
                 <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
                 <SelectItem value="DUVIDA_SUGESTAO">Dúvida/Sugestão</SelectItem>
