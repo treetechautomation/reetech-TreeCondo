@@ -399,12 +399,12 @@ export default function ConvidadosCheckinPage() {
         <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-sm text-muted-foreground">Área</div>
+              <div className="text-sm text-white/70">Área</div>
               <div className="text-lg font-semibold">{areaLabel}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                <div className="mt-1 text-sm text-muted-foreground">
+              <div className="mt-1 text-sm text-white/70">
+                <div className="mt-1 text-sm text-white/70">
                   Morador:{" "}
-                  <span className="font-medium">
+                  <span className="font-medium text-white">
                     {moradorInfo?.nome ||
                       moradorInfo?.displayName ||
                       moradorInfo?.name || "-"}
@@ -414,7 +414,7 @@ export default function ConvidadosCheckinPage() {
                   moradorInfo?.blocoNome ||
                   moradorInfo?.blocoName ||
                   moradorInfo?.blocoLabel ? (
-                    <span className="text-muted-foreground">
+                    <span className="text-white/70">
                       {" "}
                       • Bloco{" "}
                       {moradorInfo?.blocoId ||
@@ -429,7 +429,7 @@ export default function ConvidadosCheckinPage() {
                   moradorInfo?.unidadeNome ||
                   moradorInfo?.unidadeLabel ||
                   moradorInfo?.apto ? (
-                    <span className="text-muted-foreground">
+                    <span className="text-white/70">
                       {" "}
                       • Unidade/Apto{" "}
                       {moradorInfo?.unidadeId ||
@@ -444,22 +444,22 @@ export default function ConvidadosCheckinPage() {
             </div>
 
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">Status</div>
+              <div className="text-sm text-white/70">Status</div>
               <div className="text-lg font-semibold">{statusReserva}</div>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
             <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="text-muted-foreground">Total</div>
+              <div className="text-white/70">Total</div>
               <div className="text-lg font-semibold">{total}</div>
             </div>
             <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="text-muted-foreground">Pendentes</div>
+              <div className="text-white/70">Pendentes</div>
               <div className="text-lg font-semibold">{pendente}</div>
             </div>
             <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="text-muted-foreground">Entraram</div>
+              <div className="text-white/70">Entraram</div>
               <div className="text-lg font-semibold">{entrou}</div>
             </div>
           </div>
@@ -467,7 +467,7 @@ export default function ConvidadosCheckinPage() {
 
         <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="font-semibold">Lista</div>
+            <div className="font-semibold text-white">Lista</div>
             <input
               className="h-10 w-full md:w-[360px] rounded-xl border bg-background px-3 text-sm"
               placeholder="Buscar por nome..."
@@ -477,11 +477,11 @@ export default function ConvidadosCheckinPage() {
           </div>
 
           {loadingLista ? (
-            <div className="mt-4 text-sm text-muted-foreground">
+            <div className="mt-4 text-sm text-white/70">
               Carregando convidados...
             </div>
           ) : filtrados.length === 0 ? (
-            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-white/70">
               Nenhum convidado encontrado.
             </div>
           ) : (
@@ -500,7 +500,7 @@ export default function ConvidadosCheckinPage() {
                         {String(idx + 1).padStart(2, "0")} - {c.nome || "-"}
                       </div>
 
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-white/70">
                         {c.cpf
                           ? `CPF: ${maskCpf(c.cpf)}`
                           : "CPF: (não informado)"}

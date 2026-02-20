@@ -98,7 +98,6 @@ export default function ReservasAprovacoesPage() {
                       </div>
                     </div>
 
-                    <div className="text-xs text-muted-foreground">Reserva ID: {r.id} • UID: {r.uid}</div>
 
                     <div className="flex gap-2">
                       <Button onClick={() => setStatus(r.id, "APROVADA")}>Aprovar</Button>

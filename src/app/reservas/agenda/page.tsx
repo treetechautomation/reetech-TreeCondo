@@ -57,7 +57,6 @@ export default function AgendaReservasPage() {
   // cache de membros por uid (nome/bloco/unidade)
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
 
-  // UIDs do dia (ordenado, estável)
   const uidsDoDia = React.useMemo(() => {
     const uids = Array.from(new Set(reservasDoDia.map((r: any) => r.uid).filter(Boolean)));
     uids.sort();
@@ -135,23 +134,23 @@ export default function AgendaReservasPage() {
     <AppLayout pageTitle="Agenda de Reservas" headerActions={null}>
       {!podeVer ? (
         <div className="rounded-2xl border bg-card p-6">
-          <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
+          <div className="text-sm text-white/75">Carregando sessão/condomínio...</div>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Top bar */}
           <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="text-sm text-muted-foreground">Dia</div>
+              <div className="text-sm text-white/75">Dia</div>
               <input
-                className="h-10 rounded-xl border bg-background px-3 text-sm"
+                className="h-10 w-full sm:w-auto rounded-xl border bg-background px-3 text-sm"
                 type="date"
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
               />
             </div>
 
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-white/75">
               {loadingReservas ? "Carregando..." : `${reservasDoDia.length} reserva(s) aprovada(s)`}
             </div>
           </div>
@@ -159,16 +158,16 @@ export default function AgendaReservasPage() {
           {/* Lista */}
           <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="font-semibold">Reservas aprovadas do dia</div>
-              <div className="text-xs text-muted-foreground">
+              <div className="font-semibold text-white/90">Reservas aprovadas do dia</div>
+              <div className="text-xs text-white/75">
                 {isPorteiro ? "Modo porteiro" : "Modo auditoria"}
               </div>
             </div>
 
             {loadingReservas ? (
-              <div className="mt-4 text-sm text-muted-foreground">Buscando reservas...</div>
+              <div className="mt-4 text-sm text-white/75">Buscando reservas...</div>
             ) : reservasDoDia.length === 0 ? (
-              <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+              <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-white/75">
                 Nenhuma reserva aprovada para este dia.
               </div>
             ) : (
@@ -184,23 +183,23 @@ export default function AgendaReservasPage() {
                   return (
                     <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="font-medium">
-                          Área: <span className="text-muted-foreground">{r.areaId}</span>
+                        <div className="font-medium text-white/90">
+                          Área: <span className="text-white/75">{r.areaId}</span>
                         </div>
 
                         <div className="text-sm">
                           {entrou ? (
-                            <span className="font-semibold">✅ Entrou</span>
+                            <span className="font-semibold text-white/90">✅ Entrou</span>
                           ) : (
-                            <span className="font-semibold">🟢 Aguardando entrada</span>
+                            <span className="font-semibold text-white/90">🟢 Aguardando entrada</span>
                           )}
                         </div>
                       </div>
 
-                      <div className="text-sm text-muted-foreground">
-                        Morador: <span className="font-medium">{nome || r.uid}</span>
+                      <div className="text-sm text-white/75">
+                        Morador: <span className="font-medium text-white/90">{nome || "Morador"}</span>
                         {bloco || unidade ? (
-                          <span className="text-muted-foreground">
+                          <span className="text-white/75">
                             {" "}
                             • {bloco ? `Bloco ${bloco}` : ""}
                             {bloco && unidade ? " • " : ""}
@@ -209,12 +208,12 @@ export default function AgendaReservasPage() {
                         ) : null}
                       </div>
 
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-white/75">
                         Valor: {moneyBRLFromCentavos(r.valorCobrado)}
                       </div>
 
-                      <div className="flex items-center justify-end gap-2">
-                        <Button asChild variant="outline">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+                        <Button asChild variant="outline" className="w-full sm:w-auto">
                           <Link href={`/reservas/convidados-checkin/${r.id}`}>Convidados</Link>
                         </Button>
 
@@ -231,8 +230,7 @@ export default function AgendaReservasPage() {
                         </Button>
                       </div>
 
-                      <div className="text-xs text-muted-foreground">
-                        Reserva ID: {r.id} • UID: {r.uid}
+                      <div className="text-xs text-white/75">
                       </div>
                     </div>
                   );

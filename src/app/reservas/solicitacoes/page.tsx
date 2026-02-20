@@ -261,8 +261,6 @@ const valor =
 
                       {modoAuditoria && (
                         <div className="mt-2 text-xs text-muted-foreground">
-                          <div>Reserva ID: {r.id}</div>
-                          <div>UID: {r.uid || r.userId || "-"}</div>
                           <div>Status atual: {status}</div>
                         </div>
                       )}
