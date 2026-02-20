@@ -6,14 +6,14 @@ import { getFirebaseApp } from "@/firebase";
 import { useSessionCtx } from "@/contexts/SessionContext";
 
 type BrandingData = {
-  logoUrl: string;       // painel (condomínio)
-  menuLogoUrl: string;   // menu (TreeCondo)
+  logoUrl: string; // painel (condomínio)
+  menuLogoUrl: string; // menu (TreeCondo)
   faviconUrl: string | null;
   isLoading: boolean;
 };
 
-const FALLBACK_LOGO = "/logo-treecondo.jpeg";
-const FALLBACK_MENU_LOGO = "/logo-treecondo.jpeg";
+// ✅ Fallback local do menu da TreeCondo (também serve de fallback do painel quando condomínio não tem logo)
+const FALLBACK_MENU_LOGO = "/branding-fallback/logo-menu.jpeg";
 const TTL_MS = 1000 * 60 * 30; // 30 minutos
 
 type CacheEntry = {
@@ -30,9 +30,7 @@ async function safeGet(storage: any, path: string): Promise<string | null> {
   try {
     return await getDownloadURL(storageRef(storage, path));
   } catch (error: any) {
-    // Debug controlado (temporário). Mantém logs úteis sem poluir.
     const code = error?.code;
-    // object-not-found pode acontecer (ex: favicon opcional). Mas para logo-painel isso é importante.
     if (code !== "storage/object-not-found") {
       console.warn("[BrandingContext] FAIL", { path, code });
     } else if (path.includes("logo-painel") || path.includes("logo-menu")) {
@@ -60,7 +58,8 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
   const condId = session?.activeCondominioId;
 
   const [state, setState] = React.useState<BrandingData>({
-    logoUrl: FALLBACK_LOGO,
+    // ✅ inicia com TreeCondo no painel e no menu (até carregar)
+    logoUrl: FALLBACK_MENU_LOGO,
     menuLogoUrl: FALLBACK_MENU_LOGO,
     faviconUrl: null,
     isLoading: true,
@@ -76,34 +75,39 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
       const storage = getStorage(getFirebaseApp());
       const now = Date.now();
 
-      // Debug (temporário): confirma condId ativo
       console.warn("[BrandingContext] activeCondominioId:", condId || "(none)");
 
-      // 1) tenta usar cache global (menu)
+      // 1) Cache global (menu TreeCondo)
       let globalEntry = globalCache.current;
       if (!globalEntry || now - globalEntry.ts > TTL_MS) {
         const menuLogoUrl =
           (await safeGet(storage, "branding/global/logo-menu.jpeg")) || FALLBACK_MENU_LOGO;
+
         const globalFavicon = await safeGet(storage, "branding/global/favicon.jpeg");
 
         globalEntry = {
           ts: now,
-          logoUrl: FALLBACK_LOGO, // global não define logo do painel
+          // ✅ global não define logo do painel; mas a gente usa o menu como fallback do painel também
+          logoUrl: menuLogoUrl,
           menuLogoUrl,
           faviconUrl: globalFavicon || null,
         };
         globalCache.current = globalEntry;
       }
 
-      // 2) cache por condomínio (painel)
+      // 2) Cache por condomínio (logo do painel)
       let condoEntry: CacheEntry | null = null;
+
       if (condId) {
         const cached = condoCache.get(condId);
         if (cached && now - cached.ts <= TTL_MS) {
           condoEntry = cached;
         } else {
-          const logoUrl =
-            (await safeGet(storage, `branding/${condId}/logo-painel.jpeg`)) || FALLBACK_LOGO; // ✅ NÃO cai pro menu
+          const fetchedLogo = await safeGet(storage, `branding/${condId}/logo-painel.jpeg`);
+
+          // ✅ se condomínio não tiver logo, usa TreeCondo (menuLogo global)
+          const logoUrl = fetchedLogo || globalEntry.menuLogoUrl;
+
           const condoFavicon = await safeGet(storage, `branding/${condId}/favicon.jpeg`);
 
           condoEntry = {
@@ -112,6 +116,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
             menuLogoUrl: globalEntry.menuLogoUrl,
             faviconUrl: condoFavicon || globalEntry.faviconUrl || null,
           };
+
           condoCache.set(condId, condoEntry);
         }
       }
@@ -120,11 +125,14 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
 
       if (!cancelled) {
         setState({
-          logoUrl: condId ? final.logoUrl : FALLBACK_LOGO,
+          // ✅ painel: se tem condId usa final.logoUrl (condo ou fallback TreeCondo)
+          // ✅ se não tem condId (sem condo ativo), usa TreeCondo
+          logoUrl: final.logoUrl,
           menuLogoUrl: final.menuLogoUrl,
           faviconUrl: final.faviconUrl,
           isLoading: false,
         });
+
         setFavicon(final.faviconUrl);
       }
     }

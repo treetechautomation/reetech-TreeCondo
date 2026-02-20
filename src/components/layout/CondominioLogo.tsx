@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 export function CondominioLogo({
   className,
-  fallbackSrc = "/logo-treecondo.webp",
+  fallbackSrc = "/branding-fallback/logo-painel.jpeg",
 }: {
   className?: string;
   fallbackSrc?: string;
