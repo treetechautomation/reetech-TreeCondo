@@ -314,7 +314,7 @@ const CreateIncidenteDialog = () => {
           <span className="hidden sm:inline-block ml-2">Abrir Chamado</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px] tc-dialog-center">
         <DialogHeader>
           <DialogTitle>Abrir Novo Chamado</DialogTitle>
           <DialogDescription>
@@ -409,7 +409,7 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
           <MessageSquare className="mr-2" /> Comentar
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="tc-dialog-center">
         <DialogHeader>
           <DialogTitle>Adicionar Comentário</DialogTitle>
           <DialogDescription>
@@ -461,7 +461,7 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
           <Star className="mr-2" /> Avaliar
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="tc-dialog-center">
         <DialogHeader>
           <DialogTitle>Avaliar Atendimento</DialogTitle>
           <DialogDescription>

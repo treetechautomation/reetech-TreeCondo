@@ -1,3 +1,6 @@
+// Studio guard: evita tentar registrar SW em ambientes preview
+if (typeof window !== "undefined" && location.hostname.includes("cloudworkstations.dev")) { console.log("[PWA] skip SW in studio"); }
+
 (function () {
   if (!("serviceWorker" in navigator)) return;
 
