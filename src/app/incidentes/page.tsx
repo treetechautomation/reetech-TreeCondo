@@ -54,6 +54,25 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCondominio } from '@/contexts/CondominioContext';
 
+
+// ===== TreeCondo: cores por autor (Histórico) =====
+const TC_AUTHOR_COLORS = [
+  "#C8BFE7","#7092BE","#99D9EA","#B5E61D","#EFE4B0","#FFC90E",
+  "#FFAEC9","#B97A57","#F5A173","#FF7F27","#00A2E8","#C3C3C3",
+] as const;
+
+function tcHash(str: string) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function tcAuthorColor(key: string) {
+  const idx = tcHash(key) % TC_AUTHOR_COLORS.length;
+  return TC_AUTHOR_COLORS[idx];
+}
+// ===== /TreeCondo: cores por autor =====
+
 type Incidente = {
   id: string;
   titulo: string;
@@ -175,8 +194,8 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-lg">{incidente.titulo}</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-lg" style={{ color: "#F5EAB4" }}>{incidente.titulo}</CardTitle>
+            <CardDescription style={{ color: "#C3C3C3" }}>
               Aberto por {incidente.criadoPorNome} -{' '}
               {formatTimestamp(incidente.createdAt)}
             </CardDescription>
@@ -195,8 +214,8 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground">{incidente.descricao}</p>
-        <Separator className="my-4" />
+        <p className="text-[#FFFEE9]">{incidente.descricao}</p>
+        <Separator className="my-4 bg-white/25" />
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">Histórico</h4>
           {loadingHistorico ? (
@@ -204,12 +223,29 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
               Carregando histórico...
             </p>
           ) : (
-            historico.map((h) => (
-              <p key={h.id} className="text-xs text-muted-foreground">
-                <span className="font-bold text-foreground">{h.autorNome}:</span>{' '}
-                "{h.mensagem}" ({formatTimestamp(h.createdAt)})
-              </p>
-            ))
+            historico.map((h) => {
+              const authorKey = (h.autorUid || h.autorEmail || h.autorNome || "Sistema") as string;
+              const authorName = (h.autorNome || "Sistema") as string;
+              const isSystem = authorName.trim().toLowerCase() === "sistema";
+
+              return (
+                <p key={h.id} className="text-xs leading-relaxed text-foreground/80">
+                  <span
+                    className="font-semibold"
+                    style={{ color: isSystem ? "#EFE4B0" : tcAuthorColor(authorKey) }}
+                    title={authorKey}
+                  >
+                    {authorName}:
+                  </span>{" "}
+                  <span style={{ color: "#C3C3C3" }}>
+                    "{h.mensagem}"
+                  </span>{" "}
+                  <span style={{ color: "#C3C3C3" }}>
+                    ({formatTimestamp(h.createdAt)})
+                  </span>
+                </p>
+              );
+            })
           )}
         </div>
       </CardContent>
@@ -233,7 +269,7 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
                 }
               }}
             >
-              <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectTrigger className="h-8 w-[150px] text-xs bg-white/90 text-slate-900">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -309,7 +345,7 @@ const CreateIncidenteDialog = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" disabled={!condominioAtivoId}>
+        <Button className="text-black" size="sm" disabled={!condominioAtivoId}>
           <PlusCircle />{' '}
           <span className="hidden sm:inline-block ml-2">Abrir Chamado</span>
         </Button>
@@ -330,7 +366,7 @@ const CreateIncidenteDialog = () => {
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" side="bottom" align="start" sideOffset={6} collisionPadding={12} className="z-[10050]">
                 <SelectItem value="RECLAMACAO">Reclamação</SelectItem>
                 <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
                 <SelectItem value="DUVIDA_SUGESTAO">Dúvida/Sugestão</SelectItem>
@@ -363,7 +399,7 @@ const CreateIncidenteDialog = () => {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={handleCreate} disabled={saving}>
+          <Button className="text-black" onClick={handleCreate} disabled={saving}>
             {saving ? (
               'Enviando...'
             ) : (
@@ -405,7 +441,7 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button className="text-black" variant="outline" size="sm">
           <MessageSquare className="mr-2" /> Comentar
         </Button>
       </DialogTrigger>
@@ -422,7 +458,7 @@ const CommentDialog = ({ incidente }: { incidente: Incidente }) => {
           placeholder="Digite seu comentário..."
         />
         <DialogFooter>
-          <Button onClick={handleComment} disabled={saving}>
+          <Button className="text-black" onClick={handleComment} disabled={saving}>
             {saving ? 'Enviando...' : 'Enviar'}
           </Button>
         </DialogFooter>
@@ -457,7 +493,7 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button className="text-black" variant="outline" size="sm">
           <Star className="mr-2" /> Avaliar
         </Button>
       </DialogTrigger>
@@ -481,7 +517,7 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
           ))}
         </div>
         <DialogFooter>
-          <Button onClick={handleRate} disabled={saving || rating === 0}>
+          <Button className="text-black" onClick={handleRate} disabled={saving || rating === 0}>
             {saving ? 'Avaliando...' : 'Confirmar Avaliação'}
           </Button>
         </DialogFooter>
