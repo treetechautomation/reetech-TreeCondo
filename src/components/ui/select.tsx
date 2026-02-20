@@ -8,11 +8,6 @@ import { cn } from "@/lib/utils"
 
 const Select = SelectPrimitive.Root
 
-function getTcPortalRoot() {
-  if (typeof document === "undefined") return undefined;
-  return document.getElementById("tc-portal-root") ?? undefined;
-}
-
 const SelectGroup = SelectPrimitive.Group
 
 const SelectValue = SelectPrimitive.Value
@@ -76,7 +71,7 @@ const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", align = "center", sideOffset = 4, ...props }, ref) => (
-  <SelectPrimitive.Portal container={getTcPortalRoot()}>
+  <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
