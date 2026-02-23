@@ -83,3 +83,8 @@ backups/
 src/app/globals.css.bak.*
 *.bak_*
 *.BAK_*
+3
+=
+NODE_ENV=production
+[PWA]
+nextn@0.1.0
