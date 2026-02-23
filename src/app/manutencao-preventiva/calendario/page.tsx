@@ -4,6 +4,7 @@ import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AlertaBadge, CategoriaBadge, TcPill } from "@/components/ui/tc-badges";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
 import { CalendarMonthManutencao, type ManutencaoExec } from "@/components/manutencao/CalendarMonthManutencao";
@@ -27,13 +28,14 @@ function alertaBadge(exec: ManutencaoExec) {
   const status = String(exec.status ?? "").toUpperCase();
   const diff = diffDaysLocal(exec.isoDay);
 
-  if (status === "CONCLUIDA") return <Badge variant="secondary">CONCLUÍDA</Badge>;
-  if (diff < 0) return <Badge className="bg-red-100 text-red-800">ATRASADA {Math.abs(diff)}d</Badge>;
-  if (diff === 0) return <Badge className="bg-emerald-100 text-emerald-800">HOJE</Badge>;
-  if (diff <= 7) return <Badge className="bg-yellow-100 text-yellow-800">EM {diff}d</Badge>;
+  if (status === "CONCLUIDA") return <AlertaBadge tone="success" label="CONCLUÍDA" />;
+  if (diff < 0) return <AlertaBadge tone="danger" label={`ATRASADA ${Math.abs(diff)}d`} />;
+  if (diff === 0) return <AlertaBadge tone="success" label="HOJE" className="bg-emerald-600 text-white border border-emerald-400/40 shadow-sm" />;
+  if (diff <= 7) return <AlertaBadge tone="warning" label={`EM ${diff}d`} />;
 
-  return <Badge variant="secondary">EM {diff}d</Badge>;
+  return <AlertaBadge tone="neutral" label={`EM ${diff}d`} />;
 }
+
 
 export default function CalendarioManutencaoPage() {
   const firestore = useFirestore();
@@ -47,10 +49,10 @@ export default function CalendarioManutencaoPage() {
 
   return (
     <AppLayout pageTitle="Calendário de Manutenções">
-      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+      <Card className="border-white/15 bg-white/12 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.18)] text-white">
         <CardHeader>
-          <CardTitle>Calendário de Manutenções</CardTitle>
-          <CardDescription>Visualize as manutenções programadas do condomínio.</CardDescription>
+          <CardTitle className="text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.35)]">Calendário de Manutenções</CardTitle>
+          <CardDescription className="text-white/70">Visualize as manutenções programadas do condomínio.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col md:flex-row gap-6">
           <div className="flex-1">
@@ -63,16 +65,19 @@ export default function CalendarioManutencaoPage() {
             />
           </div>
           <div className="w-full md:w-1/3">
-            <h4 className="font-semibold mb-3">Eventos do dia {selectedDateStr}</h4>
+            <h4 className="font-semibold mb-3 tracking-wide text-white/90">
+  <span className="drop-shadow-[0_1px_0_rgba(0,0,0,0.35)]">Eventos do dia</span>
+  <TcPill className="ml-2">{selectedDateStr}</TcPill>
+</h4>
             {eventosDoDia.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma manutenção para este dia.</p>
+              <p className="text-sm text-white/75">Nenhuma manutenção para este dia.</p>
             ) : (
               <div className="space-y-3">
                 {eventosDoDia.map((e) => (
-                  <div key={e.id} className="p-4 rounded-xl border bg-muted/10">
-                    <p className="font-semibold truncate">{e.titulo}</p>
+                  <div key={e.id} className="p-4 rounded-xl border border-white/20 bg-white/10 text-white">
+                    <p className="font-semibold truncate text-white/95 drop-shadow-[0_1px_0_rgba(0,0,0,0.25)]">{e.titulo}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {e.categoria && <Badge variant="outline">{e.categoria}</Badge>}
+                      {e.categoria && <CategoriaBadge categoria={e.categoria} />}
                       {alertaBadge(e)}
                     </div>
                   </div>

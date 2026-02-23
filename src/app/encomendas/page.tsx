@@ -777,7 +777,7 @@ React.useEffect(() => {
       {scanOpen && (
         <div className="rounded-xl border bg-black/5 p-2">
           <QrScanner
-            onDecoded={(text) => {
+            onResult={(text) => {
               const t = String(text || "").trim();
               if (!t) return;
               setCodigoInput(t);

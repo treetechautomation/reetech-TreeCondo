@@ -151,36 +151,36 @@ export default function FornecedoresPage() {
     <AppLayout
       pageTitle="Fornecedores de Manutenção"
       headerActions={
-        <Button onClick={() => openDialog(null)}>Novo Fornecedor</Button>
+        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" onClick={() => openDialog(null)}>Novo Fornecedor</Button>
       }
     >
-      <Card>
+      <Card className="border-white/20 bg-white/20 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.14)] text-white">
         <CardHeader>
-          <CardTitle>Gestão de Fornecedores</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.30)]">Gestão de Fornecedores</CardTitle>
+          <CardDescription className="text-white/70">
             Cadastre e gerencie os fornecedores para as rotinas de manutenção.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!condominioAtivoId ? (
-            <p>Selecione um condomínio para ver os fornecedores.</p>
+            <p className="text-white/75">Selecione um condomínio para ver os fornecedores.</p>
           ) : loading ? (
-            <p>Carregando...</p>
+            <p className="text-white/75">Carregando...</p>
           ) : (
-            <Table>
+            <Table className="text-white">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Serviço</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-white/70">Nome</TableHead>
+                  <TableHead className="text-white/70">Serviço</TableHead>
+                  <TableHead className="text-white/70">Telefone</TableHead>
+                  <TableHead className="text-white/70">Email</TableHead>
+                  <TableHead className="text-right text-white/70">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {fornecedores.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">
+                    <TableCell colSpan={6} className="text-center text-white/75">
                       Nenhum fornecedor cadastrado.
                     </TableCell>
                   </TableRow>
@@ -193,15 +193,14 @@ export default function FornecedoresPage() {
                       <TableCell>{item.email || "-"}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button
-                          variant="outline"
+                          variant="outline" className="border-sky-400/40 bg-sky-500/15 hover:bg-sky-500/25 text-white"
                           size="sm"
                           onClick={() => openDialog(item)}
                         >
                           Editar
                         </Button>
                         <Button
-                          variant="destructive"
-                          size="sm"
+                          variant="destructive" size="sm" className="bg-red-600 hover:bg-red-700 text-white shadow-sm"
                           onClick={() => handleDelete(item.id)}
                         >
                           Excluir

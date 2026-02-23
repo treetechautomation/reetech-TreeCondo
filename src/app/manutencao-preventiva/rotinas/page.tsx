@@ -167,7 +167,7 @@ export default function RotinasManutencaoPage() {
       headerActions={
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>Nova Rotina</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">Nova Rotina</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[640px] tc-dialog-center" aria-describedby="nova-rotina-desc">
             <DialogHeader>
@@ -199,35 +199,35 @@ export default function RotinasManutencaoPage() {
     >
       <Card className="border-white/20 bg-white/28 backdrop-blur-xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
         <CardHeader>
-          <CardTitle>Rotinas</CardTitle>
-          <CardDescription>Gerencie as rotinas de manutenção preventiva do condomínio.</CardDescription>
+          <CardTitle className="text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.35)]">Rotinas</CardTitle>
+          <CardDescription className="text-white/70">Gerencie as rotinas de manutenção preventiva do condomínio.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? <p>Carregando...</p> : (
-            <Table>
+            <Table className="text-white">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Título</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Início</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-white/75">Título</TableHead>
+                  <TableHead className="text-white/75">Categoria</TableHead>
+                  <TableHead className="text-white/75">Início</TableHead>
+                  <TableHead className="text-white/75">Status</TableHead>
+                  <TableHead className="text-white/75">Fornecedor</TableHead>
+                  <TableHead className="text-right text-white/75">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rotinas.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center">Nenhuma rotina cadastrada.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-white/80">Nenhuma rotina cadastrada.</TableCell></TableRow>
                 ) : rotinas.map((rotina) => (
-                  <TableRow key={rotina.id}>
-                    <TableCell>{rotina.titulo}</TableCell>
-                    <TableCell><Badge variant="secondary">{rotina.categoria}</Badge></TableCell>
-                    <TableCell>{formatDateBR(rotina.dataInicio)}</TableCell>
-                    <TableCell><Badge>{rotina.status}</Badge></TableCell>
-                    <TableCell>{rotina.fornecedorNome || "-"}</TableCell>
+                  <TableRow key={rotina.id} className="hover:bg-white/5 transition-colors">
+                    <TableCell className="text-white font-semibold">{rotina.titulo}</TableCell>
+                    <TableCell><Badge className="bg-sky-600 text-white border border-sky-500 shadow-sm">{rotina.categoria}</Badge></TableCell>
+                    <TableCell className="text-white/85">{formatDateBR(rotina.dataInicio)}</TableCell>
+                    <TableCell><Badge className="bg-emerald-600 text-white border border-emerald-500 shadow-sm">{rotina.status}</Badge></TableCell>
+                    <TableCell className="text-white/85">{rotina.fornecedorNome || "-"}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/manutencao-preventiva/rotinas/${rotina.id}`}>Ver</Link>
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all" asChild>
+                        <Link className="font-semibold text-white" href={`/manutencao-preventiva/rotinas/${rotina.id}`}>Ver</Link>
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -394,7 +394,7 @@ export default function DocumentosPage() {
                   <TabsContent key={cat} value={cat} className="mt-4">
                     <div className="w-full overflow-x-auto">
                       <div className="min-w-[720px]">
-                        <div className="grid grid-cols-[1fr,160px,160px,120px,140px] px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                        <div className="grid grid-cols-[minmax(220px,1fr),120px,160px,90px,140px] sm:grid-cols-[minmax(320px,1fr),160px,200px,120px,140px] px-3 py-2 text-xs font-semibold text-white/80 border-b border-white/15">
                           <div>Nome do Arquivo</div>
                           <div className="text-right">Publicação</div>
                           <div className="text-right">Enviado por</div>
@@ -410,17 +410,17 @@ export default function DocumentosPage() {
                           list.map((it) => (
                             <div
                               key={it.id}
-                              className="grid grid-cols-[1fr,160px,160px,120px,140px] items-center px-3 py-4 border-b last:border-b-0"
+                              className="grid grid-cols-[minmax(220px,1fr),120px,160px,90px,140px] sm:grid-cols-[minmax(320px,1fr),160px,200px,120px,140px] items-center px-3 py-4 border-b border-white/10 last:border-b-0"
                             >
-                              <div className="text-sm">{it.nome}</div>
-                              <div className="text-right text-sm text-muted-foreground">{formatDateBR(it.publicacaoEm)}</div>
-                              <div className="text-right text-sm text-muted-foreground truncate" title={it.createdByNome}>{it.createdByNome || "-"}</div>
-                              <div className="text-right text-sm text-muted-foreground">{formatSize(it.tamanhoBytes)}</div>
+                              <div className="text-sm font-medium text-white/90 truncate" title={it.nome}>{it.nome}</div>
+                              <div className="text-right text-sm text-white/70">{formatDateBR(it.publicacaoEm)}</div>
+                              <div className="text-right text-sm text-white/70 truncate" title={it.createdByNome}>{it.createdByNome || "-"}</div>
+                              <div className="text-right text-sm text-white/70">{formatSize(it.tamanhoBytes)}</div>
                               <div className="flex justify-end gap-2">
-                                <Button variant="outline" size="icon" onClick={() => openDoc(it)} title="Ver"><Eye className="h-4 w-4" /></Button>
-                                <Button size="icon" onClick={() => downloadDoc(it)} title="Baixar"><Download className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="icon" className="h-9 w-9 border-white/20 bg-white/10 hover:bg-white/15" onClick={() => openDoc(it)} title="Ver"><Eye className="h-4 w-4 text-white" /></Button>
+                                <Button size="icon" className="h-9 w-9" onClick={() => downloadDoc(it)} title="Baixar"><Download className="h-4 w-4" /></Button>
                                 {canManage && (
-                                  <Button variant="destructive" size="icon" onClick={() => setItemToDelete(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
+                                  <Button variant="destructive" size="icon" className="h-9 w-9" onClick={() => setItemToDelete(it)} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
                                 )}
                               </div>
                             </div>

@@ -171,9 +171,9 @@ export function CalendarMonthReunioes({
         <button className="px-2 py-1 rounded-md hover:bg-black/5" onClick={() => navMonth(1)} aria-label="Próximo">›</button>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 text-xs text-muted-foreground mb-2">
+      <div className="grid grid-cols-7 gap-2 mb-2 h-9 items-center rounded-md bg-black/20 backdrop-blur-sm px-1 text-xs font-semibold tracking-wide text-white/95">
         {["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map((w) => (
-          <div key={w} className="text-center">{w}</div>
+          <div key={w} className="text-center drop-shadow-sm">{w}</div>
         ))}
       </div>
 

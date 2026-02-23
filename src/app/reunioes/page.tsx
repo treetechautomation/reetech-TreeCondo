@@ -96,8 +96,8 @@ function ReuniaoCard({ reuniao, canManage, onEdit, onCancel }: { reuniao: Reunia
             <CardHeader>
                 <div className="flex justify-between items-start">
                     <div>
-                        <CardTitle className="text-base">{reuniao.titulo}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
+                        <CardTitle className="text-base text-white font-semibold leading-snug">{reuniao.titulo}</CardTitle>
+                        <CardDescription className="flex items-center gap-2 text-white/75">
                             {formatDateTimeBR(reuniao.dataInicio)}
                         </CardDescription>
                     </div>
@@ -105,11 +105,11 @@ function ReuniaoCard({ reuniao, canManage, onEdit, onCancel }: { reuniao: Reunia
                 </div>
             </CardHeader>
             <CardContent className="space-y-2">
-                <p className="text-sm text-muted-foreground"><strong>Local:</strong> {reuniao.local}</p>
+                <p className="text-sm text-white/80"><strong className="text-white/90">Local:</strong> {reuniao.local}</p>
                 {reuniao.pautas?.length > 0 && (
                     <div>
-                        <p className="text-sm font-medium">Pautas:</p>
-                        <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                        <p className="text-sm font-semibold text-white/90">Pautas:</p>
+                        <ul className="list-disc pl-5 text-sm text-white/80 leading-relaxed [&>li]:mb-1">
                             {reuniao.pautas.map((p, i) => <li key={i}>{p}</li>)}
                         </ul>
                     </div>
@@ -117,7 +117,7 @@ function ReuniaoCard({ reuniao, canManage, onEdit, onCancel }: { reuniao: Reunia
             </CardContent>
             {canManage && (
                 <CardFooter className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => onEdit(reuniao)} disabled={reuniao.status !== 'AGENDADA'}>Editar</Button>
+                    <Button variant="outline" size="sm" className="font-semibold text-slate-900 disabled:text-slate-500 disabled:opacity-100" onClick={() => onEdit(reuniao)} disabled={reuniao.status !== 'AGENDADA'}>Editar</Button>
                     <Button variant="destructive" size="sm" onClick={() => onCancel(reuniao.id)} disabled={reuniao.status !== 'AGENDADA'}>Cancelar</Button>
                 </CardFooter>
             )}
@@ -420,7 +420,7 @@ export default function ReunioesPage() {
                 <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
                     <CardHeader>
                         <CardTitle>Próximas Reuniões</CardTitle>
-                        <CardDescription>Eventos agendados a partir de hoje.</CardDescription>
+                        <CardDescription className="text-white/75">Eventos agendados a partir de hoje.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {loading ? <p>Carregando...</p> : proximas.length === 0 ? <p>Nenhuma reunião futura.</p> : (

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge, TcPill } from "@/components/ui/tc-badges";
 import {
   Dialog,
   DialogContent,
@@ -338,14 +339,14 @@ export default function EnquetesPage() {
     }>
       <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
         <CardHeader>
-          <CardTitle>Enquetes</CardTitle>
-          <CardDescription>Votações do condomínio (dados em tempo real).</CardDescription>
+          <CardTitle className="text-white">Enquetes</CardTitle>
+          <CardDescription className="text-white/75">Votações do condomínio (dados em tempo real).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
+            <p className="text-sm text-white/70">Carregando...</p>
           ) : enquetes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma enquete criada ainda.</p>
+            <p className="text-sm text-white/70">Nenhuma enquete criada ainda.</p>
           ) : (
             <div className="grid gap-4">
               {enquetes.map((poll) => {
@@ -355,16 +356,16 @@ export default function EnquetesPage() {
                 const aberta = poll.status === "ABERTA";
 
                 return (
-                  <Card key={poll.id} className="rounded-2xl border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
-                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                  <Card key={poll.id} className="rounded-2xl border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] w-full overflow-hidden">
+                    <CardHeader className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <CardTitle className="truncate">{poll.titulo}</CardTitle>
+                        <CardTitle className="text-white text-lg sm:text-xl leading-tight break-words">{poll.titulo}</CardTitle>
                         {poll.descricao ? (
-                          <CardDescription className="mt-1">{poll.descricao}</CardDescription>
+                          <CardDescription className="mt-1 text-white/75 text-sm leading-snug break-words">{poll.descricao}</CardDescription>
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <Badge variant={aberta ? "default" : "secondary"}>{poll.status}</Badge>
-                          <Badge variant="outline">{totalVotes} voto(s)</Badge>
+                          <StatusBadge status={poll.status} />
+                          <Badge variant="outline" className="text-white/90 border-white/25">{totalVotes} voto(s)</Badge>
                           {myVote ? <Badge variant="secondary">Você já votou</Badge> : null}
                         </div>
                       </div>
@@ -380,9 +381,9 @@ export default function EnquetesPage() {
                       ) : null}
                     </CardHeader>
 
-                    <CardContent className="space-y-3">
+                    <CardContent className="p-4 sm:p-6 pt-0 space-y-3">
                       {ops.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Carregando opções...</p>
+                        <p className="text-sm text-white/70">Carregando opções...</p>
                       ) : (
                         ops.map((option) => {
                           const votes = Number(option.votes || 0);
@@ -390,13 +391,13 @@ export default function EnquetesPage() {
                           const votedThis = myVote === option.id;
 
                           return (
-                            <div key={option.id} className="rounded-xl border p-3">
-                              <div className="flex items-center justify-between gap-3">
+                            <div key={option.id} className="rounded-xl border border-white/15 p-3 sm:p-4">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="font-medium truncate">
+                                  <p className="font-medium text-white leading-snug break-words">
                                     {option.texto} {votedThis ? "✅" : ""}
                                   </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
+                                  <p className="text-xs text-white/80 mt-1">
                                     {Math.round(percentage)}% ({votes} voto(s))
                                   </p>
                                 </div>

@@ -134,13 +134,13 @@ export function CalendarMonthManutencao({ firestore, condominioId, selectedDateS
   };
 
   return (
-    <div className="w-full rounded-2xl border bg-background/40 p-3">
+    <div className="w-full rounded-2xl border border-white/15 bg-white/10 backdrop-blur-2xl p-3 text-white shadow-[0_18px_55px_rgba(2,6,23,0.18)]">
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={prevMonth} className="rounded-xl px-3 py-1 text-sm">‹</button>
-        <div className="text-sm font-semibold capitalize">{monthLabel}{loading && "..."}</div>
-        <button type="button" onClick={nextMonth} className="rounded-xl px-3 py-1 text-sm">›</button>
+        <button type="button" onClick={prevMonth} className="rounded-xl px-3 py-1 text-sm text-white bg-white/10 hover:bg-white/15 border border-white/15">‹</button>
+        <div className="text-sm font-semibold capitalize text-white tracking-wide drop-shadow-[0_1px_0_rgba(0,0,0,0.35)]">{monthLabel}{loading && "..."}</div>
+        <button type="button" onClick={nextMonth} className="rounded-xl px-3 py-1 text-sm text-white bg-white/10 hover:bg-white/15 border border-white/15">›</button>
       </div>
-      <div className="mt-3 grid grid-cols-7 gap-2 text-center text-xs text-muted-foreground">
+      <div className="mt-3 grid grid-cols-7 gap-2 text-center text-[11px] font-medium tracking-wide text-white/70">
         {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((w) => <div key={w}>{w}</div>)}
       </div>
       <div className="mt-2 grid grid-cols-7 gap-2">
@@ -153,13 +153,13 @@ export function CalendarMonthManutencao({ firestore, condominioId, selectedDateS
               disabled={!c.inMonth}
               onClick={() => c.inMonth && onSelectDateStr(c.iso)}
               className={cn(
-                "relative h-9 rounded-xl border text-sm transition",
+                "relative h-9 rounded-xl border border-white/20 text-sm transition text-white bg-white/5 hover:border-white/30",
                 !c.inMonth && "opacity-0 pointer-events-none",
-                c.inMonth && (selectedDateStr === c.iso ? "bg-primary text-primary-foreground" : "hover:bg-muted/50"),
+                c.inMonth && (selectedDateStr === c.iso ? "bg-emerald-600 text-white shadow-sm border-emerald-400/40" : "hover:bg-white/10"),
               )}
             >
               {c.day || ""}
-              {hasEvents && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">{Array.from({ length: Math.min(3, countByDay[c.iso]) }).map((_, i) => <span key={i} className="h-1.5 w-1.5 rounded-full bg-primary/70" />)}</span>}
+              {hasEvents && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">{Array.from({ length: Math.min(3, countByDay[c.iso]) }).map((_, i) => <span key={i} className="h-1.5 w-1.5 rounded-full bg-emerald-300/90" />)}</span>}
             </button>
           );
         })}

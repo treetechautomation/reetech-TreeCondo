@@ -22,13 +22,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Card,
   CardContent,
   CardHeader,
@@ -53,7 +46,6 @@ import { hasRole } from '@/lib/acl';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCondominio } from '@/contexts/CondominioContext';
-
 
 // ===== TreeCondo: cores por autor (Histórico) =====
 const TC_AUTHOR_COLORS = [
@@ -110,7 +102,7 @@ async function apiPost(path: string, body: any) {
 
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${'\'\''}${token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
 
@@ -166,14 +158,21 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
         'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-100',
     },
   };
-  const currentStatusConfig =
-    statusConfig[incidente.status] ||
-    ({
-      label: incidente.status.replace(/_/g, ' '),
-      className: 'bg-gray-100 text-gray-800',
-    } as any);
+  const isIncidenteStatus = (v: string): v is Incidente['status'] =>
+    Object.prototype.hasOwnProperty.call(statusConfig, v);
 
-  React.useEffect(() => {
+  const [statusLocal, setStatusLocal] = React.useState<string>(incidente.status);
+React.useEffect(() => {
+  setStatusLocal(incidente.status);
+}, [incidente.status]);
+
+const currentStatusConfig = isIncidenteStatus(statusLocal)
+  ? statusConfig[statusLocal]
+  : {
+      label: statusLocal.replace(/_/g, ' '),
+      className: 'bg-gray-100 text-gray-800',
+    };
+React.useEffect(() => {
     if (!firestore || !condominioAtivoId) return;
     const historicoRef = collection(
       firestore,
@@ -224,7 +223,7 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
             </p>
           ) : (
             historico.map((h) => {
-              const authorKey = (h.autorUid || h.autorEmail || h.autorNome || "Sistema") as string;
+              const authorKey = (h.autorUid || h.autorNome || "Sistema") as string;
               const authorName = (h.autorNome || "Sistema") as string;
               const isSystem = authorName.trim().toLowerCase() === "sistema";
 
@@ -255,30 +254,27 @@ const IncidenteItem = ({ incidente }: { incidente: Incidente }) => {
             {currentStatusConfig.label}
           </Badge>
           {isOperator && (
-            <Select
-              value={incidente.status}
-              onValueChange={async (newStatus) => {
-                try {
-                  await apiPost('/api/incidentes/status', {
-                    condominioId: condominioAtivoId,
-                    incidenteId: incidente.id,
-                    status: newStatus,
-                  });
-                } catch (e: any) {
-                  alert(e.message);
-                }
-              }}
-            >
-              <SelectTrigger className="h-8 w-[150px] text-xs bg-white/90 text-slate-900">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="item-aligned">
-                <SelectItem value="ABERTO">Aberto</SelectItem>
-                <SelectItem value="EM_ANDAMENTO">Em Andamento</SelectItem>
-                <SelectItem value="RESOLVIDO">Resolvido</SelectItem>
-                <SelectItem value="FINALIZADO">Finalizado</SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+  value={statusLocal}
+  onChange={async (e) => {
+    const newStatus = e.target.value as Incidente['status'];
+    try {
+      await apiPost('/api/incidentes/status', {
+        condominioId: condominioAtivoId,
+        incidenteId: incidente.id,
+        status: newStatus,
+      });
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao atualizar status');
+    }
+  }}
+  className="h-8 w-[150px] rounded-md border border-input bg-white/90 px-2 text-xs text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/40"
+>
+  <option value="ABERTO">Aberto</option>
+  <option value="EM_ANDAMENTO">Em Andamento</option>
+  <option value="RESOLVIDO">Resolvido</option>
+  <option value="FINALIZADO">Finalizado</option>
+</select>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -318,7 +314,10 @@ const CreateIncidenteDialog = () => {
   const [descricao, setDescricao] = React.useState('');
   const [tipo, setTipo] = React.useState<Incidente['tipo'] | ''>('');
 
-  const handleCreate = async () => {
+  
+  
+
+const handleCreate = async () => {
     if (!condominioAtivoId || !titulo || !descricao || !tipo) {
       alert('Preencha todos os campos.');
       return;
@@ -362,16 +361,17 @@ const CreateIncidenteDialog = () => {
             <Label htmlFor="tipo" className="text-right">
               Tipo
             </Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start" sideOffset={6} collisionPadding={12}>
-                <SelectItem value="RECLAMACAO">Reclamação</SelectItem>
-                <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
-                <SelectItem value="DUVIDA_SUGESTAO">Dúvida/Sugestão</SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+                id="tipo"
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value as any)}
+                className="col-span-3 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="" disabled>Selecione o tipo</option>
+                <option value="RECLAMACAO">Reclamação</option>
+                <option value="MANUTENCAO">Manutenção</option>
+                <option value="DUVIDA_SUGESTAO">Dúvida/Sugestão</option>
+              </select>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="titulo" className="text-right">
