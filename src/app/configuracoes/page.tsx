@@ -152,8 +152,8 @@ export default function ConfiguracoesPage() {
     if (pinLast4) {
       return (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Seu PIN está definido. Final: <span className="font-mono font-semibold text-foreground">****{pinLast4}</span>
+          <p className="text-sm text-[#F7F2EB] text-[#EDE7DE] text-[#F7F2EB] font-semibold text-[#CFC7BD]">
+            Seu PIN está definido. Final: <span className="font-mono font-semibold text-[#F7F2EB]">****{pinLast4}</span>
           </p>
           <Button variant="secondary" onClick={() => setIsEditing(true)}>Alterar PIN</Button>
         </div>
@@ -162,7 +162,7 @@ export default function ConfiguracoesPage() {
 
     return (
         <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Você ainda não tem um PIN de retirada.</p>
+            <p className="text-sm text-[#F7F2EB]"><span class="text-[#CFC7BD]">Você ainda não tem um PIN de retirada.</span></p>
             <Button onClick={() => setIsEditing(true)}>Definir PIN</Button>
         </div>
     );
@@ -172,24 +172,24 @@ export default function ConfiguracoesPage() {
     <AppLayout>
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold">Configurações</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-2xl font-semibold text-[#F7F2EB] tracking-tight">Configurações</h1>
+          <p className="text-sm text-[#F7F2EB] mt-1">
             Aqui você pode configurar seu PIN pessoal para retirar encomendas quando esquecer o celular.
           </p>
         </div>
         
         {!condominioAtivoId ? (
            <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
-            <div className="font-medium">PIN de Encomendas</div>
-             <p className="text-sm text-muted-foreground">Selecione um condomínio para poder definir seu PIN.</p>
+            <div className="font-medium text-[#F7F2EB]"> <span class="text-[#F79307]">PIN de Encomendas</span> </div>
+             <p className="text-sm text-[#F7F2EB]">Selecione um condomínio para poder definir seu PIN.</p>
            </div>
         ) : (
            <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
             <div>
-              <div className="font-medium">PIN de Encomendas</div>
-              <div className="text-sm text-muted-foreground">
-                O porteiro pode validar sua retirada usando este PIN (sem QR/celular).
-              </div>
+              <div className="font-medium text-[#F7F2EB]"> <span class="text-[#F79307]">PIN de Encomendas</span> </div>
+              <div className="text-sm text-[#F7F2EB]">
+                <span class="text-[#DDD6CC]">O porteiro pode validar sua retirada usando este PIN (sem QR/celular).
+              </span></div>
             </div>
 
             <div className="pt-2">

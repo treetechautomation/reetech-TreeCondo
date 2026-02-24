@@ -15,16 +15,24 @@ export async function GET(
 
     const db = adminDb();
     const snap = await db
-      .collection("condominios")
-      .doc(condominioId)
-      .collection("blocos")
-      .orderBy("nome")
-      .get();
+        .collection("condominios")
+        .doc(condominioId)
+        .collection("blocos")
+        .get();
 
-    const blocos = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    }));
+    const blocos = snap.docs
+        .map((d) => {
+          const data = (d.data() || {});
+          const nome = (data.nome ?? d.id);
+          return {
+            id: d.id,
+            nome,
+            ...data,
+          };
+        })
+        .sort((a, b) =>
+          String(a.nome).localeCompare(String(b.nome), "pt", { sensitivity: "base" })
+        );
 
     return NextResponse.json({ ok: true, blocos });
   } catch (e: any) {

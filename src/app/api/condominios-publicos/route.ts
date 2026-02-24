@@ -17,7 +17,7 @@ export async function GET() {
     // Garante formato mínimo
     const normalized = data.map((x) => ({ id: x.id, nome: x.nome ?? x.name ?? "Condomínio" }));
 
-    return NextResponse.json({ ok: true, data: normalized });
+    return NextResponse.json({ ok: true, data: normalized, condominios: normalized });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }

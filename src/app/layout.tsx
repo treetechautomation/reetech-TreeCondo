@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { AppShell } from "@/components/shell/AppShell";
 import Providers from "./providers";
-import BootSplash from "@/components/splash/BootSplash";
 export const metadata: Metadata = {
   icons: {
     icon: [
@@ -48,7 +47,7 @@ export default function RootLayout({
       <body className="font-body antialiased tc-bg-signature tc-typography">
         <FirebaseClientProvider>
           <Providers>
-              <BootSplash />
+              
               <AppShell>{children}</AppShell>
             </Providers>
         </FirebaseClientProvider>
