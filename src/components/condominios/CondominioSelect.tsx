@@ -136,7 +136,7 @@ export default function CondominioSelect({
             side="bottom"
             align="center"
             sideOffset={8}
-            position="popper"
+            position="item-aligned"
             className="rounded-2xl border-white/10 bg-[#0b1220]/90 text-white backdrop-blur z-[9999]"
           >
           {items.length === 0 ? (
