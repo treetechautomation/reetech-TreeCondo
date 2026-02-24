@@ -162,7 +162,7 @@ export default function ConfiguracoesPage() {
 
     return (
         <div className="flex items-center justify-between">
-            <p className="text-sm text-[#F7F2EB]"><span class="text-[#CFC7BD]">Você ainda não tem um PIN de retirada.</span></p>
+            <p className="text-sm text-[#F7F2EB]"><span className="text-[#CFC7BD]">Você ainda não tem um PIN de retirada.</span></p>
             <Button onClick={() => setIsEditing(true)}>Definir PIN</Button>
         </div>
     );
@@ -180,15 +180,15 @@ export default function ConfiguracoesPage() {
         
         {!condominioAtivoId ? (
            <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
-            <div className="font-medium text-[#F7F2EB]"> <span class="text-[#F79307]">PIN de Encomendas</span> </div>
+            <div className="font-medium text-[#F7F2EB]"> <span className="text-[#F79307]">PIN de Encomendas</span> </div>
              <p className="text-sm text-[#F7F2EB]">Selecione um condomínio para poder definir seu PIN.</p>
            </div>
         ) : (
            <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
             <div>
-              <div className="font-medium text-[#F7F2EB]"> <span class="text-[#F79307]">PIN de Encomendas</span> </div>
+              <div className="font-medium text-[#F7F2EB]"> <span className="text-[#F79307]">PIN de Encomendas</span> </div>
               <div className="text-sm text-[#F7F2EB]">
-                <span class="text-[#DDD6CC]">O porteiro pode validar sua retirada usando este PIN (sem QR/celular).
+                <span className="text-[#DDD6CC]">O porteiro pode validar sua retirada usando este PIN (sem QR/celular).
               </span></div>
             </div>
 
