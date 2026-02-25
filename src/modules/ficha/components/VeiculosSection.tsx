@@ -147,10 +147,10 @@ export function VeiculosSection({ condominioId, uid, firestore, canEdit }: Props
 
   return (
     <Card className="tc-card">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 text-slate-900 [&_p]:text-slate-700">
         <div>
-          <CardTitle className="text-lg">Veículos</CardTitle>
-          <CardDescription>Cadastre os veículos do morador. A TAG é obrigatória e única por condomínio.</CardDescription>
+          <CardTitle className="text-lg text-slate-900">Veículos</CardTitle>
+          <CardDescription className="text-slate-700">Cadastre os veículos do morador. A TAG é obrigatória e única por condomínio.</CardDescription>
         </div>
 
         <Button type="button" className="tc-btn-primary" onClick={openCreate} disabled={!canEdit}>
@@ -158,20 +158,20 @@ export function VeiculosSection({ condominioId, uid, firestore, canEdit }: Props
         </Button>
       </CardHeader>
 
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 text-slate-900">
         {err && <p className="text-sm text-red-600">{err}</p>}
 
         {loading ? (
-          <p className="text-sm text-slate-600">Carregando...</p>
+          <p className="text-sm text-slate-700">Carregando...</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-slate-600">Nenhum veículo cadastrado.</p>
+          <p className="text-sm text-slate-700">Nenhum veículo cadastrado.</p>
         ) : (
           <div className="space-y-2">
             {items.map((v) => (
-              <div key={v.id} className="rounded-md border p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div key={v.id} className="rounded-md border p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-slate-900">
                 <div className="text-sm">
-                  <div className="font-semibold">{v.tagNumero}</div>
-                  <div className="text-slate-600">
+                  <div className="font-semibold text-slate-900">{v.tagNumero}</div>
+                  <div className="text-slate-700">
                     {v.marca} {v.modelo} • {v.cor} • {v.ano} • Placa: {v.placa}
                   </div>
                 </div>
