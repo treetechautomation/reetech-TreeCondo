@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   title: "TreeCondo - Gestão inteligente de condomínios",
   description: "TreeCondo - Gestão inteligente de condomínios",
-  manifest: "/manifest.webmanifest?v=20260219_1771518394714",
+  manifest: "/manifest.webmanifest?v=20260225_1772033181849",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
