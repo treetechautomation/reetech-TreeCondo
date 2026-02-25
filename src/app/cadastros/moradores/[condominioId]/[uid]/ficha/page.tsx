@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
+import BackButton from "@/components/navigation/BackButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,6 +128,7 @@ React.useEffect(() => {
   return (
     <AppLayout pageTitle="Ficha Cadastral do Morador">
       <div className="max-w-5xl space-y-4">
+        <BackButton />
         <Card className="tc-card">
           
 <CardHeader className="space-y-2">
