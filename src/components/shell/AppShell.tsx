@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {!hideBottomNav && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+        <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
           <BottomNav />
         </div>
       )}
