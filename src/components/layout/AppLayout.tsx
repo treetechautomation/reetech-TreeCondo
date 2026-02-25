@@ -233,11 +233,11 @@ React.useEffect(() => {
                 {/* Esquerda: menu mobile + voltar */}
                 <div className="flex items-center gap-2 min-w-0">
                   {/* Drawer mobile */}
-                  <div className="hidden">
+                  <div className="lg:hidden relative z-[2147483000] pointer-events-auto">
                     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                       <SheetTrigger asChild>
-  <Button type="button" variant="ghost" size="icon" className="rounded-xl relative z-[2147483000] pointer-events-auto text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]">
-    <Menu className="h-5 w-5" />
+  <Button type="button" variant="ghost" size="icon" onClick={handleLogout} title="Sair" className="rounded-xl relative z-[2147483000] pointer-events-auto text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]">
+    <LogOut className="h-5 w-5" />
   </Button>
 </SheetTrigger>
 
