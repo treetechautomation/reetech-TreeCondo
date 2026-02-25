@@ -53,6 +53,12 @@ export async function createVeiculo(
   uid: string,
   input: VeiculoDoc
 ) {
+  console.log("[SERVICE] createVeiculo called", {
+    condominioId,
+    uid,
+    input,
+    at: new Date().toISOString(),
+  });
   const tagNumero = normTag(input.tagNumero);
   if (!tagNumero) throw new Error("TAG obrigatória.");
 
@@ -96,6 +102,13 @@ export async function updateVeiculo(
   veiculoId: string,
   input: Partial<VeiculoDoc>
 ) {
+  console.log("[SERVICE] updateVeiculo called", {
+    condominioId,
+    uid,
+    veiculoId,
+    input,
+    at: new Date().toISOString(),
+  });
   const vRef = veiculoRef(db, condominioId, uid, veiculoId);
 
   await runTransaction(db, async (tx) => {
@@ -152,6 +165,12 @@ export async function deleteVeiculo(
   uid: string,
   veiculoId: string
 ) {
+  console.log("[SERVICE] deleteVeiculo called", {
+    condominioId,
+    uid,
+    veiculoId,
+    at: new Date().toISOString(),
+  });
   const vRef = veiculoRef(db, condominioId, uid, veiculoId);
 
   await runTransaction(db, async (tx) => {

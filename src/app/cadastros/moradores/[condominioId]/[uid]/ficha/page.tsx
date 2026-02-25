@@ -11,6 +11,7 @@ import { useParams } from "next/navigation";
 
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -39,10 +40,43 @@ export default function FichaMoradorPage() {
   const empregados = useFieldArray({ control: form.control, name: "empregados" });
 
   const [loading, setLoading] = React.useState(true);
+
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
 
+  const [condominioNome, setCondominioNome] = React.useState<string | null>(null);
+
+  function pickCondoName(data: any): string | null {
+    if (!data || typeof data !== "object") return null;
+    return (
+      data.nome ||
+      data.nomeFantasia ||
+      data.titulo ||
+      data.razaoSocial ||
+      data.displayName ||
+      null
+    );
+  }
+
+  
+
   React.useEffect(() => {
+    (async () => {
+      try {
+        if (!firestore || !condominioId) {
+          setCondominioNome(null);
+          return;
+        }
+        const snap = await getDoc(doc(firestore, "condominios", condominioId));
+        const nm = pickCondoName(snap.exists() ? snap.data() : null);
+        setCondominioNome(nm);
+      } catch {
+        setCondominioNome(null);
+      }
+    })();
+  }, [firestore, condominioId]);
+  
+React.useEffect(() => {
     (async () => {
       setMsg(null);
       setErr(null);
@@ -94,20 +128,43 @@ export default function FichaMoradorPage() {
     <AppLayout pageTitle="Ficha Cadastral do Morador">
       <div className="max-w-5xl space-y-4">
         <Card className="tc-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Ficha cadastral</CardTitle>
-            <CardDescription>
-              Condomínio: <code>{condominioId}</code> — UID: <code>{uid}</code>
-            </CardDescription>
-          </CardHeader>
+          
+<CardHeader className="space-y-2">
+  <div className="space-y-1">
+    <CardTitle className="text-2xl font-semibold tracking-tight text-slate-900">
+      Ficha cadastral{form.watch("perfil.nome") ? ` • ${form.watch("perfil.nome")}` : ""}
+    </CardTitle>
 
-          <CardContent>
+    <CardDescription className="text-slate-700">
+      {condominioNome ? (
+        <span>
+          Condomínio: <span className="font-semibold text-slate-900">{condominioNome}</span>
+        </span>
+      ) : (
+        <span>
+          Condomínio: <span className="font-mono text-xs text-slate-700">{condominioId}</span>
+        </span>
+      )}
+    </CardDescription>
+  </div>
+
+  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+    <span className="rounded-full bg-white/60 px-3 py-1">
+      Morador: <span className="font-medium text-slate-900">{form.watch("perfil.nome") || "—"}</span>
+    </span>
+    <span className="rounded-full bg-white/60 px-3 py-1">
+      UID: <span className="font-mono">{uid}</span>
+    </span>
+  </div>
+</CardHeader>
+
+          <CardContent className="text-slate-900">
             {loading ? (
               <p className="text-sm text-slate-600">Carregando...</p>
             ) : (
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 text-slate-900 [&_h3]:text-slate-900 [&_h3]:font-bold [&_h3]:tracking-tight [&_label]:text-slate-800 [&_label]:font-semibold">
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Identificação</h3>
+                  <h3 className="text-sm font-semibold tracking-wide text-slate-800">Identificação</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label>Nome</Label>
@@ -140,7 +197,7 @@ export default function FichaMoradorPage() {
                 </section>
 
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Telefones</h3>
+                  <h3 className="text-sm font-semibold tracking-wide text-slate-800">Telefones</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <Label>Fixo</Label>
@@ -158,7 +215,7 @@ export default function FichaMoradorPage() {
                 </section>
 
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Filiação</h3>
+                  <h3 className="text-sm font-semibold tracking-wide text-slate-800">Filiação</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label>Pai</Label>
@@ -172,7 +229,7 @@ export default function FichaMoradorPage() {
                 </section>
 
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Cônjuge</h3>
+                  <h3 className="text-sm font-semibold tracking-wide text-slate-800">Cônjuge</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label>Nome</Label>
@@ -195,7 +252,7 @@ export default function FichaMoradorPage() {
 
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Dependentes</h3>
+                    <h3 className="text-sm font-semibold tracking-wide text-slate-800">Dependentes</h3>
                     <Button type="button" variant="outline" className="tc-btn-soft" onClick={() => dependentes.append({ nome: "", nascimento: null })}>
                       + Adicionar
                     </Button>
@@ -219,7 +276,7 @@ export default function FichaMoradorPage() {
 
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Moradores fixos</h3>
+                    <h3 className="text-sm font-semibold tracking-wide text-slate-800">Moradores fixos</h3>
                     <Button type="button" variant="outline" className="tc-btn-soft" onClick={() => moradoresFixos.append({ nome: "", nascimento: null })}>
                       + Adicionar
                     </Button>
@@ -243,7 +300,7 @@ export default function FichaMoradorPage() {
 
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Empregados</h3>
+                    <h3 className="text-sm font-semibold tracking-wide text-slate-800">Empregados</h3>
                     <Button type="button" variant="outline" className="tc-btn-soft" onClick={() => empregados.append({ nome: "", funcao: null, rg: null })}>
                       + Adicionar
                     </Button>
@@ -270,7 +327,7 @@ export default function FichaMoradorPage() {
                 </section>
 
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Animais</h3>
+                  <h3 className="text-sm font-semibold tracking-wide text-slate-800">Animais</h3>
                   <div className="flex items-center gap-2">
                     <input type="checkbox" {...form.register("animais.possui")} />
                     <Label>Possui animais</Label>
@@ -282,7 +339,7 @@ export default function FichaMoradorPage() {
                 </section>
 
                 <section className="space-y-3">
-                  <h3 className="font-semibold">Documentos entregues</h3>
+                  <h3 className="text-sm font-semibold tracking-wide text-slate-800">Documentos entregues</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label>Data (AAAA-MM-DD)</Label>

@@ -36,6 +36,8 @@ export function VeiculosSection({ condominioId, uid, firestore, canEdit }: Props
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Veiculo | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [dbg, setDbg] = React.useState<any>(null);
+  const [dbgEnabled, setDbgEnabled] = React.useState(true);
 
   const form = useForm<VeiculoInput>({
     resolver: zodResolver(VeiculoSchema),
@@ -96,6 +98,13 @@ export function VeiculosSection({ condominioId, uid, firestore, canEdit }: Props
   }
 
   async function onSubmit(values: VeiculoInput) {
+      if (dbgEnabled) {
+        console.log("[VeiculosSection] submit values:", values);
+        setDbg((prev: any) => ({
+          ...(prev ?? {}),
+          submit: { values, at: new Date().toISOString() }
+        }));
+      }
     if (!canEdit) return;
     setSaving(true);
     setErr(null);
@@ -108,7 +117,17 @@ export function VeiculosSection({ condominioId, uid, firestore, canEdit }: Props
       setOpen(false);
       await refresh();
     } catch (e: any) {
-      setErr(e?.message || "Falha ao salvar veículo.");
+      console.error("[VeiculosSection] submit error:", e);
+        setDbg((prev: any) => ({
+          ...(prev ?? {}),
+          error: {
+            message: e?.message ?? String(e),
+            code: e?.code ?? null,
+            stack: e?.stack ?? null,
+            at: new Date().toISOString()
+          }
+        }));
+        setErr(e?.message || "Falha ao salvar veículo.");
     } finally {
       setSaving(false);
     }
@@ -169,14 +188,36 @@ export function VeiculosSection({ condominioId, uid, firestore, canEdit }: Props
           </div>
         )}
 
-        <Dialog open={open} onOpenChange={(v) => { if (canEdit) setOpen(v); }}>
-          <DialogContent className="max-w-xl">
+        <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              if (!canEdit) return;
+              setOpen(v);
+              if (dbgEnabled) {
+                console.log("[VeiculosSection] Dialog openChange:", { v, editing });
+                setDbg((prev: any) => ({
+                  ...(prev ?? {}),
+                  dialog: { open: v, editing: editing?.id ?? null, at: new Date().toISOString() }
+                }));
+              }
+            }}
+          >
+          <DialogContent className="sm:max-w-xl tc-dialog-center">
             <DialogHeader>
               <DialogTitle>{editing ? "Editar veículo" : "Novo veículo"}</DialogTitle>
               <DialogDescription>Preencha os dados. A TAG deve ser única dentro do condomínio.</DialogDescription>
             </DialogHeader>
 
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <form className="space-y-4" onSubmit={form.handleSubmit(
+                    onSubmit,
+                    (errors) => {
+                      console.warn("[VeiculosSection] validation errors:", errors);
+                      setDbg((prev: any) => ({
+                        ...(prev ?? {}),
+                        validation: { errors, at: new Date().toISOString() }
+                      }));
+                    }
+                  )}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>TAG do carro *</Label>

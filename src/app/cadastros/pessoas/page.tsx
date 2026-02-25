@@ -549,9 +549,14 @@ setLoading(true);
                     </TableCell>
                       <TableCell>
                         {m.role === "MORADOR" && condominioAtivoId ? (
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/cadastros/moradores/${condominioAtivoId}/${m.id}/ficha`}>Abrir</Link>
-                          </Button>
+                          <Button
+                              size="sm"
+                              asChild
+                              className="h-9 rounded-xl px-4 font-semibold text-slate-900 shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+                              style={{ background: "linear-gradient(135deg, hsl(var(--tc-cyan)), hsl(var(--tc-lime)))" }}
+                            >
+                              <Link href={`/cadastros/moradores/${condominioAtivoId}/${m.id}/ficha`}>Abrir</Link>
+                            </Button>
                         ) : (
                           <Button variant="outline" size="sm" disabled>—</Button>
                         )}
