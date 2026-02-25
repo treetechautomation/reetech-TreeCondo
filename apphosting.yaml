@@ -12,6 +12,13 @@ env:
       - BUILD
       - RUNTIME
 
+
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    value: 'BNwQtsHZb-GUeCxnmYw4ElZ2imB9vHojnNLnT9uR2zZXWiOdW_pMdZpGzernwyfL86dXhTwelvaIdAeir8Oogo'
+    availability:
+      - BUILD
+      - RUNTIME
+
   - variable: RESEND_API_KEY
     secret: RESEND_API_KEY
     availability:
