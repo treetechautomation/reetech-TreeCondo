@@ -16,17 +16,17 @@
   <rect width="512" height="512" rx="96" fill="url(#tcVignette)"/>
 
   <!-- Subtle inner card -->
-  <rect x="56" y="56" width="400" height="400" rx="72" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.22" stroke-width="8"/>
+  <rect x="36" y="36" width="440" height="440" rx="84" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.22" stroke-width="8"/>
 
   <!-- Accent "roof/leaf" mark -->
-  <path d="M256 140 L348 220 L164 220 Z" fill="#567967" opacity="0.92"/>
+  <path d="M256 126 L362 228 L150 228 Z" fill="#567967" opacity="0.92"/>
 
   <!-- Primary letter -->
   <text x="50%" y="64%" text-anchor="middle"
         font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial"
-        font-size="210" font-weight="800"
+        font-size="240" font-weight="800"
         fill="#567967">T</text>
 
   <!-- Small dot accent -->
-  <circle cx="342" cy="356" r="10" fill="#C9A79E"/>
+  <circle cx="352" cy="372" r="12" fill="#C9A79E"/>
 </svg>
