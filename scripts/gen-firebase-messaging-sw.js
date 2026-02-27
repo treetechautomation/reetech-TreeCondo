@@ -27,7 +27,7 @@ const env = {
 
 const raw = env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG || env.FIREBASE_WEBAPP_CONFIG || "";
 if (!raw) {
-  console.error("❌ NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG não encontrado no .env.local");
+  console.error("❌ Nenhuma config encontrada: NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG ou FIREBASE_WEBAPP_CONFIG");
   process.exit(1);
 }
 
