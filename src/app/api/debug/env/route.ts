@@ -19,8 +19,12 @@ export async function GET() {
   const nextPublicFromNextConfig =
     process.env.NEXT_PUBLIC_FIREBASE_WEBAPP_CONFIG || "";
 
+  const vapid = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "";
+
   return NextResponse.json({
-    ok: true,
+      buildTag: "TAG_2026-02-26T14:53:42.627Z",
+      deployStamp: "2026-02-26T14:21:55.685Z",
+ok: true,
     nodeEnv: process.env.NODE_ENV,
 
     // Resend
@@ -36,5 +40,8 @@ export async function GET() {
     firebaseWebappConfigLength: safeLen(firebaseWebappConfig),
     hasNextPublicFirebaseWebappConfig: asBool(nextPublicFromNextConfig),
     nextPublicFirebaseWebappConfigLength: safeLen(nextPublicFromNextConfig),
+
+      hasVapidKey: asBool(vapid),
+      vapidKeyLength: safeLen(vapid),
   });
 }

@@ -194,3 +194,64 @@ export const onMessageCreated = onDocumentCreated(
     );
   }
 );
+
+
+/**
+ * 3) Quando uma notificação é criada para um usuário, envia PUSH (FCM Web)
+ * Path: condominios/{condId}/notificacoes/{notId}
+ */
+export const onNotificacaoCreated = onDocumentCreated(
+  "condominios/{condId}/notificacoes/{notId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const n = snap.data() as any;
+    if (!n) return;
+
+    // evita duplicar
+    if (n.pushSentAt || n.notifiedAt) return;
+
+    const uid = n.targetUid || n.uid || n.userId;
+    if (!uid) return;
+
+    const title = String(n.title || n.titulo || "TreeCondo").slice(0, 80);
+    const body = String(n.message || n.mensagem || "").slice(0, 180);
+
+    const tipo = String(n.tipo || "");
+    // rota padrão por tipo (ajuste se quiser)
+    let url = String(n.url || "");
+    if (!url) {
+      if (tipo.startsWith("ENCOMENDA")) url = "/encomendas";
+      else if (tipo.includes("ANUNCIO") || tipo.includes("AVISO")) url = "/anuncios";
+      else url = "/painel";
+    }
+
+    try {
+      await notifyUser(
+        String(uid),
+        title,
+        body,
+        {
+          url,
+          condominioId: String(event.params.condId),
+          notificacaoId: String(event.params.notId),
+          tipo,
+        }
+      );
+
+      await snap.ref.set(
+        { pushSentAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+    } catch (e: any) {
+      await snap.ref.set(
+        {
+          pushError: String(e?.message || e || "push_failed"),
+          pushErrorAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+  }
+);
