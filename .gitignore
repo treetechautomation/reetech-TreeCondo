@@ -88,3 +88,6 @@ src/app/globals.css.bak.*
 NODE_ENV=production
 [PWA]
 nextn@0.1.0
+
+# next-pwa stray artifact
+[PWA]
