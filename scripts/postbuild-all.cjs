@@ -1,4 +1,4 @@
-/* Orquestra: gera firebase-messaging-sw e depois patch do sw.js do next-pwa */
+/* Orquestra: gera firebase-messaging-sw (não patcha sw.js; next-pwa injeta importScripts) */
 const { spawnSync } = require("child_process");
 
 function run(cmd, args) {
@@ -7,4 +7,5 @@ function run(cmd, args) {
 }
 
 run("node", ["scripts/gen-firebase-messaging-sw.js"]);
-run("node", ["scripts/patch-sw-fcm.cjs"]);
+
+
