@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { createHash, randomBytes } from "crypto";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
 function jsonError(message: string, status = 400) {
@@ -99,6 +99,91 @@ async function notifyUnidade(db: any, params: {
 
   await batch.commit();
   console.log("[encomendas/create] Notificações criadas para", membros.length, "moradores da unidade", unidadeId);
+}
+
+
+async function sendPushToUids(params: {
+  db: any;
+  uids: string[];
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}) {
+  const { db, uids, title, body, data } = params;
+  if (!uids?.length) return;
+
+  // coleta tokens (pode ter vários por usuário)
+  const tokenDocs: Array<{ uid: string; tokenId: string; token?: string | null }> = [];
+  for (const uid of uids) {
+    try {
+      const snap = await db.collection("users").doc(uid).collection("fcmTokens").get();
+      snap.forEach((d: any) => tokenDocs.push({ uid, tokenId: d.id, ...(d.data() || {}) }));
+    } catch (e: any) {
+      console.warn("[FCM] falha lendo tokens do uid", uid, e?.message || String(e));
+    }
+  }
+
+  const tokens = tokenDocs
+    .map((t: any) => String(t.token || t.tokenId || "").trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    console.log("[FCM] nenhum token para enviar push (uids):", uids.length);
+    return;
+  }
+
+  const msg = adminMessaging();
+
+  const resp = await msg.sendEachForMulticast({
+    tokens,
+    webpush: {
+      notification: {
+        title,
+        body,
+        icon: "/icons/icon-192.png",
+      },
+      fcmOptions: {
+        link: "/encomendas",
+      },
+    },
+    data: data || {},
+  });
+
+  console.log("[FCM] push multicast result:", {
+    tokens: tokens.length,
+    successCount: resp.successCount,
+    failureCount: resp.failureCount,
+  });
+
+  // remove tokens inválidos
+  const invalid: string[] = [];
+  resp.responses.forEach((r: any, i: number) => {
+    if (r.success) return;
+    const code = r.error?.code || "";
+    if (
+      code === "messaging/registration-token-not-registered" ||
+      code === "messaging/invalid-registration-token"
+    ) {
+      invalid.push(tokens[i]);
+    }
+  });
+
+  if (invalid.length) {
+    console.warn("[FCM] removendo tokens inválidos:", invalid.length);
+    // apaga docs onde tokenId == token (você salva docId = token)
+    await Promise.all(
+      invalid.map(async (tok) => {
+        // encontra o uid correspondente nos tokenDocs
+        const td = tokenDocs.find((x: any) => (x.token || x.tokenId) === tok);
+        if (!td?.uid) return;
+        try {
+          await db.collection("users").doc(td.uid).collection("fcmTokens").doc(tok).delete();
+        } catch (e: any) {
+          console.warn("[FCM] falha ao deletar token inválido", tok, e?.message || String(e));
+        }
+      })
+    );
+  }
 }
 
 export async function POST(req: Request) {
