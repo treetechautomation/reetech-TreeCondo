@@ -125,23 +125,62 @@ export async function registerFcmToken(params: {
       }
 
       await saveDiag({
-        step: "sw_ready",
-        swScope: swReg.scope,
-        swActiveState: swReg.active?.state || null,
-        swScriptURL: swReg.active?.scriptURL || null,
-        controllerURL: navigator.serviceWorker.controller?.scriptURL || null,
-      });
+          step: "sw_ready",
+          swScope: swReg.scope,
+          swActiveState: swReg.active?.state || null,
+          swScriptURL: swReg.active?.scriptURL || null,
+          controllerURL: navigator.serviceWorker.controller?.scriptURL || null,
+        });
 
-      const token = await getToken(messaging, {
-        vapidKey,
-        serviceWorkerRegistration: swReg,
-      }).catch(async (e: unknown) => {
+        // tentativa 1
+        const token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: swReg,
+        }).catch(async (e: unknown) => {
         const msg =
           e instanceof Error ? e.message : typeof e === "string" ? e : JSON.stringify(e);
         console.warn("[FCM] getToken failed", e);
         await saveDiag({ step: "gettoken_failed", error: msg });
-        return null;
-      });
+
+          // Se existir subscription antiga (gerada com outra VAPID), tenta limpar e registrar de novo 1x
+          const m = String(msg || "").toLowerCase();
+          const shouldRetry =
+            m.includes("applicationserverkey") ||
+            m.includes("pushmanager") ||
+            m.includes("invalidaccesserror") ||
+            m.includes("not valid");
+
+          if (shouldRetry) {
+            try {
+              const sub = await swReg.pushManager.getSubscription();
+              if (sub) {
+                await sub.unsubscribe();
+                await saveDiag({ step: "unsubscribed_old_push" });
+              } else {
+                await saveDiag({ step: "no_existing_subscription" });
+              }
+
+              const token2 = await getToken(messaging, {
+                vapidKey,
+                serviceWorkerRegistration: swReg,
+              }).catch(async (e2: unknown) => {
+                const msg2 =
+                  e2 instanceof Error ? e2.message : typeof e2 === "string" ? e2 : JSON.stringify(e2);
+                await saveDiag({ step: "gettoken_retry_failed", error: msg2 });
+                return null;
+              });
+
+              if (token2) {
+                await saveDiag({ step: "gettoken_retry_ok", tokenOk: true });
+                return token2;
+              }
+            } catch (e3: any) {
+              await saveDiag({ step: "retry_exception", error: String(e3?.message || e3) });
+            }
+          }
+
+          return null;
+        });
 
     diag.tokenOk = !!token;
     await saveDiag({ step: "token_result", tokenOk: !!token });

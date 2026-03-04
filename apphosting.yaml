@@ -14,7 +14,7 @@ env:
 
 
   - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
-    value: 'BNwQtsHZb-GUeCxnmYw4ElZ2imB9vHojnNLnT9uR2zZXWiOdW_pMdZpGzernwyfL86dXhTwelvaIdAeir8Oogo'
+    value: "BJ3f2fj-daOKz1fC87aXzfHCSmfFSTmD7eI2oqcscKjRxnXmdFgUPj1-1LLFNftPHoRBUI4mUYLtDnYHEG6w9jc"
     availability:
       - BUILD
       - RUNTIME

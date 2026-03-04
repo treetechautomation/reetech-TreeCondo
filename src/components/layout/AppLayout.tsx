@@ -14,6 +14,7 @@ import { CondominioSwitcher } from "@/components/condominios/CondominioSwitcher"
 import { LogOut, Menu, ArrowLeft, X } from "lucide-react";
 import { TreeCondoBrand } from "@/components/branding/TreeCondoBrand";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
@@ -297,7 +298,8 @@ React.useEffect(() => {
                 {/* Direita */}
                 <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
                   {isSuper && <div className="w-full sm:w-auto"><CondominioSwitcher /></div>}
-                  {headerActions ?? null}
+                  <NotificationBell className="text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]" />
+                    {headerActions ?? null}
 
                   {/* Logout desktop (no mobile já tem no drawer) */}
                   <div className="hidden lg:block">
