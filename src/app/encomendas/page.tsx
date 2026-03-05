@@ -154,6 +154,9 @@ const [nfNumero, setNfNumero] = React.useState("");
   // retorno do create
   const [lastCreated, setLastCreated] = React.useState<{ codigo?: string; pin?: string } | null>(null);
 
+  // busca (porteiro) - por NF / código / unidade / transportadora
+  const [buscaEncomendas, setBuscaEncomendas] = React.useState("");
+
   // dialog retirar
   const [openRetirar, setOpenRetirar] = React.useState(false);
   const [retirarEncomenda, setRetirarEncomenda] = React.useState<EncomendaDoc | null>(null);
@@ -428,7 +431,48 @@ React.useEffect(() => {
     }
   }
 
-  const pageTitle = isMorador ? "Minhas Encomendas" : "Gestão de Encomendas";
+  function getRegistradoPor(pkg: any) {
+  return (
+    pkg?.registradoPorNome ||
+    pkg?.registradoPorEmail ||
+    pkg?.registradoPorUid ||
+    // legado
+    pkg?.retiradoPorNome ||
+    pkg?.retiradaPorNome ||
+    pkg?.retiradaPorEmail ||
+    pkg?.retiradaPorUid ||
+    "-"
+  );
+}
+
+function matchBusca(pkg: any, q: string) {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+
+  const unidade = String(pkg?.unidadeId || "").toLowerCase();
+  const bloco = String(pkg?.blocoId || "").toLowerCase();
+  const transp = String(pkg?.transportadora || "").toLowerCase();
+  const codigo = String(pkg?.codigo || "").toLowerCase();
+  const nf = String(pkg?.nfNumero || "").toLowerCase();
+
+  const unidadeFmt = (bloco ? ("bloco " + bloco + " ") : "") + unidade;
+
+  return (
+    unidade.includes(needle) ||
+    bloco.includes(needle) ||
+    unidadeFmt.includes(needle) ||
+    transp.includes(needle) ||
+    codigo.includes(needle) ||
+    nf.includes(needle)
+  );
+}
+
+const pageTitle = isMorador ? "Minhas Encomendas" : "Gestão de Encomendas";
+
+const buscaQ = (buscaEncomendas || "").trim();
+const waitingFiltered = (!isOperador || !buscaQ) ? waiting : waiting.filter((pkg) => matchBusca(pkg as any, buscaQ));
+const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg) => matchBusca(pkg as any, buscaQ));
+
 
   return (
     <AppLayout
@@ -436,6 +480,30 @@ React.useEffect(() => {
       headerActions={
         isOperador && (
             <div className="flex items-center gap-2">
+              {isOperador && (
+                <div className="hidden md:flex items-center gap-2">
+                  <Input
+                    value={buscaEncomendas}
+                    onChange={(e) => setBuscaEncomendas(e.target.value)}
+                    placeholder="Buscar por NF, código, unidade ou transportadora"
+                    className="h-9 w-[360px]"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!buscaEncomendas.trim() || waitingFiltered.length === 0}
+                    onClick={() => {
+                      const first = waitingFiltered[0];
+                      if (first) openRetirada(first);
+                    }}
+                    title={waitingFiltered.length ? "Abrir retirada do primeiro resultado" : "Nada encontrado"}
+                  >
+                    Abrir retirada
+                  </Button>
+                </div>
+              )}
+
             <Button
                 variant="outline"
                 size="sm"
@@ -584,7 +652,7 @@ React.useEffect(() => {
                     </TableHeader>
 
                     <TableBody>
-                      {waiting.map((pkg) => (
+                      {waitingFiltered.map((pkg) => (
                         <TableRow key={pkg.id}>
                           
                           {isOperador && (
@@ -638,12 +706,13 @@ React.useEffect(() => {
                         
                         {isOperador && <TableHead>Unidade</TableHead>}
                         <TableHead>Transportadora</TableHead>
-                        <TableHead>Retirada</TableHead>
+                          <TableHead>NF</TableHead>
+                          <TableHead>Retirada</TableHead>
                         <TableHead className="hidden md:table-cell">Retirada por</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {history.map((pkg) => (
+                      {historyFiltered.map((pkg) => (
                         <TableRow key={pkg.id}>
                           
                            {isOperador && (
@@ -653,7 +722,8 @@ React.useEffect(() => {
                                 </TableCell>
                            )}
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
-                          <TableCell>{fmtTS(pkg.retiradaEm)}</TableCell>
+                            <TableCell>{(pkg as any).nfNumero || "-"}</TableCell>
+                            <TableCell>{fmtTS(pkg.retiradaEm)}</TableCell>
                           <TableCell>
                           <div className="flex items-center gap-2">
                             <span>
