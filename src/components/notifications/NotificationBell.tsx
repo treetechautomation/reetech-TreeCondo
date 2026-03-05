@@ -434,11 +434,7 @@ const dbg = (...a: any[]) => {
             backdropFilter: "none",
             WebkitBackdropFilter: "none",
           }}
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            dbg("onOpenAutoFocus.preventDefault", { type: (e as any)?.type });
-          }}
-          onCloseAutoFocus={(e) => {
+onCloseAutoFocus={(e) => {
             e.preventDefault();
             dbg("onCloseAutoFocus.preventDefault", { type: (e as any)?.type });
           }}
