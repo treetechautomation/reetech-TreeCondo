@@ -154,6 +154,15 @@ const [nfNumero, setNfNumero] = React.useState("");
   // retorno do create
   const [lastCreated, setLastCreated] = React.useState<{ codigo?: string; pin?: string } | null>(null);
 
+  /* INFO_MODAL_START */
+  const [infoOpen, setInfoOpen] = React.useState(false);
+  const [infoPkg, setInfoPkg] = React.useState<any>(null);
+
+  function openInfo(pkg: any) {
+    setInfoPkg(pkg);
+    setInfoOpen(true);
+  }
+  /* INFO_MODAL_END */
   // busca (porteiro) - por NF / código / unidade / transportadora
   const [buscaEncomendas, setBuscaEncomendas] = React.useState("");
 
@@ -628,6 +637,33 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
               <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />Histórico</TabsTrigger>
             </TabsList>
 
+              {isOperador && (
+                <div className="mt-3 flex flex-col gap-2 md:hidden">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={buscaEncomendas}
+                      onChange={(e) => setBuscaEncomendas(e.target.value)}
+                      placeholder="Buscar por NF, código, unidade ou transportadora"
+                      className="h-9 flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!buscaEncomendas.trim() || waitingFiltered.length === 0}
+                      onClick={() => {
+                        const first = waitingFiltered[0];
+                        if (first) openRetirada(first);
+                      }}
+                      title={waitingFiltered.length ? "Abrir retirada do primeiro resultado" : "Nada encontrado"}
+                    >
+                      Abrir
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+
             <TabsContent value="waiting">
               <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
                 {loading ? (
@@ -738,7 +774,10 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
   " • Retirada confirmada por: " + ((pkg as any).retiradoPorNome || (pkg as any).registradoPorNome || "-")
 }
                             >
-                              <Info className="h-4 w-4" />
+                              <Info
+    className="h-4 w-4 opacity-70 cursor-pointer"
+    onClick={() => openInfo(pkg)}
+  />
                             </span>
                           </div>
                         </TableCell>
@@ -751,7 +790,55 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
             </TabsContent>
           </Tabs>
 
-          <Dialog open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
+          
+            {/* INFO_DIALOG_START */}
+            <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
+              <DialogContent className="sm:max-w-[520px] tc-dialog-center">
+                <DialogHeader>
+                  <DialogTitle>Detalhes da Encomenda</DialogTitle>
+                  <DialogDescription>Informações completas do registro.</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-3 text-sm">
+                  <div className="rounded-lg border bg-white/60 p-3">
+                    <div className="text-xs text-muted-foreground">Unidade</div>
+                    <div className="font-medium">
+                      {(infoPkg?.blocoId ? ("Bloco " + infoPkg.blocoId + " • ") : "") + (infoPkg?.unidadeId || "-")}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border bg-white/60 p-3">
+                      <div className="text-xs text-muted-foreground">Transportadora</div>
+                      <div className="font-medium">{infoPkg?.transportadora || "-"}</div>
+                    </div>
+
+                    <div className="rounded-lg border bg-white/60 p-3">
+                      <div className="text-xs text-muted-foreground">NF</div>
+                      <div className="font-medium">{infoPkg?.nfNumero || "-"}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border bg-white/60 p-3">
+                    <div className="text-xs text-muted-foreground">Registrado por</div>
+                    <div className="font-medium">
+                      {infoPkg?.criadoPorNome || infoPkg?.criadoPorEmail || infoPkg?.criadoPorUid || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border bg-white/60 p-3">
+                    <div className="text-xs text-muted-foreground">Chegada</div>
+                    <div className="font-medium">{fmtTS(infoPkg?.chegouEm)}</div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" onClick={() => setInfoOpen(false)}>Fechar</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            {/* INFO_DIALOG_END */}
+<Dialog open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
             <DialogContent className="tc-dialog-center">
                 <DialogHeader>
                     <DialogTitle>Código de Retirada</DialogTitle>
