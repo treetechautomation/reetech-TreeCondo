@@ -46,6 +46,9 @@ import {
 } from "firebase/firestore";
 
 type EncomendaDoc = {
+  nfNumero?: string | null;
+  criadoPorNome?: string | null;
+  criadoPorEmail?: string | null;
   id: string;
   status?: "AGUARDANDO" | "RETIRADA";
   unidadeId?: string;
@@ -145,6 +148,7 @@ export default function EncomendasPage() {
   const [blocoId, setBlocoId] = React.useState("");
   const [transportadora, setTransportadora] = React.useState("");
   const [observacao, setObservacao] = React.useState("");
+const [nfNumero, setNfNumero] = React.useState("");
   const [savingCreate, setSavingCreate] = React.useState(false);
 
   // retorno do create
@@ -344,7 +348,8 @@ React.useEffect(() => {
         unidadeId: unidadeId.trim(),
         blocoId: blocoId.trim() ? blocoId.trim() : null,
         transportadora: transportadora.trim(),
-        observacao: observacao.trim() ? observacao.trim() : null,
+          nfNumero: nfNumero.trim() ? nfNumero.trim() : null,
+          observacao: observacao.trim() ? observacao.trim() : null,
       };
 
     console.log("[DIAGNÓSTICO] Enviando para /api/encomendas/create:", payload);
@@ -360,6 +365,7 @@ React.useEffect(() => {
       setTransportadora("");
       setObservacao("");
 
+        setNfNumero("");
     } catch (e: any) {
       console.error("[DIAGNÓSTICO] Erro ao chamar API de criar encomenda:", e);
       alert(`Ocorreu um erro ao registrar a encomenda:\n\n${e?.message || "Verifique o console para mais detalhes."}\n\nStack: ${e?.stack ?? 'N/A'}`);
@@ -492,8 +498,19 @@ React.useEffect(() => {
                     />
                     </div>
 
-                    <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="observacao" className="text-right">Obs</Label>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="nfNumero" className="text-right">Nota Fiscal</Label>
+                      <Input
+                          id="nfNumero"
+                          placeholder="Opcional (Ex: 3519...)"
+                          className="col-span-3"
+                          value={nfNumero}
+                          onChange={(e) => setNfNumero(e.target.value)}
+                      />
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="observacao" className="text-right">Obs</Label>
                     <Input
                         id="observacao"
                         placeholder="Opcional"
@@ -560,7 +577,8 @@ React.useEffect(() => {
                         
                         {isOperador && <TableHead>Unidade</TableHead>}
                         <TableHead>Transportadora</TableHead>
-                        <TableHead>Chegada</TableHead>
+                          <TableHead>NF</TableHead>
+                          <TableHead>Chegada</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -576,7 +594,8 @@ React.useEffect(() => {
                             </TableCell>
                           )}
                           <TableCell>{pkg.transportadora || "-"}</TableCell>
-                          <TableCell>{fmtTS(pkg.chegouEm)}</TableCell>
+                            <TableCell>{(pkg as any).nfNumero || "-"}</TableCell>
+                            <TableCell>{fmtTS(pkg.chegouEm)}</TableCell>
                           <TableCell className="text-right">
                             {isOperador ? (
                                 <Button
@@ -644,7 +663,10 @@ React.useEffect(() => {
                             </span>
                             <span
                               className="inline-flex items-center opacity-70"
-                              title={"Registrado por: " + (pkg.retiradoPorNome || pkg.retiradaPorNome || pkg.retiradaPorEmail || pkg.retiradaPorUid || "-")}
+                              title={
+  "Registrado por: " + ((pkg as any).registradoPorNome || (pkg as any).criadoPorEmail || (pkg as any).criadoPorUid || "-") +
+  " • Retirada confirmada por: " + ((pkg as any).retiradoPorNome || (pkg as any).registradoPorNome || "-")
+}
                             >
                               <Info className="h-4 w-4" />
                             </span>

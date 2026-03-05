@@ -35,6 +35,27 @@ function normBloco(v: any) {
   return String(v || "").toLowerCase().trim();
 }
 
+async function getActorInfo(db: any, params: { condominioId: string; uid: string; decoded: any }) {
+  const { condominioId, uid, decoded } = params;
+  const email = String(decoded?.email || "").toLowerCase();
+  let nome = String(decoded?.name || decoded?.email || "Operador").trim();
+  let role: string | null = null;
+
+  try {
+    const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
+    const msnap = await mref.get();
+    if (msnap.exists) {
+      const md = msnap.data() || {};
+      if (md?.nome) nome = String(md.nome).trim();
+      if (md?.role) role = String(md.role).trim();
+    }
+  } catch (e: any) {
+    console.warn("[encomendas/create] getActorInfo falhou:", e?.message || String(e));
+  }
+
+  return { uid, email, nome, role };
+}
+
 async function notifyUnidade(db: any, params: {
   condominioId: string;
   unidadeId: string;
@@ -209,6 +230,7 @@ export async function POST(req: Request) {
     const blocoIdNorm = blocoId ? normBloco(blocoId) : null;
     const transportadora = String(body?.transportadora || "").trim();
     const observacao = body?.observacao ? String(body.observacao).trim() : null;
+      const nfNumero = body?.nfNumero ? String(body.nfNumero).trim() : null;
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
     if (!unidadeIdNorm) return jsonError("unidadeId é obrigatório", 400);
@@ -219,6 +241,8 @@ export async function POST(req: Request) {
     const codigoRetiradaLast4 = codigo.slice(-4);
     
     const encomendaRef = db.collection("condominios").doc(condominioId).collection("encomendas").doc();
+
+      const actor = await getActorInfo(db, { condominioId, uid: decoded.uid, decoded });
     await db.runTransaction(async (tx) => {
       tx.set(encomendaRef, {
         condominioId,
@@ -228,7 +252,8 @@ export async function POST(req: Request) {
         blocoId,
         blocoIdNorm,
         transportadora,
-        observacoes: observacao,
+          nfNumero: nfNumero || null,
+          observacoes: observacao,
         chegouEm: FieldValue.serverTimestamp(),
         codigo: codigo,
         codigoRetiradaHash,
@@ -237,7 +262,14 @@ export async function POST(req: Request) {
         retiradaEm: null,
         retiradoPorUid: null,
         criadoPorUid: decoded.uid,
-        criadoPorEmail: (decoded.email || "").toLowerCase(),
+          criadoPorEmail: (decoded.email || "").toLowerCase(),
+          criadoPorNome: (decoded.name || decoded.email || "Operador").toString(),
+
+          // quem registrou a encomenda (porteiro/operador)
+          registradoPorUid: actor.uid,
+          registradoPorNome: actor.nome,
+          registradoPorEmail: actor.email,
+          registradoPorRole: actor.role,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });

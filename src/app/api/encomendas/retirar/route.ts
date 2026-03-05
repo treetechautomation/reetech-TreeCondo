@@ -26,6 +26,27 @@ function normBloco(v: any) {
   return String(v || "").toLowerCase().trim();
 }
 
+async function getActorInfo(db: any, params: { condominioId: string; uid: string; decoded: any }) {
+  const { condominioId, uid, decoded } = params;
+  const email = String(decoded?.email || "").toLowerCase();
+  let nome = String(decoded?.name || decoded?.email || "Operador").trim();
+  let role: string | null = null;
+
+  try {
+    const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
+    const msnap = await mref.get();
+    if (msnap.exists) {
+      const md = msnap.data() || {};
+      if (md?.nome) nome = String(md.nome).trim();
+      if (md?.role) role = String(md.role).trim();
+    }
+  } catch (e: any) {
+    console.warn("[encomendas/retirar] getActorInfo falhou:", e?.message || String(e));
+  }
+
+  return { uid, email, nome, role };
+}
+
 async function notifyUnidade(db: any, params: {
   condominioId: string;
   unidadeId: string;
@@ -114,7 +135,9 @@ export async function POST(req: Request) {
     const recebedorParentesco = body?.recebedorParentesco ? String(body.recebedorParentesco).trim() : "";
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
-    if (!encomendaId) return jsonError("encomendaId é obrigatório", 400);
+      if (!encomendaId) return jsonError("encomendaId é obrigatório", 400);
+
+      const actor = await getActorInfo(db, { condominioId, uid: decoded.uid, decoded });
     
     const ref = db.collection("condominios").doc(condominioId).collection("encomendas").doc(encomendaId);
     const snap = await ref.get();
@@ -163,7 +186,13 @@ export async function POST(req: Request) {
                 retiradaEm: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp(),
                 registradoPorUid: decoded.uid,
-                registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+                  registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+
+                  // quem confirmou a retirada (porteiro/operador)
+                  retiradoPorUid: actor.uid,
+                  retiradoPorNome: actor.nome,
+                  retiradoPorEmail: actor.email,
+                  retiradoPorRole: actor.role,
                 retiradaRecebedorNome: recebedorNome,
                 retiradaRecebedorCpfHash: recebedorCpf ? sha256(recebedorCpf.replace(/\D/g, "")) : null,
                 retiradaRecebedorCpfLast4: recebedorCpf ? recebedorCpf.replace(/\D/g, "").slice(-4) : null,
@@ -181,7 +210,13 @@ export async function POST(req: Request) {
             retiradaEm: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
             registradoPorUid: decoded.uid,
-            registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+                  registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+
+                  // quem confirmou a retirada (porteiro/operador)
+                  retiradoPorUid: actor.uid,
+                  retiradoPorNome: actor.nome,
+                  retiradoPorEmail: actor.email,
+                  retiradoPorRole: actor.role,
             retiradaRecebedorNome: recebedorNome || "Próprio morador",
         });
     } else {
