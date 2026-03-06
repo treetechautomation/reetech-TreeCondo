@@ -367,6 +367,226 @@ return (
         handleSelectArea(a);
       }}
     />
+  
+
+  {(() => {
+
+    const reservasDaArea = (reservas || []).filter((r: any) => String(r.areaId) === String(a.id));
+
+  
+
+    return (
+
+      <div className="mt-3 rounded-xl border border-black/5 bg-white/55 p-4 shadow-sm">
+
+        <div className="flex items-center justify-between gap-2">
+
+          <div className="text-sm font-semibold text-[#0D4459]">Reservas desta área no dia</div>
+
+          <div className="text-xs text-[#0D4459]">
+
+            {loadingReservas ? "Carregando..." : `${reservasDaArea.length} reserva(s)`}
+
+          </div>
+
+        </div>
+
+  
+
+        {loadingReservas ? (
+
+          <div className="mt-3 text-sm text-[#0D4459]">Buscando reservas...</div>
+
+        ) : reservasDaArea.length === 0 ? (
+
+          <div className="mt-3 rounded-xl border bg-muted/20 p-3 text-sm text-[#0D4459]">
+
+            Nenhuma reserva para esta área neste dia.
+
+          </div>
+
+        ) : (
+
+          <div className="mt-3 space-y-2">
+
+            {reservasDaArea.map((r: any) => {
+
+              if (isAdminLike) {
+
+                const m = membrosByUid[r.uid] || null;
+
+                const nome = m?.nome || m?.displayName || m?.name || "";
+
+                const bloco = m?.blocoId || m?.bloco || m?.blocoNome || "";
+
+                const unidade = m?.unidadeId || m?.unidade || m?.unidadeNome || m?.apto || "";
+
+  
+
+                return (
+
+                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-1">
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+
+                      <div className="font-medium">
+
+                        Status: <span className="text-[#0D4459]">{r.status}</span>
+
+                      </div>
+
+                      <div className="text-sm text-[#0D4459]">
+
+                        Valor: <span className="font-semibold">{moneyBRLFromCentavos(r.valorCobrado)}</span>
+
+                      </div>
+
+                    </div>
+
+                    <div className="text-sm text-[#0D4459]">
+
+                      Morador: <span className="font-medium">{nome || r.uid}</span>
+
+                      {bloco || unidade ? (
+
+                        <span className="text-[#0D4459]"> • {bloco ? `Bloco ${bloco}` : ""}{bloco && unidade ? " • " : ""}{unidade ? `Unidade ${unidade}` : ""}</span>
+
+                      ) : null}
+
+                    </div>
+
+                    <div className="text-xs text-[#0D4459]">
+
+                      Reserva ID: {r.id} • UID: {r.uid}
+
+                    </div>
+
+                  </div>
+
+                );
+
+              }
+
+  
+
+              if (meuUid && r.uid === meuUid) {
+
+                const isAprovada = String(r.status) === "APROVADA";
+
+                return (
+
+                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+
+                      <div className="font-medium">
+
+                        Status: <span className="text-[#0D4459]">{r.status}</span>
+
+                      </div>
+
+                      <div className="text-sm text-[#0D4459]">
+
+                        Valor: <span className="font-semibold">{moneyBRLFromCentavos(r.valorCobrado)}</span>
+
+                      </div>
+
+                    </div>
+
+  
+
+                    {isAprovada && (
+
+                      <div className="flex items-center justify-end gap-2">
+
+                        <Button
+
+                          variant="destructive"
+
+                          size="sm"
+
+                          disabled={!canCancelBy48h(r.data, 48)}
+
+                          onClick={async () => {
+
+                            try {
+
+                              if (!confirm("Cancelar esta reserva?")) return;
+
+                              await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
+
+                              alert("✅ Reserva cancelada.");
+
+                              window.location.reload();
+
+                            } catch (e: any) {
+
+                              alert("❌ " + String(e?.message || e));
+
+                            }
+
+                          }}
+
+                          title={!canCancelBy48h(r.data, 48) ? "Só é possível cancelar até 48h antes." : "Cancelar reserva"}
+
+                        >
+
+                          Cancelar
+
+                        </Button>
+
+  
+
+                        <Button asChild variant="outline">
+
+                          <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
+
+                        </Button>
+
+                      </div>
+
+                    )}
+
+  
+
+                    <div className="text-xs text-[#0D4459]">
+
+                      Reserva ID: {r.id}
+
+                    </div>
+
+                  </div>
+
+                );
+
+              }
+
+  
+
+              return (
+
+                <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
+
+                  <div className="font-medium text-[#0D4459]">Reservado</div>
+
+                  <div className="text-sm font-semibold text-primary">{r.status || "RESERVADO"}</div>
+
+                </div>
+
+              );
+
+            })}
+
+          </div>
+
+        )}
+
+      </div>
+
+    );
+
+  })()}
+
   </AreaCard>
 ))}
                 </div>
