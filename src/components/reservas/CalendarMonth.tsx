@@ -36,6 +36,11 @@ function isSundayISO(iso: string) {
   return dt.getDay() === 0;
 }
 
+  function isHolidayISO(iso: string) {
+    const mmdd = iso.slice(5);
+    return mmdd === "12-25" || mmdd === "01-01";
+  }
+
 type Props = {
   firestore: Firestore | null;
   condominioId: string | null;
@@ -74,7 +79,7 @@ export function CalendarMonth({
   }, [selectedDateStr]);
 
   const [loading, setLoading] = React.useState(false);
-  const [blockedSet, setBlockedSet] = React.useState<Set<string>>(new Set());
+  const [slotsMap, setSlotsMap] = React.useState<Record<string, { occupied: boolean; filaCount: number }>>({});
 
   const yyyy = monthCursor.getFullYear();
   const mm0 = monthCursor.getMonth();
@@ -84,56 +89,57 @@ export function CalendarMonth({
   React.useEffect(() => {
     let cancelled = false;
 
-    async function loadApprovedBlockedDays() {
-      if (!firestore || !condominioId || !areaId) {
-        setBlockedSet(new Set());
-        return;
+    async function loadSlotsMonth() {
+        if (!firestore || !condominioId || !areaId) {
+          setSlotsMap({});
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const ini = startOfMonthLocal(yyyy, mm0);
+          const fim = endOfMonthLocalExclusive(yyyy, mm0);
+
+          const y1 = ini.getFullYear();
+          const m1 = String(ini.getMonth() + 1).padStart(2, "0");
+          const d1 = String(ini.getDate()).padStart(2, "0");
+          const startStr = `${y1}-${m1}-${d1}`;
+
+          const y2 = fim.getFullYear();
+          const m2 = String(fim.getMonth() + 1).padStart(2, "0");
+          const d2 = String(fim.getDate()).padStart(2, "0");
+          const endStr = `${y2}-${m2}-${d2}`;
+
+          const qy = query(
+            collection(firestore, "condominios", condominioId, "reservasSlots"),
+            where("areaId", "==", areaId),
+            where("dateStr", ">=", startStr),
+            where("dateStr", "<", endStr)
+          );
+
+          const snap = await getDocs(qy);
+
+          const next: Record<string, { occupied: boolean; filaCount: number }> = {};
+          snap.forEach((docu) => {
+            const d = docu.data() as any;
+            const iso = String(d?.dateStr || "");
+            if (!iso) return;
+            next[iso] = {
+              occupied: Boolean(d?.occupied === true),
+              filaCount: Number(d?.filaCount || 0) || 0,
+            };
+          });
+
+          if (!cancelled) setSlotsMap(next);
+        } catch (e) {
+          console.error("[CalendarMonth] erro ao buscar slots do mês:", e);
+          if (!cancelled) setSlotsMap({});
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
       }
 
-      setLoading(true);
-      try {
-        const ini = startOfMonthLocal(yyyy, mm0);
-        const fim = endOfMonthLocalExclusive(yyyy, mm0);
-
-        // pega reservas da área no mês
-        const qy = query(
-          collection(firestore, "condominios", condominioId, "reservas"),
-          where("areaId", "==", areaId),
-          where("data", ">=", Timestamp.fromDate(ini)),
-          where("data", "<", Timestamp.fromDate(fim))
-        );
-
-        const snap = await getDocs(qy);
-
-        const s = new Set<string>();
-        snap.forEach((docu) => {
-          const data = docu.data() as any;
-          const status = String(data?.status ?? "");
-          if (status !== "APROVADA") return;
-
-          const ts = data?.data as any;
-          const dt: Date | null =
-            ts?.toDate ? ts.toDate() :
-            ts instanceof Date ? ts :
-            null;
-
-          if (!dt) return;
-
-          // converte para iso local (dia)
-          const iso = toISODateLocal(dt);
-          s.add(iso);
-        });
-
-        if (!cancelled) setBlockedSet(s);
-      } catch (e) {
-        console.error("[CalendarMonth] erro ao buscar reservas do mês:", e);
-        if (!cancelled) setBlockedSet(new Set());
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadApprovedBlockedDays();
+      loadSlotsMonth();
     return () => { cancelled = true; };
   }, [firestore, condominioId, areaId, yyyy, mm0]);
 
@@ -211,16 +217,28 @@ export function CalendarMonth({
           const selected = inMonth && iso === selectedDateStr;
 
           const blockedBySunday = Boolean(inMonth && bloquearDomingo && iso && isSundayISO(iso));
-          const blockedByReserva = Boolean(inMonth && iso && blockedSet.has(iso));
+            const blockedByHoliday = Boolean(inMonth && iso && isHolidayISO(iso));
 
-          const disabled = Boolean(!inMonth || blockedBySunday || blockedByReserva);
+            const slot = (inMonth && iso) ? (slotsMap[iso] || null) : null;
+            const filaCount = slot ? Number(slot.filaCount || 0) : 0;
+            const occupied = slot ? Boolean(slot.occupied === true) : false;
+
+            // regras de cor
+            const isRed = Boolean(blockedBySunday || blockedByHoliday || filaCount >= 3);
+            const isYellow = Boolean(!isRed && occupied);
+            const isGreen = Boolean(!isRed && !isYellow);
+
+            // clique só bloqueia no vermelho e fora do mês
+            const disabled = Boolean(!inMonth || isRed);
 
           // classes (verde disponível / vermelho bloqueado / destaque selecionado)
           const stateClass = !inMonth
-            ? "opacity-0 pointer-events-none"
-            : disabled
-              ? "bg-destructive/15 border-destructive/30 text-destructive"
-              : "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300";
+              ? "opacity-0 pointer-events-none"
+              : isRed
+                ? "bg-destructive/15 border-destructive/30 text-destructive"
+                : isYellow
+                  ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-800 dark:text-yellow-200"
+                  : "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300";
 
           const selectedClass = selected
             ? "ring-2 ring-primary/30 border-primary"
@@ -248,14 +266,18 @@ export function CalendarMonth({
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-          <span className="h-2 w-2 rounded-full bg-emerald-500/60" />
-          Disponível
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-          <span className="h-2 w-2 rounded-full bg-destructive/60" />
-          Indisponível
-        </span>
-      </div>
+            <span className="h-2 w-2 rounded-full bg-emerald-500/60" />
+            Disponível
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+            <span className="h-2 w-2 rounded-full bg-yellow-500/70" />
+            Em fila / ocupado
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
+            <span className="h-2 w-2 rounded-full bg-destructive/60" />
+            Indisponível
+          </span>
+        </div>
     </div>
   );
 }

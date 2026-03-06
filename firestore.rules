@@ -11,15 +11,19 @@ service cloud.firestore {
     }
 
     function isSuper() {
-        return signedIn() && (
-          request.auth.token.super_admin == true ||
-          request.auth.token.superAdmin == true ||
-          String(request.auth.token.role || "") == "SUPER_ADMIN" ||
-          (request.auth.token.roles is list && request.auth.token.roles.hasAny(["SUPER_ADMIN"]))
-        );
-      }
-
-    function memberPath(condominioId) {
+          return signedIn() && (
+            request.auth.token.super_admin == true ||
+            request.auth.token.superAdmin == true ||
+            (
+              (request.auth.token.role == null ? "" : request.auth.token.role).upper() == "SUPER_ADMIN"
+            ) ||
+            (
+              request.auth.token.roles is list &&
+              request.auth.token.roles.hasAny(["SUPER_ADMIN"])
+            )
+          );
+        }
+function memberPath(condominioId) {
       return /databases/$(database)/documents/condominios/$(condominioId)/membros/$(request.auth.uid);
     }
 
@@ -437,7 +441,58 @@ function isOperador(condominioId) {
       }
 
       // outras subcoleções: leitura p/ membro ativo; escrita p/ admin/síndico
-      match /{subcollection}/{docId=**} {
+      
+
+        // -------------------------
+        // RESERVAS - FILA DE ESPERA (SLOT)
+        // reservasSlots/{slotId}/fila/{uid}
+        // - slotId: ex: areaId__2026-03-10
+        // - fila docId = uid (1 inscrição por pessoa)
+        // -------------------------
+        match /reservasSlots/{slotId} {
+          // leitura do slot: qualquer membro ativo (pra UI saber se tem fila)
+          allow read: if isSuper() || isMembroAtivo(condominioId);
+
+          // slot é gerenciado por admin/síndico
+          allow create, update, delete: if canManageCondo(condominioId);
+
+                      // lock por UID (impede o mesmo morador reservar 2x no mesmo dia/área)
+            match /reservasPorUid/{uid} {
+              // admin/síndico vê tudo; morador vê só o próprio
+              allow read: if isSuper() || canManageCondo(condominioId) || (signedIn() && request.auth.uid == uid && isMembroAtivo(condominioId));
+
+              // cria lock: só o próprio uid (feito via API, mas fica seguro)
+              allow create: if signedIn()
+                && isMembroAtivo(condominioId)
+                && request.auth.uid == uid
+                && request.resource.data.uid == request.auth.uid;
+
+              // update: apenas admin/síndico (se precisar marcar algo)
+              allow update: if isSuper() || canManageCondo(condominioId);
+
+              // delete: o próprio pode deletar; admin também
+              allow delete: if isSuper() || canManageCondo(condominioId) || (signedIn() && request.auth.uid == uid && isMembroAtivo(condominioId));
+            }
+
+match /fila/{uid} {
+            // admin/síndico vê tudo; morador vê só o próprio
+            allow read: if isSuper() || canManageCondo(condominioId) || (signedIn() && request.auth.uid == uid && isMembroAtivo(condominioId));
+
+            // entrar na fila: só o próprio uid
+            allow create: if signedIn()
+              && isMembroAtivo(condominioId)
+              && request.auth.uid == uid
+              && request.resource.data.uid == request.auth.uid;
+
+            // update: apenas admin/síndico (pra marcar CHAMADO/EXPIRADO etc)
+            allow update: if isSuper() || canManageCondo(condominioId);
+
+            // sair da fila: o próprio pode deletar; admin também
+            allow delete: if isSuper() || canManageCondo(condominioId) || (signedIn() && request.auth.uid == uid && isMembroAtivo(condominioId));
+          }
+        }
+
+match /{subcollection}/{docId=**} {
         allow read: if isSuper() || isMembroAtivo(condominioId);
         allow write: if canManageCondo(condominioId);
       }

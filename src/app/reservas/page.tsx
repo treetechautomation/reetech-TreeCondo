@@ -4,7 +4,8 @@
 import * as React from "react";
 import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
-import { Button } from "@/components/ui/button";
+import {
+  Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useReservas } from "@/hooks/useReservas";
 import { AreaCard } from "@/components/reservas/AreaCard";
@@ -12,7 +13,14 @@ import { CalendarMonth } from "@/components/reservas/CalendarMonth";
 import { AreaOpcaoDialog } from "@/components/reservas/AreaOpcaoDialog";
 
 import { useFirestore } from "@/firebase";
-import { addDoc, collection, Timestamp, serverTimestamp, getDoc, doc } from "firebase/firestore";
+import { addDoc,
+  collection,
+  Timestamp,
+  serverTimestamp,
+  getDoc,
+  doc,
+  setDoc
+} from "firebase/firestore";
 import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
 
 import { isSunday, getStatusForNewReserva, requiresApproval, getPoliticasReservas, type ReservasPoliticas } from "@/lib/reservasPoliticas";
@@ -230,21 +238,24 @@ React.useEffect(() => {
 
         const areaSel = (areas || []).find((a: any) => String(a.id) === String(selectedAreaId)) ?? null;
         const capacidadeMaxSel = (Number.isFinite(Number(areaSel?.capacidadeMax)) ? Number(areaSel?.capacidadeMax) : null);
-      await addDoc(collection(firestore, "condominios", condId, "reservas"), {
-        areaId: selectedAreaId,
-        condominioId: condId,
-        uid: user.uid,
-        status: statusInicial,
-        data: Timestamp.fromDate(dataIni),
-        valorCobrado: Number(selectedOpcaoMeta.precoCentavos) || 0,
-        criadoEm: serverTimestamp(),
-          precisaAprovacao: precisaAprovacao,
-        opcaoId: selectedOpcaoMeta.opcaoId,
-        opcaoNome: selectedOpcaoMeta.opcaoNome,
+      const resp = await apiPostAuth("/api/reservas/criar", {
+          condominioId: condId,
+          areaId: selectedAreaId,
+          dateStr,
+          opcaoId: selectedOpcaoMeta.opcaoId,
+          opcaoNome: selectedOpcaoMeta.opcaoNome,
+          valorCobrado: Number(selectedOpcaoMeta.precoCentavos) || 0,
           capacidadeMax: capacidadeMaxSel,
-      });
+          // mantém compat com sua lógica atual:
+          statusInicial,
+          precisaAprovacao,
+        });
 
-      alert("✅ Reserva enviada (PENDENTE).");
+        if (resp?.mode === "FILA") {
+          alert(`✅ Dia ocupado. Você entrou na fila de espera (posição ~${resp?.filaCount || "?"}/3).`);
+        } else {
+          alert("✅ Reserva enviada (PENDENTE).");
+        }
     } catch (e) {
       console.error("[Reservas] erro ao criar reserva:", e);
       alert("❌ Erro ao criar reserva. Veja o console.");
@@ -252,8 +263,37 @@ React.useEffect(() => {
       setIsCreating(false);
     }
   }
+async function apiPostAuth(path: string, body: any) {
+  const authMod: any = await import("firebase/auth");
+  const { getAuth } = authMod;
+  const auth = getAuth();
+  const u = auth?.currentUser;
+  if (!u) throw new Error("Sem usuário autenticado.");
+  const token = await u.getIdToken();
+  const r = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data?.error || `Erro ${r.status}`);
+  return data;
+}
 
-  return (
+function canCancelBy48h(dateTs: any, minHoras = 48) {
+  try {
+    // dateTs pode ser Timestamp do firestore com .toDate()
+    const d = (dateTs && typeof dateTs.toDate === "function") ? dateTs.toDate() : null;
+    if (!d) return false;
+    const ms = d.getTime() - (minHoras * 60 * 60 * 1000);
+    return Date.now() <= ms;
+  } catch {
+    return false;
+  }
+}
+
+return (
+
     <AppLayout
       pageTitle="Reservas"
       headerActions={
@@ -401,6 +441,25 @@ React.useEffect(() => {
 
                         {isAprovada && (
                             <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={!canCancelBy48h(r.data, 48)}
+                                    onClick={async () => {
+                                      try {
+                                        if (!confirm("Cancelar esta reserva?")) return;
+                                        await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
+                                        alert("✅ Reserva cancelada.");
+                                        // força refresh simples
+                                        window.location.reload();
+                                      } catch (e: any) {
+                                        alert("❌ " + String(e?.message || e));
+                                      }
+                                    }}
+                                    title={!canCancelBy48h(r.data, 48) ? "Só é possível cancelar até 48h antes." : "Cancelar reserva"}
+                                  >
+                                    Cancelar
+                                  </Button>
                                 <Button asChild variant="outline">
                                     <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
                                 </Button>
