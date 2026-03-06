@@ -38,7 +38,7 @@ function isSundayISO(iso: string) {
 
   function isHolidayISO(iso: string) {
     const mmdd = iso.slice(5);
-    return mmdd === "12-25" || mmdd === "01-01";
+    return mmdd === "12-24" || mmdd === "12-25" || mmdd === "12-31" || mmdd === "01-01";
   }
 
 type Props = {

@@ -24,9 +24,9 @@ function isSundayISO(dateStr: string) {
 }
 
 function isHolidayISO(dateStr: string) {
-  // Natal e Ano Novo
+  // Véspera de Natal, Natal, Véspera de Ano Novo e Ano Novo
   const mmdd = dateStr.slice(5);
-  return mmdd === "12-25" || mmdd === "01-01";
+  return mmdd === "12-24" || mmdd === "12-25" || mmdd === "12-31" || mmdd === "01-01";
 }
 
 function isoNoonUTC(dateStr: string) {
