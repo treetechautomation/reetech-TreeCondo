@@ -1,11 +1,9 @@
-
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
-import {
-  Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useReservas } from "@/hooks/useReservas";
 import { AreaCard } from "@/components/reservas/AreaCard";
@@ -13,17 +11,29 @@ import { CalendarMonth } from "@/components/reservas/CalendarMonth";
 import { AreaOpcaoDialog } from "@/components/reservas/AreaOpcaoDialog";
 
 import { useFirestore } from "@/firebase";
-import { addDoc,
+import {
+  addDoc,
   collection,
   Timestamp,
   serverTimestamp,
   getDoc,
+  getDocs,
   doc,
-  setDoc
+  setDoc,
+  onSnapshot,
+  query,
+  where
 } from "firebase/firestore";
 import { isDiaDisponivelPorArea, startOfDayUTC } from "@/lib/reservasDisponibilidade";
 
-import { isSunday, getStatusForNewReserva, requiresApproval, getPoliticasReservas, type ReservasPoliticas } from "@/lib/reservasPoliticas";
+import {
+  isSunday,
+  getStatusForNewReserva,
+  requiresApproval,
+  getPoliticasReservas,
+  type ReservasPoliticas
+} from "@/lib/reservasPoliticas";
+
 function moneyBRLFromCentavos(v?: number) {
   const n = Number(v ?? 0) / 100;
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -108,6 +118,8 @@ export default function ReservasPage() {
 
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
 
+  const [filaByArea, setFilaByArea] = React.useState<Record<string, any[]>>({})
+
   const reservasFiltradas = React.useMemo(() => {
     if (areaFilter === "ALL") return reservas;
     return reservas.filter((r) => r.areaId === areaFilter);
@@ -121,11 +133,15 @@ React.useEffect(() => {
     let cancelled = false;
 
     async function fetchMembros() {
-      if (!firestore || !condId || !isAdminLike || reservasVisiveis.length === 0) {
+      if (!firestore || !condId || !isAdminLike) {
         return;
       }
 
-      const uidsToFetch = Array.from(new Set(reservasVisiveis.map(r => r.uid).filter(Boolean)))
+      const uidsReservas = (reservasVisiveis || []).map((r: any) => r?.uid).filter(Boolean);
+        const uidsFila = Object.values(filaByArea || {})
+          .flatMap((items: any) => Array.isArray(items) ? items.map((f: any) => f?.uid).filter(Boolean) : []);
+
+        const uidsToFetch = Array.from(new Set([...uidsReservas, ...uidsFila]))
         .filter(uid => !membrosByUid[uid]);
 
       if (uidsToFetch.length === 0) return;
@@ -150,7 +166,117 @@ React.useEffect(() => {
     fetchMembros();
 
     return () => { cancelled = true; }
-  }, [firestore, condId, isAdminLike, reservasVisiveis, membrosByUid]);
+  }, [firestore, condId, isAdminLike, reservasVisiveis, filaByArea, membrosByUid]);
+
+  
+
+  const [slotsDoDia,setSlotsDoDia] = React.useState<Record<string,{occupied:boolean,filaCount:number}>>({})
+  React.useEffect(()=>{
+
+    if(!firestore || !condId || !dateStr){
+      setSlotsDoDia({})
+      return
+    }
+
+    const q = query(
+      collection(firestore,"condominios",String(condId),"reservasSlots"),
+      where("dateStr","==",dateStr)
+    )
+
+    return onSnapshot(q, (snap: any) => {
+      const next: Record<string, { occupied: boolean; filaCount: number }> = {};
+
+      snap.forEach((d: any) => {
+        const data = d.data() || {};
+        const areaId = String(data.areaId || "");
+        if (!areaId) return;
+
+        next[areaId] = {
+          occupied: Boolean(data.occupied === true),
+          filaCount: Number(data.filaCount || 0),
+        };
+      });
+
+      setSlotsDoDia(next);
+    }, (err: any) => {
+      console.error("erro slots", err);
+      setSlotsDoDia({});
+    })
+
+  },[firestore,condId,dateStr])
+
+
+  React.useEffect(() => {
+    let alive = true;
+
+    async function loadFilaDoDia() {
+      if (!firestore || !condId || !dateStr || !(areas || []).length) {
+        setFilaByArea({});
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(
+          (areas || []).map(async (a: any) => {
+            const areaId = String(a?.id || "");
+            if (!areaId) return [areaId, []];
+
+            const slotId = areaId + "__" + dateStr;
+
+            const filaCol = collection(
+              firestore,
+              "condominios",
+              String(condId),
+              "reservasSlots",
+              slotId,
+              "fila"
+            );
+
+            const snap = await getDocs(filaCol);
+
+            const items = snap.docs
+              .map((d: any) => {
+                const data = d.data() || {};
+                const createdAt = data?.createdAt || null;
+                const createdAtMs =
+                  createdAt && typeof createdAt.toDate === "function"
+                    ? createdAt.toDate().getTime()
+                    : 0;
+
+                return {
+                  id: d.id,
+                  uid: String(data?.uid || d.id || ""),
+                  status: String(data?.status || "AGUARDANDO"),
+                  opcaoId: data?.opcaoId ?? null,
+                  opcaoNome: data?.opcaoNome ?? null,
+                  valorCobrado: Number(data?.valorCobrado || 0),
+                  capacidadeMax: data?.capacidadeMax ?? null,
+                  createdAt,
+                  createdAtMs,
+                };
+              })
+              .sort((a: any, b: any) => a.createdAtMs - b.createdAtMs);
+
+            return [areaId, items];
+          })
+        );
+
+        if (!alive) return;
+        setFilaByArea(Object.fromEntries(entries));
+      } catch (e) {
+        console.error("[Reservas] erro ao carregar fila do dia:", e);
+        if (alive) setFilaByArea({});
+      }
+    }
+
+    loadFilaDoDia();
+
+    return () => {
+      alive = false;
+    };
+  }, [firestore, condId, dateStr, areas]);
+
+
 
   const areaParaOpcao = React.useMemo(() => {
     if (!areaParaOpcaoId) return null;
@@ -217,19 +343,11 @@ React.useEffect(() => {
       const precisaAprovacao = requiresApproval(dateStr, politicas || { bloquearDomingo: true, autoAprovarAposHoras: 24, exigirAprovacaoQuandoMenosQueHoras: 24, cancelamentoMinHoras: 48 });
 
       setIsChecking(true);
-    try {
-      const chk = await isDiaDisponivelPorArea(firestore, condId, selectedAreaId, dateStr);
-      if (!chk.disponivel) {
-        alert("❌ Já existe uma reserva para esta área neste dia.");
-        return;
+      try {
+        // decisão de RESERVA ou FILA agora é feita na API
+      } finally {
+        setIsChecking(false);
       }
-    } catch (e) {
-      console.error("[Reservas] erro ao verificar disponibilidade:", e);
-      alert("❌ Erro ao verificar disponibilidade. Veja o console.");
-      return;
-    } finally {
-      setIsChecking(false);
-    }
 
     setIsCreating(true);
     try {
@@ -256,13 +374,46 @@ React.useEffect(() => {
         } else {
           alert("✅ Reserva enviada (PENDENTE).");
         }
-    } catch (e) {
-      console.error("[Reservas] erro ao criar reserva:", e);
-      alert("❌ Erro ao criar reserva. Veja o console.");
-    } finally {
+      } catch (e: any) {
+        const msg = String(e?.message || e || "");
+        console.error("[Reservas] erro ao criar reserva:", e);
+
+        if (msg.includes("já tem fila")) {
+          alert("⚠️ Você já está na fila desta área para este dia.");
+        } else if (msg.includes("já tem reserva")) {
+          alert("⚠️ Você já tem uma reserva nesta área para este dia.");
+        } else if (msg.includes("Fila cheia")) {
+          alert("❌ Esta área já está com a fila cheia para este dia.");
+        } else {
+          alert("❌ " + (msg || "Erro ao criar reserva."));
+        }
+      } finally {
       setIsCreating(false);
     }
   }
+
+  async function handleCancelarFila(areaId: string, targetUid?: string) {
+    if (!condId) return;
+
+    try {
+      await apiPostAuth("/api/reservas/fila-cancelar", {
+        condominioId: condId,
+        areaId,
+        dateStr,
+        ...(targetUid ? { targetUid } : {}),
+      });
+
+      alert(targetUid && targetUid !== meuUid
+        ? "✅ Usuário removido da fila."
+        : "✅ Você saiu da fila de espera.");
+
+      window.location.reload();
+    } catch (e: any) {
+      const msg = String(e?.message || e || "");
+      alert("❌ " + (msg || "Erro ao cancelar fila."));
+    }
+  }
+
 async function apiPostAuth(path: string, body: any) {
   const authMod: any = await import("firebase/auth");
   const { getAuth } = authMod;
@@ -296,19 +447,15 @@ return (
 
     <AppLayout
       pageTitle="Reservas"
-      headerActions={
-        isMoradorLike ? (
-          <Button variant="default" onClick={handleSolicitarReserva} disabled={!podeReservar}>
-            {isChecking ? "Verificando..." : isCreating ? "Enviando..." : "Confirmar reserva"}
-          </Button>
-        ) : (
-          <Button asChild variant="default">
-            <Link href="/reservas/agenda">
-              Ver solicitações
-            </Link>
-          </Button>
-        )
-      }
+        headerActions={
+          isMoradorLike ? null : (
+            <Button asChild variant="default">
+              <Link href="/reservas/agenda">
+                Ver solicitações
+              </Link>
+            </Button>
+          )
+        }
     >
       {!podeVer ? (
         <div className="rounded-2xl border bg-card p-6">
@@ -355,6 +502,51 @@ return (
     area={a as any}
     selected={selectedAreaId === a.id}
     onSelect={() => handleSelectArea(a)}
+    availability={(() => {
+      const slotDaArea = slotsDoDia[String(a.id)] || { occupied: false, filaCount: 0 };
+      const filaCountDaArea = Number(slotDaArea.filaCount || 0) || 0;
+      const occupiedDaArea = Boolean(slotDaArea.occupied === true);
+      return filaCountDaArea >= 3
+        ? "unavailable"
+        : (occupiedDaArea || filaCountDaArea > 0)
+          ? "queued"
+          : "available";
+    })()}
+    availabilityLabel={(() => {
+      const slotDaArea = slotsDoDia[String(a.id)] || { occupied: false, filaCount: 0 };
+      const filaCountDaArea = Number(slotDaArea.filaCount || 0) || 0;
+      const occupiedDaArea = Boolean(slotDaArea.occupied === true);
+      return filaCountDaArea >= 3
+        ? "Indisponível"
+        : (occupiedDaArea || filaCountDaArea > 0)
+          ? "Em fila / ocupada"
+          : "Disponível";
+    })()}
+    action={isMoradorLike ? (
+      <Button
+        type="button"
+        variant={selectedAreaId === a.id ? "default" : "outline"}
+        className="w-full"
+        disabled={
+          selectedAreaId !== a.id ||
+          !selectedOpcaoMeta ||
+          isChecking ||
+          isCreating
+        }
+        onClick={(ev) => {
+          ev.stopPropagation();
+          handleSolicitarReserva();
+        }}
+      >
+        {selectedAreaId !== a.id
+          ? "Selecione esta área"
+          : isChecking
+            ? "Verificando..."
+            : isCreating
+              ? "Enviando..."
+              : "Confirmar reserva"}
+      </Button>
+    ) : null}
   >
     <CalendarMonth
       firestore={firestore as any}
@@ -373,11 +565,120 @@ return (
 
     const reservasDaArea = (reservas || []).filter((r: any) => String(r.areaId) === String(a.id));
 
+      const slotDaArea = slotsDoDia[String(a.id)] || {occupied:false,filaCount:0}
+
+      const filaCountDaArea = Number(slotDaArea.filaCount||0)
+      const occupiedDaArea = Boolean(slotDaArea.occupied===true)
+
+      const areaAvailability =
+        filaCountDaArea>=3
+          ? "unavailable"
+          : (occupiedDaArea || filaCountDaArea>0)
+            ? "queued"
+            : "available"
+
+      const areaAvailabilityLabel =
+        filaCountDaArea>=3
+          ? "Indisponível"
+          : (occupiedDaArea || filaCountDaArea>0)
+            ? "Em fila / ocupada"
+            : "Disponível"
+
+
   
 
-    return (
+    
 
-      <div className="mt-3 rounded-xl border border-black/5 bg-white/55 p-4 shadow-sm">
+        const filaDaArea = Array.isArray(filaByArea[String(a.id)])
+          ? filaByArea[String(a.id)]
+          : [];
+
+        const filaUI = (
+          <div className="mt-4 rounded-xl border border-[#FFDE21]/40 bg-[#FFDE21]/10 p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-[#8A6A00]">Fila de espera desta área</div>
+              <div className="text-xs text-[#8A6A00]">
+                {filaDaArea.length} pessoa(s)
+              </div>
+            </div>
+
+            {filaDaArea.length === 0 ? (
+              <div className="mt-3 rounded-xl border bg-white/70 p-3 text-sm text-[#8A6A00]">
+                Ninguém na fila de espera para esta área neste dia.
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {filaDaArea.map((f: any, idx: number) => {
+                  const mf = membrosByUid[f.uid] || null;
+                  const nomeFila = mf?.nome || mf?.displayName || mf?.name || f.uid || "Morador";
+                  const blocoFila = mf?.blocoId || mf?.bloco || mf?.blocoNome || "";
+                  const unidadeFila = mf?.unidadeId || mf?.unidade || mf?.unidadeNome || mf?.apto || "";
+                  const souEuNaFila = !!meuUid && String(f.uid) === String(meuUid);
+
+                  return (
+                    <div
+                      key={f.id || f.uid || idx}
+                      className="rounded-xl border border-[#FFDE21]/40 bg-white/70 p-3"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-[#8A6A00]">
+                            #{idx + 1} • {nomeFila}
+                          </div>
+
+                          <div className="text-xs text-[#8A6A00]">
+                            Status: {String(f.status || "AGUARDANDO")}
+                            {blocoFila || unidadeFila ? (
+                              <>
+                                {" • "}
+                                {blocoFila ? "Bloco " + blocoFila : ""}
+                                {blocoFila && unidadeFila ? " • " : ""}
+                                {unidadeFila ? "Unidade " + unidadeFila : ""}
+                              </>
+                            ) : null}
+                          </div>
+
+                          <div className="text-xs text-[#8A6A00]">
+                            Valor: {moneyBRLFromCentavos(f.valorCobrado)}
+                            {f?.opcaoNome ? " • Opção: " + String(f.opcaoNome) : ""}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {souEuNaFila ? (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleCancelarFila(String(a.id))}
+                            >
+                              Desistir da fila
+                            </Button>
+                          ) : null}
+
+                          {isAdminLike ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCancelarFila(String(a.id), String(f.uid))}
+                            >
+                              Remover da fila
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+
+      return (
+        <>
+          <div className="mt-3 rounded-xl border border-black/5 bg-white/55 p-4 shadow-sm">
 
         <div className="flex items-center justify-between gap-2">
 
@@ -415,11 +716,11 @@ return (
 
                 const m = membrosByUid[r.uid] || null;
 
-                const nome = m?.nome || m?.displayName || m?.name || "";
+                const nome = m?.nome || m?.displayName || m?.name || "Morador";
 
-                const bloco = m?.blocoId || m?.bloco || m?.blocoNome || "";
+                const bloco = m?.blocoNome || m?.blocoId || m?.bloco || "";
 
-                const unidade = m?.unidadeId || m?.unidade || m?.unidadeNome || m?.apto || "";
+                const unidade = m?.unidadeNome || m?.unidadeId || m?.unidade || m?.apto || "";
 
   
 
@@ -444,22 +745,16 @@ return (
                     </div>
 
                     <div className="text-sm text-[#0D4459]">
+                        Morador: <span className="font-medium">{nome}</span>
+                      </div>
 
-                      Morador: <span className="font-medium">{nome || r.uid}</span>
-
-                      {bloco || unidade ? (
-
-                        <span className="text-[#0D4459]"> • {bloco ? `Bloco ${bloco}` : ""}{bloco && unidade ? " • " : ""}{unidade ? `Unidade ${unidade}` : ""}</span>
-
+                      {(bloco || unidade) ? (
+                        <div className="text-sm text-[#0D4459]">
+                          {bloco ? <>Bloco: <span className="font-medium">{bloco}</span></> : null}
+                          {bloco && unidade ? <span> • </span> : null}
+                          {unidade ? <>Unidade: <span className="font-medium">{unidade}</span></> : null}
+                        </div>
                       ) : null}
-
-                    </div>
-
-                    <div className="text-xs text-[#0D4459]">
-
-                      Reserva ID: {r.id} • UID: {r.uid}
-
-                    </div>
 
                   </div>
 
@@ -580,12 +875,14 @@ return (
           </div>
 
         )}
+        </div>
 
-      </div>
+          {filaUI}
+        </>
 
-    );
+      );
 
-  })()}
+    })()}
 
   </AreaCard>
 ))}
@@ -593,142 +890,27 @@ return (
               </div>
             )}
           </div>
-          <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="font-semibold">Reservas do dia</div>
-              <div className="text-xs text-[#0D4459]">
-                {loadingReservas ? "Carregando..." : `${reservasVisiveis.length} reserva(s)`}
-              </div>
-            </div>
-            {loadingReservas ? (
-              <div className="mt-4 text-sm text-[#0D4459]">Buscando reservas...</div>
-            ) : reservasVisiveis.length === 0 ? (
-              <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-[#0D4459]">
-                Nenhuma reserva encontrada para este dia.
-              </div>
-            ) : (
-              <div className="mt-4 space-y-2">
-                {reservasVisiveis.map((r: any) => {
-                  if (isAdminLike) {
-                    const m = membrosByUid[r.uid] || null;
-                    const nome = m?.nome || m?.displayName || m?.name || "";
-                    const bloco = m?.blocoId || m?.bloco || m?.blocoNome || "";
-                    const unidade = m?.unidadeId || m?.unidade || m?.unidadeNome || m?.apto || "";
-
-                    return (
-                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium">
-                            Área: <span className="text-[#0D4459]">{r.areaId}</span>
-                          </div>
-                          <div className="text-sm">
-                            Status: <span className="font-semibold">{r.status}</span>
-                          </div>
-                        </div>
-                        <div className="text-sm text-[#0D4459]">
-                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
-                        </div>
-                        <div className="text-sm text-[#0D4459]">
-                          Morador: <span className="font-medium">{nome || r.uid}</span>
-                          {bloco || unidade ? (
-                            <span className="text-[#0D4459]"> • {bloco ? `Bloco ${bloco}` : ""}{bloco && unidade ? " • " : ""}{unidade ? `Unidade ${unidade}` : ""}</span>
-                          ) : null}
-                        </div>
-                        <div className="text-xs text-[#0D4459]">
-                          Reserva ID: {r.id} • UID: {r.uid}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // MORADOR
-                  if (meuUid && r.uid === meuUid) {
-                    const isAprovada = String(r.status) === "APROVADA";
-                     return (
-                      <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium">
-                            Área: <span className="text-[#0D4459]">{r.areaId}</span>
-                          </div>
-                          <div className="text-sm">
-                            Status: <span className="font-semibold">{r.status}</span>
-                          </div>
-                        </div>
-
-                        <div className="text-sm text-[#0D4459]">
-                          Valor: {moneyBRLFromCentavos(r.valorCobrado)}
-                        </div>
-
-                        {isAprovada && (
-                            <div className="flex items-center justify-end gap-2">
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    disabled={!canCancelBy48h(r.data, 48)}
-                                    onClick={async () => {
-                                      try {
-                                        if (!confirm("Cancelar esta reserva?")) return;
-                                        await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
-                                        alert("✅ Reserva cancelada.");
-                                        // força refresh simples
-                                        window.location.reload();
-                                      } catch (e: any) {
-                                        alert("❌ " + String(e?.message || e));
-                                      }
-                                    }}
-                                    title={!canCancelBy48h(r.data, 48) ? "Só é possível cancelar até 48h antes." : "Cancelar reserva"}
-                                  >
-                                    Cancelar
-                                  </Button>
-                                <Button asChild variant="outline">
-                                    <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
-                                </Button>
-                            </div>
-                        )}
-
-                        <div className="text-xs text-[#0D4459]">
-                          Reserva ID: {r.id}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Outros moradores veem apenas que está reservado
-                  return (
-                    <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
-                      <div className="font-medium">
-                        Área: <span className="text-[#0D4459]">{r.areaId}</span>
-                      </div>
-                      <div className="text-sm font-semibold text-primary">
-                        Reservado
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          {areaParaOpcao ? (
-            <AreaOpcaoDialog
-              open={opcoesOpen}
-              onOpenChange={(v: boolean) => {
-                setOpcoesOpen(v);
-                if (!v) setAreaParaOpcaoId(null);
-              }}
-              areaNome={String(areaParaOpcao.nome ?? areaParaOpcao.id)}
-              precoBaseCentavos={Number(areaParaOpcao.preco || 0)}
-              opcoes={(areaParaOpcao.opcoes || []) as any}
-              selectedOpcaoId={selectedOpcaoId}
-              onConfirm={(p: any) => {
-                setSelectedOpcaoId(p.opcaoId);
-                setSelectedOpcaoMeta(p);
-                setSelectedAreaId(areaParaOpcao.id);
-                setAreaFilter(areaParaOpcao.id);
-                setOpcoesOpen(false);
-                setAreaParaOpcaoId(null);
-              }}
-            />
-          ) : null}
+            {areaParaOpcao ? (
+              <AreaOpcaoDialog
+                open={opcoesOpen}
+                onOpenChange={(v: boolean) => {
+                  setOpcoesOpen(v);
+                  if (!v) setAreaParaOpcaoId(null);
+                }}
+                areaNome={String(areaParaOpcao.nome ?? areaParaOpcao.id)}
+                precoBaseCentavos={Number(areaParaOpcao.preco || 0)}
+                opcoes={(areaParaOpcao.opcoes || []) as any}
+                selectedOpcaoId={selectedOpcaoId}
+                onConfirm={(p: any) => {
+                  setSelectedOpcaoId(p.opcaoId);
+                  setSelectedOpcaoMeta(p);
+                  setSelectedAreaId(areaParaOpcao.id);
+                  setAreaFilter(areaParaOpcao.id);
+                  setOpcoesOpen(false);
+                  setAreaParaOpcaoId(null);
+                }}
+              />
+            ) : null}
         </div>
       )}
     </AppLayout>

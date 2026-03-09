@@ -51,11 +51,17 @@ export function AreaCard({
   selected,
   onSelect,
   children,
+  availability = "available",
+  availabilityLabel = null,
+  action = null,
 }: {
   area: AreaReservavelUI;
   selected: boolean;
   onSelect: () => void;
   children?: React.ReactNode;
+  availability?: "available" | "queued" | "unavailable";
+  availabilityLabel?: string | null;
+  action?: React.ReactNode;
 }) {
   const min = minOptionPrice(area);
   const hasOptions = min !== null && (area.opcoes?.length ?? 0) > 0;
@@ -65,11 +71,19 @@ export function AreaCard({
     ? `A partir de ${formatBRLFromCentavos(displayPrice)}`
     : formatBRLFromCentavos(displayPrice);
 
+  const availabilityClass =
+    availability === "unavailable"
+      ? "border-destructive/30 bg-destructive/10"
+      : availability === "queued"
+        ? "border-[#FFDE21]/60 bg-[#FFDE21]/15"
+        : "border-emerald-500/30 bg-emerald-500/10";
+
   return (
     <div
       className={cn(
-        "w-full rounded-2xl border bg-white/26 backdrop-blur-2xl shadow-sm",
-        selected ? "border-primary ring-2 ring-primary/30" : "border-black/5"
+        "w-full rounded-2xl border backdrop-blur-2xl shadow-sm transition-colors",
+        availabilityClass,
+        selected ? "ring-2 ring-primary/30" : ""
       )}
     >
       <Button
@@ -130,11 +144,14 @@ export function AreaCard({
                 )}
               </div>
 
-              {selected && (
-                <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {selected ? (
                   <Badge>Selecionado</Badge>
-                </div>
-              )}
+                ) : null}
+                {availabilityLabel ? (
+                  <Badge variant="outline">{availabilityLabel}</Badge>
+                ) : null}
+              </div>
             </div>
           </div>
         </Button>
@@ -142,6 +159,7 @@ export function AreaCard({
       {/* CALENDÁRIO SEMPRE ABAIXO */}
       <div className="px-3 pb-3">
         {children}
+        {action ? <div className="mt-3">{action}</div> : null}
       </div>
     </div>
   );

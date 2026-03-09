@@ -225,8 +225,9 @@ export function CalendarMonth({
 
             // regras de cor
             const isRed = Boolean(blockedBySunday || blockedByHoliday || filaCount >= 3);
-            const isYellow = Boolean(!isRed && occupied);
-            const isGreen = Boolean(!isRed && !isYellow);
+            const isOrange = Boolean(!isRed && occupied);
+            const isQueued = Boolean(!isRed && !isOrange && filaCount > 0);
+            const isGreen = Boolean(!isRed && !isOrange && !isQueued);
 
             // clique só bloqueia no vermelho e fora do mês
             const disabled = Boolean(!inMonth || isRed);
@@ -236,8 +237,8 @@ export function CalendarMonth({
               ? "opacity-0 pointer-events-none"
               : isRed
                 ? "bg-destructive/15 border-destructive/30 text-destructive"
-                : isYellow
-                  ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-800 dark:text-yellow-200"
+                : isQueued
+                  ? "bg-[#FFDE21]/25 border-[#FFDE21]/60 text-[#8A6A00] dark:text-[#8A6A00]"
                   : "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300";
 
           const selectedClass = selected
@@ -253,7 +254,7 @@ export function CalendarMonth({
                 if (iso) onSelectDateStr(iso);
               }}
               className={cn(
-                "h-9 rounded-xl border text-sm font-medium transition hover:opacity-90",
+                "h-14 rounded-xl border text-sm font-medium transition hover:opacity-90",
                 stateClass,
                 selectedClass
               )}
@@ -270,7 +271,7 @@ export function CalendarMonth({
             Disponível
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-            <span className="h-2 w-2 rounded-full bg-yellow-500/70" />
+            <span className="h-2 w-2 rounded-full bg-[#FFDE21]" />
             Em fila / ocupado
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
