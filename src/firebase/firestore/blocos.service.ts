@@ -4,6 +4,8 @@
 import {
   addDoc,
   deleteDoc,
+  doc,
+  setDoc,
   serverTimestamp,
   type DocumentReference,
   type Firestore,
@@ -58,6 +60,36 @@ export async function criarBloco(
   }
 }
 
+export async function upsertBlocoEspecial(
+  firestore: Firestore,
+  condominioId: string,
+  blocoId: string,
+  payload: NewBlocoPayload
+): Promise<void> {
+  const docRef = doc(firestore, `condominios/${condominioId}/blocos`, blocoId);
+
+  const data = {
+    nome: payload.nome,
+    ordem: payload.ordem ?? 0,
+    ativo: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(docRef, data, { merge: true });
+  } catch (error) {
+    console.error("Erro ao upsert do bloco especial: ", error);
+    const contextualError = await createFirestorePermissionError({
+      path: docRef.path,
+      operation: "create",
+      requestResourceData: data,
+    });
+    errorEmitter.emit("permission-error", contextualError);
+    throw error;
+  }
+}
+
 /**
  * Deleta um bloco. Apenas Super Admins.
  * @param firestore Instância do Firestore.
@@ -69,6 +101,9 @@ export async function deletarBloco(
   condominioId: string,
   blocoId: string
 ): Promise<void> {
+  if (blocoId === "ADM") {
+    throw new Error("Bloco ADM não pode ser removido.");
+  }
   const docRef = getBlocoDocRef(firestore, condominioId, blocoId);
 
   try {

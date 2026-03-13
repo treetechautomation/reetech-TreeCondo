@@ -86,12 +86,18 @@ export function AreaCard({
         selected ? "ring-2 ring-primary/30" : ""
       )}
     >
-      <Button
-        type="button"
-        variant="ghost"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
         className={cn(
-          "group h-auto w-full justify-start rounded-2xl p-3 transition",
+          "group h-auto w-full rounded-2xl p-3 transition cursor-pointer",
           "hover:bg-background/60 hover:text-foreground"
         )}
       >
@@ -154,7 +160,7 @@ export function AreaCard({
               </div>
             </div>
           </div>
-        </Button>
+        </div>
 
       {/* CALENDÁRIO SEMPRE ABAIXO */}
       <div className="px-3 pb-3">

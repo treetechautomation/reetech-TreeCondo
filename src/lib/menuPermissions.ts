@@ -89,7 +89,7 @@ export const DEFAULT_PERMS: MenuPermissions = {
   },
   ADMIN_CONDOMINIO: {
     dashboard: true,
-    condominios: true,
+    condominios: false,
     cadastros: true,
     acesso: true,
     anuncios: true,

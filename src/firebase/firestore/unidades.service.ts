@@ -4,9 +4,11 @@
 import {
   addDoc,
   deleteDoc,
+  doc,
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   updateDoc,
   type Firestore,
 } from "firebase/firestore";
@@ -78,6 +80,46 @@ export async function criarUnidade(
       });
       errorEmitter.emit('permission-error', contextualError);
       throw error;
+  }
+}
+
+export async function upsertUnidadeEspecial(
+  firestore: Firestore,
+  condominioId: string,
+  blocoId: string,
+  unidadeId: string,
+  payload: NewUnidadePayload
+): Promise<void> {
+  const docRef = doc(
+    firestore,
+    `condominios/${condominioId}/blocos/${blocoId}/unidades`,
+    unidadeId
+  );
+
+  const data = {
+    numero: payload.numero,
+    andar: payload.andar ?? 0,
+    tipo: "APARTAMENTO",
+    ocupacao: "VAGO",
+    proprietarioUid: null,
+    inquilinoUid: null,
+    responsavelUid: null,
+    ativo: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(docRef, data, { merge: true });
+  } catch (error) {
+    console.error("Erro ao upsert da unidade especial: ", error);
+    const contextualError = await createFirestorePermissionError({
+      path: docRef.path,
+      operation: "create",
+      requestResourceData: data,
+    });
+    errorEmitter.emit("permission-error", contextualError);
+    throw error;
   }
 }
 

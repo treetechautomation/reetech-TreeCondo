@@ -65,7 +65,7 @@ function buildMenuPermissions(role: string) {
     };
   }
 
-  if (r === "SINDICO") {
+  if (r === "SINDICO" || r === "ADMIN" || r === "ADMIN_CONDOMINIO") {
     return {
       dashboard: true,
       condominios: true,

@@ -226,125 +226,90 @@ export async function POST(req: Request) {
             .collection("condominios").doc(condominioId)
             .collection("reservasSlots").doc(slotId);
 
+          let nextUidToNotify: string | null = null;
+
           await db.runTransaction(async (tx: any) => {
-            // 1) libera slot + remove lock do dono cancelado
-            const slotSnap = await tx.get(slotRef);
-            if (slotSnap.exists) {
-              tx.set(slotRef, {
-                occupied: false,
-                reservaId: null,
+              const slotSnap = await tx.get(slotRef);
+
+              const ownerUid = String(r.uid || r.moradorUid || r.userId || r.createdByUid || "");
+              const filaRef = slotRef.collection("fila");
+              const q = filaRef.orderBy("createdAt", "asc").limit(1);
+              const qSnap = await tx.get(q);
+
+              const first = qSnap.empty ? null : qSnap.docs[0];
+              const nextUid = first ? String(first.id) : null;
+              const offerExpiresAt = nextUid
+                ? Timestamp.fromDate(new Date(Date.now() + 30 * 60 * 1000))
+                : null;
+
+              if (slotSnap.exists) {
+                tx.set(slotRef, {
+                  occupied: false,
+                  reservaId: null,
+                  pendingOfferUid: nextUid || null,
+                  pendingOfferAt: nextUid ? FieldValue.serverTimestamp() : null,
+                  pendingOfferExpiresAt: offerExpiresAt || null,
+                  pendingOfferReservaOrigemId: nextUid ? reservaId : null,
+                  updatedAt: FieldValue.serverTimestamp(),
+                }, { merge: true });
+              } else {
+                tx.set(slotRef, {
+                  areaId,
+                  dateStr,
+                  occupied: false,
+                  reservaId: null,
+                  filaCount: 0,
+                  pendingOfferUid: nextUid || null,
+                  pendingOfferAt: nextUid ? FieldValue.serverTimestamp() : null,
+                  pendingOfferExpiresAt: offerExpiresAt || null,
+                  pendingOfferReservaOrigemId: nextUid ? reservaId : null,
+                  createdAt: FieldValue.serverTimestamp(),
+                  updatedAt: FieldValue.serverTimestamp(),
+                }, { merge: true });
+              }
+
+              if (ownerUid) {
+                const lockOwnerRef = slotRef.collection("reservasPorUid").doc(ownerUid);
+                tx.delete(lockOwnerRef);
+              }
+
+              if (!first || !nextUid || !offerExpiresAt) {
+                return;
+              }
+
+              tx.set(first.ref, {
+                status: "OFERTADA",
+                ofertadaEm: FieldValue.serverTimestamp(),
+                offerExpiresAt,
                 updatedAt: FieldValue.serverTimestamp(),
+                ofertaReservaOrigemId: reservaId,
               }, { merge: true });
-            } else {
-              // se não existir, cria base (pra o calendário ter consistência)
-              tx.set(slotRef, {
-                areaId,
-                dateStr,
-                occupied: false,
-                reservaId: null,
-                filaCount: 0,
-                createdAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp(),
-              }, { merge: true });
-            }
 
-            // lock do dono
-            const ownerUid = String(r.uid || r.moradorUid || r.userId || r.createdByUid || "");
-            if (ownerUid) {
-              const lockOwnerRef = slotRef.collection("reservasPorUid").doc(ownerUid);
-              tx.delete(lockOwnerRef);
-            }
-
-            // 2) pega primeiro da fila
-            const filaRef = slotRef.collection("fila");
-            const q = filaRef.orderBy("createdAt", "asc").limit(1);
-            const qSnap = await tx.get(q);
-
-            if (qSnap.empty) {
-              // sem fila -> slot fica verde
-              return;
-            }
-
-            const first = qSnap.docs[0];
-            const nextUid = first.id;
-            const fd = first.data() || {};
-
-            // 3) cria reserva para o primeiro da fila
-            const reservaNovaRef = db
-              .collection("condominios").doc(condominioId)
-              .collection("reservas").doc();
-
-            const dt = new Date(`${dateStr}T12:00:00.000Z`);
-
-            tx.set(reservaNovaRef, {
-              areaId,
-              condominioId,
-              uid: nextUid,
-              status: "PENDENTE",
-              precisaAprovacao: true,
-              data: Timestamp.fromDate(dt),
-              dateStr,
-              valorCobrado: Number(fd.valorCobrado || 0) || 0,
-              opcaoId: String(fd.opcaoId || "base"),
-              opcaoNome: String(fd.opcaoNome || "Base"),
-              capacidadeMax: (fd.capacidadeMax == null) ? null : Number(fd.capacidadeMax),
-              criadoEm: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-              origemFila: true,
-              promotedFromReservaId: reservaId,
+              nextUidToNotify = nextUid;
             });
 
-            // 4) ocupa slot e ajusta filaCount
-            tx.set(slotRef, {
-              occupied: true,
-              reservaId: reservaNovaRef.id,
-              filaCount: FieldValue.increment(-1),
-              updatedAt: FieldValue.serverTimestamp(),
-            }, { merge: true });
-
-            // 5) remove da fila
-            tx.delete(first.ref);
-
-            // 6) atualiza lock do promovido (FILA -> RESERVA)
-            const lockNextRef = slotRef.collection("reservasPorUid").doc(nextUid);
-            tx.set(lockNextRef, {
-              uid: nextUid,
-              tipo: "RESERVA",
-              areaId,
-              dateStr,
-              reservaId: reservaNovaRef.id,
-              updatedAt: FieldValue.serverTimestamp(),
-            }, { merge: true });
-
-            // 7) notifica o morador promovido (fora do tx via batch não dá; vamos notificar depois)
-            tx.set(
-              db.collection("condominios").doc(condominioId).collection("notificacoes").doc(),
-              {
-                tipo: "RESERVA_PROMOVIDA_DA_FILA",
-                title: "✅ Sua reserva foi criada (fila)",
-                message: `Você era o primeiro da fila e sua reserva foi criada automaticamente${areaId ? " na área " + areaId : ""}${dateStr ? " em " + dateStr : ""}.`,
-                titulo: "✅ Sua reserva foi criada (fila)",
-                mensagem: `Você era o primeiro da fila e sua reserva foi criada automaticamente${areaId ? " na área " + areaId : ""}${dateStr ? " em " + dateStr : ""}.`,
-                targetUid: nextUid,
+          if (nextUidToNotify) {
+            try {
+              await notifyUid(db, {
                 condominioId,
-                reservaId: reservaNovaRef.id,
+                targetUid: nextUidToNotify,
+                tipo: "RESERVA_FILA_OFERTADA",
+                title: "📣 Uma vaga foi liberada para você",
+                message: `Uma reserva foi cancelada${areaId ? " na área " + areaId : ""}${dateStr ? " para " + dateStr : ""}. Você é o próximo da fila e pode assumir a vaga.`,
+                reservaId,
                 areaId: areaId || null,
                 dateStr: dateStr || null,
-                lida: false,
-                arquivada: false,
-                createdAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-          });
+              });
+            } catch (e: any) {
+              console.error("[reservas/cancelar] falha ao notificar oferta da fila:", e?.message || e);
+            }
+          }
         }
       } catch (e: any) {
-        console.error("[reservas/cancelar] falha ao promover fila:", e?.message || e);
+        console.error("[reservas/cancelar] falha ao ofertar vaga da fila:", e?.message || e);
       }
 
       return NextResponse.json({ ok: true });
-return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("[API reservas/cancelar] erro:", err);
     return jsonError(err?.message || "Erro inesperado", 500);

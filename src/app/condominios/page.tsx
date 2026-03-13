@@ -60,7 +60,9 @@ export default function CondominiosPage() {
         </Button>
       }
     >
+      {isSuper ? (
       <NovoCondominioModal open={isModalOpen} onOpenChange={setIsModalOpen} />
+    ) : null}
 
       
 

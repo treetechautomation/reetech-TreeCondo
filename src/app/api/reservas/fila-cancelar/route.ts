@@ -83,30 +83,31 @@ export async function POST(req: Request) {
     const lockRef = slotRef.collection("reservasPorUid").doc(targetUid);
 
     await db.runTransaction(async (tx: any) => {
-      const filaSnap = await tx.get(filaRef);
-      if (!filaSnap.exists) {
-        throw Object.assign(new Error("Fila não encontrada para este usuário."), { status: 404 });
-      }
-
-      tx.delete(filaRef);
-
-      const lockSnap = await tx.get(lockRef);
-      if (lockSnap.exists) {
-        const ld = lockSnap.data() || {};
-        if (String(ld.tipo || "").toUpperCase() === "FILA") {
-          tx.delete(lockRef);
+        const filaSnap = await tx.get(filaRef);
+        if (!filaSnap.exists) {
+          throw Object.assign(new Error("Fila não encontrada para este usuário."), { status: 404 });
         }
-      }
 
-      tx.set(
-        slotRef,
-        {
-          filaCount: FieldValue.increment(-1),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    });
+        const lockSnap = await tx.get(lockRef);
+
+        tx.delete(filaRef);
+
+        if (lockSnap.exists) {
+          const ld = lockSnap.data() || {};
+          if (String(ld.tipo || "").toUpperCase() === "FILA") {
+            tx.delete(lockRef);
+          }
+        }
+
+        tx.set(
+          slotRef,
+          {
+            filaCount: FieldValue.increment(-1),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      });
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

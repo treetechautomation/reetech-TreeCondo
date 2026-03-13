@@ -2,7 +2,7 @@
 
 const withPWA = require("next-pwa")({
   dest: "public",
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.DISABLE_PWA === "1" || !!process.env.GCLOUD_PROJECT || !!process.env.FIREBASE_CONFIG,
   register: true,
   skipWaiting: true,
     importScripts: ["/firebase-messaging-sw.js"],

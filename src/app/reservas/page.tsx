@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useReservas } from "@/hooks/useReservas";
 import { AreaCard } from "@/components/reservas/AreaCard";
 import { CalendarMonth } from "@/components/reservas/CalendarMonth";
-import { AreaOpcaoDialog } from "@/components/reservas/AreaOpcaoDialog";
 
 import { useFirestore } from "@/firebase";
 import {
@@ -54,6 +54,7 @@ function isBlockedISODate(dateStrYYYYMMDD: string, politicas: any) {
 }
 
 export default function ReservasPage() {
+  const router = useRouter();
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
   const user = session?.user ?? null;
@@ -71,9 +72,6 @@ export default function ReservasPage() {
   const [areaFilter, setAreaFilter] = React.useState<string | "ALL">("ALL");
 
   const [selectedAreaId, setSelectedAreaId] = React.useState<string>("ALL");
-
-  const [opcoesOpen, setOpcoesOpen] = React.useState(false);
-  const [areaParaOpcaoId, setAreaParaOpcaoId] = React.useState<string | null>(null);
 
   const [selectedOpcaoId, setSelectedOpcaoId] = React.useState<string | null>(null);
 
@@ -117,6 +115,8 @@ export default function ReservasPage() {
     }, [firestore, condId]);
 
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
+  const [moradoresReservaManual, setMoradoresReservaManual] = React.useState<any[]>([]);
+  const [targetUidReserva, setTargetUidReserva] = React.useState<string>("");
 
   const [filaByArea, setFilaByArea] = React.useState<Record<string, any[]>>({})
 
@@ -133,9 +133,9 @@ React.useEffect(() => {
     let cancelled = false;
 
     async function fetchMembros() {
-      if (!firestore || !condId || !isAdminLike) {
-        return;
-      }
+      if (!firestore || !condId) {
+          return;
+        }
 
       const uidsReservas = (reservasVisiveis || []).map((r: any) => r?.uid).filter(Boolean);
         const uidsFila = Object.values(filaByArea || {})
@@ -168,7 +168,60 @@ React.useEffect(() => {
     return () => { cancelled = true; }
   }, [firestore, condId, isAdminLike, reservasVisiveis, filaByArea, membrosByUid]);
 
-  
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function fetchMoradoresReservaManual() {
+      if (!firestore || !condId || !isAdminLike) {
+        if (!cancelled) {
+          setMoradoresReservaManual([]);
+          setTargetUidReserva("");
+        }
+        return;
+      }
+
+      try {
+        const membrosRef = collection(firestore, "condominios", condId, "membros");
+        const qMembros = query(membrosRef, where("status", "in", ["ATIVO", "PENDENTE"]));
+        const snap = await getDocs(qMembros);
+
+        const items = snap.docs
+          .map((d: any) => {
+            const data = d.data() || {};
+            return {
+              uid: String(d.id),
+              nome: String(data?.nome || data?.displayName || data?.name || d.id),
+              bloco: String(data?.blocoNome || data?.blocoId || data?.bloco || ""),
+              unidade: String(data?.unidadeNome || data?.unidadeId || data?.unidade || data?.apto || ""),
+              status: String(data?.status || ""),
+              role: String(data?.role || ""),
+            };
+          })
+          .filter((item: any) => item.uid)
+          .sort((a: any, b: any) => String(a.nome).localeCompare(String(b.nome), "pt-BR"));
+
+        if (!cancelled) {
+          setMoradoresReservaManual(items);
+          setTargetUidReserva((prev) => {
+            if (prev && items.some((m: any) => String(m.uid) === String(prev))) return prev;
+            return items[0]?.uid || "";
+          });
+        }
+      } catch (e) {
+        console.error("[Reservas] erro ao carregar moradores para reserva manual:", e);
+        if (!cancelled) {
+          setMoradoresReservaManual([]);
+          setTargetUidReserva("");
+        }
+      }
+    }
+
+    fetchMoradoresReservaManual();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firestore, condId, isAdminLike]);
 
   const [slotsDoDia,setSlotsDoDia] = React.useState<Record<string,{occupied:boolean,filaCount:number}>>({})
   React.useEffect(()=>{
@@ -278,18 +331,54 @@ React.useEffect(() => {
 
 
 
-  const areaParaOpcao = React.useMemo(() => {
-    if (!areaParaOpcaoId) return null;
-    return (areas || []).find((x: any) => x.id === areaParaOpcaoId) ?? null;
-  }, [areas, areaParaOpcaoId]);
+  function getAreaOptionItems(area: any) {
+    const base = {
+      opcaoId: "base",
+      opcaoNome: String(area?.nome ?? area?.id ?? "Área"),
+      precoCentavos: Number(area?.preco || 0),
+      bloqueiaAreaId: null as string | null,
+    };
+
+    const normalizeText = (v: any) =>
+      String(v ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+
+    const extras = Array.isArray(area?.opcoes)
+      ? area.opcoes
+          .map((o: any) => ({
+            opcaoId: String(o?.id ?? "").trim(),
+            opcaoNome: String(o?.nome ?? "").trim(),
+            precoCentavos: Number(
+              o?.preco ??
+              o?.precoCentavos ??
+              o?.valor ??
+              o?.valorCentavos ??
+              o?.valorCobrado ??
+              o?.valorCobradoCentavos ??
+              0
+            ) || 0,
+            bloqueiaAreaId: o?.bloqueiaAreaId ?? o?.bloqueia ?? o?.bloqueiaId ?? null,
+          }))
+          .filter((o: any) => o.opcaoId && o.opcaoNome && o.opcaoId.toLowerCase() !== "base")
+          .filter((o: any) => {
+            const mesmoNome = normalizeText(o.opcaoNome) === normalizeText(base.opcaoNome);
+            const mesmoPreco = Number(o.precoCentavos || 0) === Number(base.precoCentavos || 0);
+            const mesmoBloqueio = String(o.bloqueiaAreaId || "") === String(base.bloqueiaAreaId || "");
+            return !(mesmoNome && mesmoPreco && mesmoBloqueio);
+          })
+      : [];
+
+    return [base, ...extras];
+  }
 
   function handleSelectAll() {
     setSelectedAreaId("ALL");
     setAreaFilter("ALL");
     setSelectedOpcaoId(null);
     setSelectedOpcaoMeta(null);
-    setAreaParaOpcaoId(null);
-    setOpcoesOpen(false);
   }
 
   function handleSelectArea(area: any) {
@@ -298,29 +387,34 @@ React.useEffect(() => {
     setSelectedAreaId(area.id);
     setAreaFilter(area.id);
 
-    const hasOpcoes = Array.isArray(area.opcoes) && area.opcoes.length > 0;
+    const optionItems = getAreaOptionItems(area);
+    const currentStillValid =
+      selectedAreaId === area.id &&
+      selectedOpcaoId &&
+      optionItems.some((o: any) => String(o.opcaoId) === String(selectedOpcaoId));
 
-    if (hasOpcoes) {
-      setSelectedOpcaoId(null);
-      setSelectedOpcaoMeta(null);
-      setAreaParaOpcaoId(area.id);
-      setOpcoesOpen(true);
-      return;
-    }
+    const chosen =
+      currentStillValid
+        ? optionItems.find((o: any) => String(o.opcaoId) === String(selectedOpcaoId))
+        : optionItems[0];
 
-    setAreaParaOpcaoId(null);
-    setOpcoesOpen(false);
-    setSelectedOpcaoId("base");
+    setSelectedOpcaoId(String(chosen?.opcaoId || "base"));
     setSelectedOpcaoMeta({
-      opcaoId: "base",
-      opcaoNome: String(area.nome ?? area.id),
-      precoCentavos: Number(area.preco || 0),
-      bloqueiaAreaId: null,
+      opcaoId: String(chosen?.opcaoId || "base"),
+      opcaoNome: String(chosen?.opcaoNome || area.nome || area.id),
+      precoCentavos: Number(chosen?.precoCentavos || area.preco || 0),
+      bloqueiaAreaId: chosen?.bloqueiaAreaId ?? null,
     });
   }
 
   const podeReservar =
-    podeVer && isMoradorLike && selectedAreaId !== "ALL" && !!selectedOpcaoMeta && !isChecking && !isCreating;
+    podeVer &&
+    (isMoradorLike || isAdminLike) &&
+    selectedAreaId !== "ALL" &&
+    !!selectedOpcaoMeta &&
+    !isChecking &&
+    !isCreating &&
+    (!isAdminLike || !!targetUidReserva);
 
   async function handleSolicitarReserva() {
       if (!podeVer || !podeReservar) return;
@@ -364,15 +458,26 @@ React.useEffect(() => {
           opcaoNome: selectedOpcaoMeta.opcaoNome,
           valorCobrado: Number(selectedOpcaoMeta.precoCentavos) || 0,
           capacidadeMax: capacidadeMaxSel,
+          ...(isAdminLike && targetUidReserva ? { targetUid: targetUidReserva } : {}),
           // mantém compat com sua lógica atual:
           statusInicial,
           precisaAprovacao,
         });
 
         if (resp?.mode === "FILA") {
-          alert(`✅ Dia ocupado. Você entrou na fila de espera (posição ~${resp?.filaCount || "?"}/3).`);
+          alert(
+            isAdminLike && targetUidReserva
+              ? `✅ Reserva manual enviada para fila de espera (posição ~${resp?.filaCount || "?"}/3).`
+              : `✅ Dia ocupado. Você entrou na fila de espera (posição ~${resp?.filaCount || "?"}/3).`
+          );
+          router.refresh();
         } else {
-          alert("✅ Reserva enviada (PENDENTE).");
+          alert(
+            isAdminLike && targetUidReserva
+              ? "✅ Reserva manual criada com sucesso."
+              : "✅ Reserva enviada (PENDENTE)."
+          );
+          router.refresh();
         }
       } catch (e: any) {
         const msg = String(e?.message || e || "");
@@ -407,7 +512,7 @@ React.useEffect(() => {
         ? "✅ Usuário removido da fila."
         : "✅ Você saiu da fila de espera.");
 
-      window.location.reload();
+      router.refresh();
     } catch (e: any) {
       const msg = String(e?.message || e || "");
       alert("❌ " + (msg || "Erro ao cancelar fila."));
@@ -431,6 +536,23 @@ async function apiPostAuth(path: string, body: any) {
   return data;
 }
 
+async function handleAssumirOfertaFila(areaId: string) {
+  if (!condId || !dateStr) return;
+
+  try {
+    await apiPostAuth("/api/reservas/fila-assumir", {
+      condominioId: condId,
+      areaId,
+      dateStr,
+    });
+    alert("✅ Reserva assumida com sucesso.");
+    router.refresh();
+  } catch (e: any) {
+    const msg = String(e?.message || e || "");
+    alert("❌ " + (msg || "Erro ao assumir vaga da fila."));
+  }
+}
+
 function canCancelBy48h(dateTs: any, minHoras = 48) {
   try {
     // dateTs pode ser Timestamp do firestore com .toDate()
@@ -440,6 +562,26 @@ function canCancelBy48h(dateTs: any, minHoras = 48) {
     return Date.now() <= ms;
   } catch {
     return false;
+  }
+}
+
+function formatReservaDataHora(dateTs: any) {
+  try {
+    const d = (dateTs && typeof dateTs.toDate === "function")
+      ? dateTs.toDate()
+      : null;
+
+    if (!d) return { data: "—", hora: "—" };
+
+    return {
+      data: d.toLocaleDateString("pt-BR"),
+      hora: d.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit"
+      }),
+    };
+  } catch {
+    return { data: "—", hora: "—" };
   }
 }
 
@@ -478,6 +620,41 @@ return (
   </div>
 </div>
 <div className="rounded-2xl border-black/5 bg-white/55 backdrop-blur-xl p-4 shadow-sm">
+            {isAdminLike ? (
+              <div className="mb-4 rounded-xl border border-black/5 bg-white/70 p-4">
+                <div className="text-sm font-semibold text-[#0D4459]">Reserva manual para morador</div>
+                <div className="mt-1 text-xs text-[#0D4459]">
+                  Selecione abaixo o morador em nome de quem a reserva será criada.
+                </div>
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-[#0D4459]" htmlFor="targetUidReserva">
+                    Morador
+                  </label>
+                  <select
+                    id="targetUidReserva"
+                    className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none"
+                    value={targetUidReserva}
+                    onChange={(e) => setTargetUidReserva(e.target.value)}
+                  >
+                    {moradoresReservaManual.length === 0 ? (
+                      <option value="">Nenhum morador disponível</option>
+                    ) : null}
+                    {moradoresReservaManual.map((m: any) => {
+                      const detalhes = [
+                        m.bloco ? "Bloco " + m.bloco : "",
+                        m.unidade ? "Unidade " + m.unidade : "",
+                        m.status || "",
+                      ].filter(Boolean).join(" • ");
+                      return (
+                        <option key={m.uid} value={m.uid}>
+                          {detalhes ? `${m.nome} • ${detalhes}` : m.nome}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between">
               <div className="font-semibold">Áreas reserváveis</div>
               <div className="text-xs text-[#0D4459]">{loadingAreas ? "Carregando..." : `${areas.length} área(s)`}</div>
@@ -522,7 +699,7 @@ return (
           ? "Em fila / ocupada"
           : "Disponível";
     })()}
-    action={isMoradorLike ? (
+    action={(isMoradorLike || isAdminLike) ? (
       <Button
         type="button"
         variant={selectedAreaId === a.id ? "default" : "outline"}
@@ -531,7 +708,8 @@ return (
           selectedAreaId !== a.id ||
           !selectedOpcaoMeta ||
           isChecking ||
-          isCreating
+          isCreating ||
+          (isAdminLike && !targetUidReserva)
         }
         onClick={(ev) => {
           ev.stopPropagation();
@@ -544,10 +722,55 @@ return (
             ? "Verificando..."
             : isCreating
               ? "Enviando..."
-              : "Confirmar reserva"}
+              : isAdminLike
+                ? "Criar reserva manual"
+                : "Confirmar reserva"}
       </Button>
     ) : null}
   >
+    {(() => {
+      const areaOptionItems = getAreaOptionItems(a);
+      return Array.isArray(areaOptionItems) && areaOptionItems.length > 1 ? (
+        <div className="mb-3 rounded-xl border border-black/5 bg-white/60 p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0D4459]">
+            Opções desta reserva
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {areaOptionItems.map((opt: any) => {
+              const active =
+                selectedAreaId === a.id &&
+                String(selectedOpcaoId || "") === String(opt.opcaoId);
+
+              return (
+                <Button
+                  key={opt.opcaoId}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-full"
+                  onClick={(ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    setSelectedAreaId(String(a.id));
+                    setAreaFilter(String(a.id));
+                    setSelectedOpcaoId(String(opt.opcaoId));
+                    setSelectedOpcaoMeta({
+                      opcaoId: String(opt.opcaoId),
+                      opcaoNome: String(opt.opcaoNome),
+                      precoCentavos: Number(opt.precoCentavos || 0),
+                      bloqueiaAreaId: opt.bloqueiaAreaId ?? null,
+                    });
+                  }}
+                >
+                  {opt.opcaoNome} • {moneyBRLFromCentavos(opt.precoCentavos)}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null;
+    })()}
+
     <CalendarMonth
       firestore={firestore as any}
       condominioId={condId}
@@ -614,6 +837,8 @@ return (
                   const blocoFila = mf?.blocoId || mf?.bloco || mf?.blocoNome || "";
                   const unidadeFila = mf?.unidadeId || mf?.unidade || mf?.unidadeNome || mf?.apto || "";
                   const souEuNaFila = !!meuUid && String(f.uid) === String(meuUid);
+                  const statusFila = String(f.status || "AGUARDANDO");
+                  const souEuNaOferta = souEuNaFila && statusFila === "OFERTADA";
 
                   return (
                     <div
@@ -627,7 +852,7 @@ return (
                           </div>
 
                           <div className="text-xs text-[#8A6A00]">
-                            Status: {String(f.status || "AGUARDANDO")}
+                            Status: {statusFila}
                             {blocoFila || unidadeFila ? (
                               <>
                                 {" • "}
@@ -645,6 +870,16 @@ return (
                         </div>
 
                         <div className="flex flex-wrap gap-2">
+                          {souEuNaOferta ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleAssumirOfertaFila(String(a.id))}
+                            >
+                              Assumir reserva
+                            </Button>
+                          ) : null}
+
                           {souEuNaFila ? (
                             <Button
                               type="button"
@@ -712,7 +947,105 @@ return (
 
             {reservasDaArea.map((r: any) => {
 
-              if (isAdminLike) {
+              
+
+  
+
+              
+
+  
+
+              if (meuUid && r.uid === meuUid) {
+
+                const isAprovada = String(r.status) === "APROVADA";
+                  const dataHoraReserva = formatReservaDataHora(r.data);
+
+                return (
+
+                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+
+                      <div className="font-medium">
+
+                        Status: <span className="text-[#0D4459]">{r.status}</span>
+
+                      </div>
+
+                      <div className="text-sm text-[#0D4459]">
+
+                        Valor: <span className="font-semibold">{moneyBRLFromCentavos(r.valorCobrado)}</span>
+
+                      </div>
+
+                    </div>
+
+  
+
+                    <div className="text-sm text-[#0D4459]">
+                        Dia: <span className="font-medium">{dataHoraReserva.data}</span>
+                        <span> • </span>
+                        Hora: <span className="font-medium">{dataHoraReserva.hora}</span>
+                      </div>
+
+                      {String(r.status) !== "CANCELADA" && (
+
+                      <div className="flex items-center justify-end gap-2">
+
+                        <Button
+
+                          variant="destructive"
+
+                          size="sm"
+
+                          disabled={!canCancelBy48h(r.data, 48)}
+
+                          onClick={async () => {
+
+                            try {
+
+                              if (!confirm("Cancelar esta reserva?")) return;
+
+                              await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
+
+                              alert("✅ Reserva cancelada.");
+
+                              router.refresh();
+
+                            } catch (e: any) {
+
+                              alert("❌ " + String(e?.message || e));
+
+                            }
+
+                          }}
+
+                          title={!canCancelBy48h(r.data, 48) ? "Só é possível cancelar até 48h antes." : "Cancelar reserva"}
+
+                        >
+
+                          Cancelar
+
+                        </Button>
+
+  
+
+                        <Button asChild variant="outline">
+
+                          <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
+
+                        </Button>
+
+                      </div>
+
+                    )}
+</div>
+
+                );
+
+              }
+
+                if (isAdminLike) {
 
                 const m = membrosByUid[r.uid] || null;
 
@@ -726,7 +1059,7 @@ return (
 
                 return (
 
-                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-1">
+                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
 
                     <div className="flex flex-wrap items-center justify-between gap-2">
 
@@ -756,109 +1089,55 @@ return (
                         </div>
                       ) : null}
 
+                      {String(r.status) !== "CANCELADA" ? (
+                        <div
+                          className="relative z-10 flex items-center justify-end gap-2 pointer-events-auto"
+                          onClick={(ev) => {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                          }}
+                        >
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={async (ev) => {
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              try {
+                                if (!confirm("Cancelar esta reserva?")) return;
+                                await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
+                                alert("✅ Reserva cancelada.");
+                                router.refresh();
+                              } catch (e: any) {
+                                alert("❌ " + String(e?.message || e));
+                              }
+                            }}
+                            title="Cancelar reserva"
+                          >
+                            Cancelar
+                          </Button>
+
+                          <Button asChild variant="outline">
+                            <Link
+                              href={`/reservas/convidados/${r.id}`}
+                              onClick={(ev) => {
+                                ev.preventDefault();
+                                ev.stopPropagation();
+                                window.location.href = `/reservas/convidados/${r.id}`;
+                              }}
+                            >Convidados</Link>
+                          </Button>
+                        </div>
+                      ) : null}
+
                   </div>
 
                 );
 
               }
-
-  
-
-              if (meuUid && r.uid === meuUid) {
-
-                const isAprovada = String(r.status) === "APROVADA";
 
                 return (
-
-                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
-
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-
-                      <div className="font-medium">
-
-                        Status: <span className="text-[#0D4459]">{r.status}</span>
-
-                      </div>
-
-                      <div className="text-sm text-[#0D4459]">
-
-                        Valor: <span className="font-semibold">{moneyBRLFromCentavos(r.valorCobrado)}</span>
-
-                      </div>
-
-                    </div>
-
-  
-
-                    {isAprovada && (
-
-                      <div className="flex items-center justify-end gap-2">
-
-                        <Button
-
-                          variant="destructive"
-
-                          size="sm"
-
-                          disabled={!canCancelBy48h(r.data, 48)}
-
-                          onClick={async () => {
-
-                            try {
-
-                              if (!confirm("Cancelar esta reserva?")) return;
-
-                              await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
-
-                              alert("✅ Reserva cancelada.");
-
-                              window.location.reload();
-
-                            } catch (e: any) {
-
-                              alert("❌ " + String(e?.message || e));
-
-                            }
-
-                          }}
-
-                          title={!canCancelBy48h(r.data, 48) ? "Só é possível cancelar até 48h antes." : "Cancelar reserva"}
-
-                        >
-
-                          Cancelar
-
-                        </Button>
-
-  
-
-                        <Button asChild variant="outline">
-
-                          <Link href={`/reservas/convidados/${r.id}`}>Convidados</Link>
-
-                        </Button>
-
-                      </div>
-
-                    )}
-
-  
-
-                    <div className="text-xs text-[#0D4459]">
-
-                      Reserva ID: {r.id}
-
-                    </div>
-
-                  </div>
-
-                );
-
-              }
-
-  
-
-              return (
 
                 <div key={r.id} className="rounded-xl border p-4 flex items-center justify-between">
 
@@ -890,27 +1169,6 @@ return (
               </div>
             )}
           </div>
-            {areaParaOpcao ? (
-              <AreaOpcaoDialog
-                open={opcoesOpen}
-                onOpenChange={(v: boolean) => {
-                  setOpcoesOpen(v);
-                  if (!v) setAreaParaOpcaoId(null);
-                }}
-                areaNome={String(areaParaOpcao.nome ?? areaParaOpcao.id)}
-                precoBaseCentavos={Number(areaParaOpcao.preco || 0)}
-                opcoes={(areaParaOpcao.opcoes || []) as any}
-                selectedOpcaoId={selectedOpcaoId}
-                onConfirm={(p: any) => {
-                  setSelectedOpcaoId(p.opcaoId);
-                  setSelectedOpcaoMeta(p);
-                  setSelectedAreaId(areaParaOpcao.id);
-                  setAreaFilter(areaParaOpcao.id);
-                  setOpcoesOpen(false);
-                  setAreaParaOpcaoId(null);
-                }}
-              />
-            ) : null}
         </div>
       )}
     </AppLayout>

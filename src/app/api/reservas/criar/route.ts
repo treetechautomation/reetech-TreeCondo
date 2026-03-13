@@ -8,6 +8,15 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+function upper(v: any) {
+  return String(v || "").toUpperCase().trim();
+}
+
+function isOperatorRole(role: any) {
+  const r = upper(role);
+  return ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"].includes(r);
+}
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -47,6 +56,8 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
 
+    console.error("[API reservas/criar][debug] body bruto:", body);
+
     const condominioId = String(body?.condominioId || "").trim();
     const areaId = String(body?.areaId || "").trim();
     const dateStr = String(body?.dateStr || "").trim();
@@ -55,6 +66,7 @@ export async function POST(req: Request) {
     const opcaoNome = body?.opcaoNome != null ? String(body.opcaoNome) : "Base";
     const valorCobrado = Number(body?.valorCobrado || 0) || 0;
     const capacidadeMax = (body?.capacidadeMax == null) ? null : Number(body.capacidadeMax);
+      const targetUidBody = String(body?.targetUid || "").trim();
 
     // Se quiser manter compat com seu client:
     const precisaAprovacao = Boolean(body?.precisaAprovacao ?? true);
@@ -71,17 +83,94 @@ export async function POST(req: Request) {
     if (isSundayISO(dateStr)) return jsonError("❌ Não é permitido fazer reservas aos domingos.", 403);
     if (isHolidayISO(dateStr)) return jsonError("❌ Não é permitido fazer reservas nesta data (feriado).", 403);
 
-    const uid = String(decoded.uid);
-    const slotId = `${areaId}__${dateStr}`;
+    
+      let uid = String(decoded.uid);
 
-    const slotRef = db.collection("condominios").doc(condominioId).collection("reservasSlots").doc(slotId);
-    const lockRef = slotRef.collection("reservasPorUid").doc(uid);
-    const filaDocRef = slotRef.collection("fila").doc(uid);
+      console.error("[API reservas/criar][debug] actor/target inicial:", {
+        actorUid: String(decoded.uid),
+        targetUidBody,
+        condominioId,
+        areaId,
+        dateStr,
+      });
+
+      if (targetUidBody && targetUidBody !== uid) {
+        const actorVincRef = db
+          .collection("userCondominios")
+          .doc(String(decoded.uid))
+          .collection("vinculos")
+          .doc(condominioId);
+
+        const actorVincSnap = await actorVincRef.get();
+        const actorRole = actorVincSnap.exists ? String(actorVincSnap.data()?.role || "") : "";
+        const isOperador =
+          isOperatorRole(actorRole) ||
+          (decoded && decoded.super_admin === true) ||
+          (decoded && decoded.superAdmin === true);
+
+        console.error("[API reservas/criar][debug] actor role check:", {
+          actorUid: String(decoded.uid),
+          actorRole,
+          isOperador,
+        });
+
+        if (!isOperador) {
+          return jsonError("Sem permissão para criar reserva para outro morador.", 403);
+        }
+
+        const targetMembroRef = db
+          .collection("condominios")
+          .doc(condominioId)
+          .collection("membros")
+          .doc(targetUidBody);
+
+        const targetMembroSnap = await targetMembroRef.get();
+        if (!targetMembroSnap.exists) {
+          return jsonError("Morador selecionado não encontrado.", 404);
+        }
+
+        const targetMembro = targetMembroSnap.data() || {};
+        const targetStatus = upper(targetMembro.status || "ATIVO");
+
+        console.error("[API reservas/criar][debug] target membro:", {
+          targetUidBody,
+          exists: targetMembroSnap.exists,
+          targetStatus,
+        });
+
+        if (!["ATIVO", "PENDENTE"].includes(targetStatus)) {
+          return jsonError("Morador selecionado está inativo.", 403);
+        }
+
+        uid = targetUidBody;
+      }
+
+      console.error("[API reservas/criar][debug] uid final:", {
+        actorUid: String(decoded.uid),
+        targetUidBody,
+        uidFinal: uid,
+      });
+
+      const slotId = `${areaId}__${dateStr}`;
+
+      const slotRef = db.collection("condominios").doc(condominioId).collection("reservasSlots").doc(slotId);
+      const lockRef = slotRef.collection("reservasPorUid").doc(uid);
+      const filaDocRef = slotRef.collection("fila").doc(uid);
+
 
     const reservasCol = db.collection("condominios").doc(condominioId).collection("reservas");
 
     const result = await db.runTransaction(async (tx: any) => {
       const lockSnap = await tx.get(lockRef);
+
+      console.error("[API reservas/criar][debug] slot/lock antes da decisão:", {
+        slotId,
+        uid,
+        lockPath: lockRef.path,
+        lockExists: lockSnap.exists,
+        lockData: lockSnap.exists ? lockSnap.data() : null,
+      });
+
       if (lockSnap.exists) {
         const t = (lockSnap.data() || {}).tipo || "LOCK";
         throw Object.assign(new Error(`Você já tem ${t === "FILA" ? "fila" : "reserva"} neste dia/área.`), { status: 409 });
@@ -92,6 +181,13 @@ export async function POST(req: Request) {
 
       const occupied = Boolean(slot?.occupied === true);
       const filaCount = Number(slot?.filaCount || 0) || 0;
+
+      console.error("[API reservas/criar][debug] slot snapshot:", {
+        slotId,
+        occupied,
+        filaCount,
+        slotData: slot,
+      });
 
       // garante doc base
       if (!slotSnap.exists) {
@@ -116,7 +212,9 @@ export async function POST(req: Request) {
         tx.set(filaDocRef, {
           uid,
           status: "AGUARDANDO",
-          opcaoId,
+            criadoPorUid: String(decoded.uid),
+            reservaManualPorOperador: uid !== String(decoded.uid),
+            opcaoId,
           opcaoNome,
           valorCobrado,
           capacidadeMax: Number.isFinite(Number(capacidadeMax)) ? Number(capacidadeMax) : null,
@@ -148,8 +246,10 @@ export async function POST(req: Request) {
       tx.set(reservaRef, {
         areaId,
         condominioId,
-        uid,
-        status: statusInicial || "PENDENTE",
+          uid,
+          criadoPorUid: String(decoded.uid),
+          reservaManualPorOperador: uid !== String(decoded.uid),
+          status: statusInicial || "PENDENTE",
         precisaAprovacao,
         data: Timestamp.fromDate(dt),
         dateStr,

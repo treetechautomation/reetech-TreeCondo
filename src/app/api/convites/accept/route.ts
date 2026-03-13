@@ -6,7 +6,7 @@ import { FieldValue } from "firebase-admin/firestore";
 type InviteDoc = {
   email: string;
   nome?: string;
-  tipo: "MORADOR" | "PORTEIRO" | "SINDICO" | "ADMIN";
+  tipo: "MORADOR" | "PORTEIRO" | "SINDICO" | "ADMIN" | "ADMIN_CONDOMINIO";
   condominioId: string;
   bloco?: string | null;
   apartamento?: string | null;
@@ -16,7 +16,7 @@ type InviteDoc = {
 
 type Vinculo = {
   condominioId: string;
-  role: "MORADOR" | "PORTEIRO" | "SINDICO" | "ADMIN";
+  role: "MORADOR" | "PORTEIRO" | "SINDICO" | "ADMIN" | "ADMIN_CONDOMINIO";
   blocoId?: string | null;
   unidadeId?: string | null;
   status: "ATIVO" | "INATIVO";

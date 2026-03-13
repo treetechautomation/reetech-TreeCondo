@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { initializeFirebase } from "@/firebase";
 
-export type PapelPessoa = "MORADOR" | "SINDICO" | "PORTEIRO";
+export type PapelPessoa = "MORADOR" | "SINDICO" | "PORTEIRO" | "ADMIN" | "ADMIN_CONDOMINIO";
 
 export interface Pessoa {
   id: string;

@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 import { adminDb, adminAuth } from "@/lib/firebaseAdmin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
-type Role = "MORADOR" | "SINDICO" | "PORTEIRO" | "FUNCIONARIO";
+type Role = "MORADOR" | "SINDICO" | "PORTEIRO" | "FUNCIONARIO" | "ADMIN_CONDOMINIO";
 
 function buildMenuPermissions(role: string) {
   const r = String(role || "").toUpperCase();
@@ -224,7 +224,7 @@ export async function POST(req: Request) {
         : null;
     // Regras por tipo:
     // - MORADOR: bloco + unidade obrigatórios
-    // - SINDICO / PORTEIRO / FUNCIONARIO: bloco opcional, unidade nula
+    // - SINDICO / ADMIN_CONDOMINIO / PORTEIRO / FUNCIONARIO: bloco opcional, unidade nula
     if (role === "MORADOR") {
       if (!blocoId) return jsonError("blocoId é obrigatório para morador", 400);
       if (!unidadeId)

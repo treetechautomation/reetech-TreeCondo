@@ -225,23 +225,25 @@ export function CalendarMonth({
 
             // regras de cor
             const isRed = Boolean(blockedBySunday || blockedByHoliday || filaCount >= 3);
-            const isOrange = Boolean(!isRed && occupied);
-            const isQueued = Boolean(!isRed && !isOrange && filaCount > 0);
-            const isGreen = Boolean(!isRed && !isOrange && !isQueued);
+            // reservado conta como amarelo
+              const isQueued = Boolean(!isRed && (occupied || filaCount > 0));
+            
+            const isGreen = Boolean(!isRed && !isQueued);
 
-            // clique só bloqueia no vermelho e fora do mês
-            const disabled = Boolean(!inMonth || isRed);
+            // permite selecionar qualquer dia do mês para consulta;
+            // a criação continua sendo validada nas regras/na API
+            const disabled = Boolean(!inMonth);
 
           // classes (verde disponível / vermelho bloqueado / destaque selecionado)
           const stateClass = !inMonth
-              ? "opacity-0 pointer-events-none"
-              : isRed
-                ? "bg-destructive/15 border-destructive/30 text-destructive"
-                : isQueued
-                  ? "bg-[#FFDE21]/25 border-[#FFDE21]/60 text-[#8A6A00] dark:text-[#8A6A00]"
-                  : "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300";
+                ? "opacity-0 pointer-events-none"
+                : isRed
+                  ? "bg-[#FEE2E2] border-[#EF4444]/50 text-[#B91C1C]"
+                  : isQueued
+                    ? "bg-[#FFF3B0] border-[#FFDE21]/80 text-[#8A6A00]"
+                    : "bg-[#DCFCE7] border-[#34D399]/60 text-[#047857]";
 
-          const selectedClass = selected
+            const selectedClass = selected
             ? "ring-2 ring-primary/30 border-primary"
             : "";
 
@@ -267,15 +269,15 @@ export function CalendarMonth({
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-            <span className="h-2 w-2 rounded-full bg-emerald-500/60" />
+            <span className="h-2 w-2 rounded-full bg-[#34D399]" />
             Disponível
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
             <span className="h-2 w-2 rounded-full bg-[#FFDE21]" />
-            Em fila / ocupado
+            Reservado / com fila
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1">
-            <span className="h-2 w-2 rounded-full bg-destructive/60" />
+            <span className="h-2 w-2 rounded-full bg-[#EF4444]" />
             Indisponível
           </span>
         </div>

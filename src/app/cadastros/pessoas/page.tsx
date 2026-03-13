@@ -37,8 +37,10 @@ import {
   where,
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { upsertBlocoEspecial } from "@/firebase/firestore/blocos.service";
+import { upsertUnidadeEspecial } from "@/firebase/firestore/unidades.service";
 
-type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "FUNCIONARIO";
+type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "FUNCIONARIO" | "ADMIN_CONDOMINIO";
 type FuncionarioTipo = "SEGURANCA" | "LIMPEZA" | "MANUTENCAO";
 
 
@@ -69,12 +71,18 @@ export default function PessoasPage() {
   const { toast } = useToast();
 
   const canPickCondo = session?.superAdmin || (session?.vinculos ?? []).length > 0;
+    const roleUp = String(session?.role || "").toUpperCase();
+    const canManageEstruturaAdm =
+      !!session?.superAdmin ||
+      roleUp === "SINDICO" ||
+      roleUp === "ADMIN" ||
+      roleUp === "ADMIN_CONDOMINIO";
 
   const [loading, setLoading] = useState(false);
   const [membros, setMembros] = useState<Membro[]>([]);
 
   const [abaLista, setAbaLista] = useState<
-    "MORADORES" | "SINDICOS" | "PORTEIROS" | "ZELADORES" | "FUNCIONARIOS" | "TODOS"
+    "MORADORES" | "SINDICOS" | "ADMINISTRADORES" | "PORTEIROS" | "ZELADORES" | "FUNCIONARIOS" | "TODOS"
   >("TODOS");
 
   
@@ -83,6 +91,7 @@ export default function PessoasPage() {
     "TODOS",
     "MORADORES",
     "SINDICOS",
+    "ADMINISTRADORES",
     "PORTEIROS",
     "ZELADORES",
     "FUNCIONARIOS",
@@ -92,6 +101,7 @@ export default function PessoasPage() {
     TODOS: "Todos",
     MORADORES: "Moradores",
     SINDICOS: "Síndicos",
+      ADMINISTRADORES: "Administradores",
     PORTEIROS: "Porteiros",
     ZELADORES: "Zeladores",
     FUNCIONARIOS: "Funcionários",
@@ -106,6 +116,8 @@ const membrosFiltrados = useMemo(() => {
         return membros.filter((m) => m.role === "MORADOR");
       case "SINDICOS":
         return membros.filter((m) => m.role === "SINDICO");
+        case "ADMINISTRADORES":
+          return membros.filter((m) => m.role === "ADMIN_CONDOMINIO");
       case "PORTEIROS":
         return membros.filter((m) => m.role === "PORTEIRO");
       case "ZELADORES":
@@ -306,6 +318,57 @@ setLoading(true);
       setLoading(false);
     }
   };
+    const handleCriarEstruturaAdministrativa = async () => {
+      if (!firestore || !condominioAtivoId) {
+        toast({
+          variant: "destructive",
+          title: "Selecione um condomínio antes de continuar.",
+        });
+        return;
+      }
+
+      if (!canManageEstruturaAdm) {
+        toast({
+          variant: "destructive",
+          title: "Sem permissão para criar a estrutura administrativa.",
+        });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await upsertBlocoEspecial(firestore, condominioAtivoId, "ADM", {
+          nome: "ADM",
+          ordem: 0,
+        });
+
+        await upsertUnidadeEspecial(
+          firestore,
+          condominioAtivoId,
+          "ADM",
+          "ADMINISTRACAO",
+          {
+            numero: "Administração",
+            andar: 0,
+          }
+        );
+
+        toast({
+          title: "Estrutura administrativa pronta",
+          description: "Bloco ADM e unidade ADMINISTRACAO criados/atualizados com sucesso.",
+        });
+      } catch (err: any) {
+        console.error("[Pessoas] erro ao criar estrutura administrativa:", err);
+        toast({
+          variant: "destructive",
+          title: "Erro ao criar estrutura administrativa",
+          description: err?.message || "Tente novamente.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
 
   const handlePromoverSindico = async (m: Membro) => {
     if (!firestore || !condominioAtivoId) return;
@@ -337,9 +400,22 @@ setLoading(true);
         )}
 
         <div className="space-y-4 rounded-2xl border border-black/5 bg-white/55 p-6 shadow-sm backdrop-blur-xl">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Cadastrar pessoa e enviar convite
-          </h2>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Cadastrar pessoa e enviar convite
+              </h2>
+
+              {canManageEstruturaAdm && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCriarEstruturaAdministrativa}
+                  disabled={!condominioAtivoId || loading}
+                >
+                  {loading ? "Processando..." : "Criar estrutura ADM"}
+                </Button>
+              )}
+            </div>
 
           
 <Tabs value={abaConvite} onValueChange={(v) => setAbaConvite(v as any)} className="w-full">
@@ -375,7 +451,8 @@ setLoading(true);
             >
               <option value="MORADOR">Morador</option>
               <option value="SINDICO">Síndico</option>
-              <option value="PORTEIRO">Porteiro</option>
+              <option value="ADMIN_CONDOMINIO">Administrador</option>
+                <option value="PORTEIRO">Porteiro</option>
               <option value="FUNCIONARIO">Funcionário</option>
             </select>
 
@@ -495,7 +572,8 @@ setLoading(true);
                 <TabsList className="hidden md:flex w-full justify-start flex-wrap gap-2">
                   <TabsTrigger value="MORADORES">Moradores</TabsTrigger>
                   <TabsTrigger value="SINDICOS">Síndicos</TabsTrigger>
-                  <TabsTrigger value="PORTEIROS">Porteiros</TabsTrigger>
+                  <TabsTrigger value="ADMINISTRADORES">Administradores</TabsTrigger>
+                    <TabsTrigger value="PORTEIROS">Porteiros</TabsTrigger>
                   <TabsTrigger value="ZELADORES">Zeladores</TabsTrigger>
                   <TabsTrigger value="FUNCIONARIOS">Funcionários</TabsTrigger>
                   <TabsTrigger value="TODOS">Todos</TabsTrigger>
@@ -537,8 +615,10 @@ setLoading(true);
                         : m.role === "MORADOR"
                         ? "Morador"
                         : m.role === "SINDICO"
-                        ? "Síndico"
-                        : m.role === "PORTEIRO"
+                          ? "Síndico"
+                          : m.role === "ADMIN_CONDOMINIO"
+                          ? "Administrador"
+                          : m.role === "PORTEIRO"
                         ? "Porteiro"
                           
                         : m.role === "ZELADOR" && m.tipo === "FUNCIONARIO"

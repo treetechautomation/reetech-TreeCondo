@@ -27,9 +27,6 @@ export default function CadastrosPage() {
               <Button variant="secondary" className="min-w-[200px]">Pessoas</Button>
             </Link>
 
-            <Link href="/condominios">
-              <Button variant="outline" className="min-w-[200px] tc-cadastros-disabled">Condomínios</Button>
-            </Link>
           </CardContent>
         </Card>
 
