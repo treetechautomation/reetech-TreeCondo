@@ -10,7 +10,8 @@ export type MenuKey =
   | "acesso"
   | "anuncios"
   | "reservas"
-    | "reservas_agenda"
+      | "reservas_gestao"
+      | "reservas_agenda"
     | "reservas_checkin"
     | "reservas_solicitacoes"
   | "incidentes"
@@ -31,6 +32,7 @@ export const MENU_LABELS: Record<MenuKey, string> = {
   acesso: "Acesso",
   anuncios: "Anúncios",
   reservas: "Reservas",
+      reservas_gestao: "Gestão de Reservas",
     reservas_agenda: "Agenda de Reservas",
     reservas_checkin: "Check-in de Reserva",
     reservas_solicitacoes: "Solicitações de Reservas",

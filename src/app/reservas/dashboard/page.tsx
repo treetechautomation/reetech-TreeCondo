@@ -6,6 +6,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   collection,
   getDocs,
@@ -66,10 +68,11 @@ function formatDateBR(v: any) {
   return d.toLocaleDateString("pt-BR");
 }
 
-function formatDateTimeBR(v: any) {
-  const d = toDateSafe(v);
-  if (!d) return "—";
-  return d.toLocaleString("pt-BR");
+function formatMesReferencia(ref = new Date()) {
+  return ref.toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function KpiCard(props: { title: string; value: string; subtitle?: string }) {
@@ -103,6 +106,7 @@ export default function ReservasDashboardPage() {
   const [err, setErr] = React.useState<string | null>(null);
   const [rows, setRows] = React.useState<ReservaRow[]>([]);
   const [condominioNome, setCondominioNome] = React.useState<string>("");
+  const [mesRef, setMesRef] = React.useState<Date>(new Date());
 
   React.useEffect(() => {
     let cancelled = false;
@@ -120,7 +124,7 @@ export default function ReservasDashboardPage() {
       setErr(null);
 
       try {
-        const { start, end } = getMonthRange(new Date());
+        const { start, end } = getMonthRange(mesRef);
 
         const reservasRef = collection(firestore, "condominios", condId, "reservas");
         const qReservas = query(
@@ -186,7 +190,7 @@ export default function ReservasDashboardPage() {
         });
 
         if (!cancelled) {
-          setCondominioNome(String((condoSnap.data() as any)?.nome || condId));
+          setCondominioNome(String((condoSnap.data() || {}).nome || condId));
           setRows(list);
           setLoading(false);
         }
@@ -268,6 +272,125 @@ export default function ReservasDashboardPage() {
       .sort((a, b) => String(a.dia).localeCompare(String(b.dia)));
   }, [rows]);
 
+  async function handleExportPdf() {
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const mesReferencia = formatMesReferencia(mesRef);
+      const titulo = "Relatório Mensal de Reservas";
+      const subtitulo = `${condominioNome || condId || "Condomínio"} • ${mesReferencia}`;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.text(titulo, 14, 16);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.text(subtitulo, 14, 22);
+
+      pdf.setFontSize(9);
+      pdf.text(`Emitido em: ${new Date().toLocaleString("pt-BR")}`, 14, 27);
+
+      autoTable(pdf, {
+        startY: 32,
+        head: [[
+          "Reservas no mês",
+          "Aprovadas",
+          "Pendentes",
+          "Canceladas",
+          "Reservas manuais",
+          "Origem fila/oferta",
+          "Receita total"
+        ]],
+        body: [[
+          String(totalReservas),
+          String(totalAprovadas),
+          String(totalPendentes),
+          String(totalCanceladas),
+          String(totalManuais),
+          String(totalFilaOrigem),
+          moneyBRLFromCentavos(receitaTotal)
+        ]],
+        theme: "grid",
+        styles: {
+          fontSize: 9,
+          cellPadding: 2.5,
+        },
+        headStyles: {
+          fillColor: [13, 68, 89],
+          textColor: 255,
+        },
+      });
+
+      const bodyRows = rows.map((r) => [
+        String(r.nomeMorador || "—"),
+        String(r.bloco || "—"),
+        String(r.unidade || "—"),
+        String(formatDateBR(r.data)),
+        String(r.areaNome || "—"),
+        String(r.opcaoNome || "—"),
+        String(moneyBRLFromCentavos(r.valorCobrado)),
+        String(r.status || "—"),
+      ]);
+
+      autoTable(pdf, {
+        startY: ((((pdf as any).lastAutoTable || {}).finalY) || 32) + 8,
+        head: [[
+          "Morador",
+          "Bloco",
+          "Unidade",
+          "Dia",
+          "Local reservado",
+          "Opção",
+          "Valor",
+          "Status"
+        ]],
+        body: bodyRows.length
+          ? bodyRows
+          : [[
+              "Nenhuma reserva encontrada",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]],
+        theme: "striped",
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [13, 68, 89],
+          textColor: 255,
+        },
+        columnStyles: {
+          0: { cellWidth: 42 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 24 },
+          3: { cellWidth: 22 },
+          4: { cellWidth: 42 },
+          5: { cellWidth: 32 },
+          6: { cellWidth: 24 },
+          7: { cellWidth: 24 },
+        },
+      });
+
+      const nomeArquivo = `relatorio-reservas-${String(condominioNome || condId || "condominio")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "") || "condominio"}-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}.pdf`;
+
+      pdf.save(nomeArquivo);
+    } catch (e: any) {
+      console.error("[ReservasDashboard] erro ao gerar PDF:", e);
+      alert(e?.message || "Falha ao gerar PDF.");
+    }
+  }
+
   if (isSessionLoading) {
     return <AppLayout pageTitle="Dashboard de Reservas">Carregando sessão...</AppLayout>;
   }
@@ -290,14 +413,38 @@ export default function ReservasDashboardPage() {
               <div className="text-xs text-slate-500">Visão mensal administrativa das reservas</div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline">
-                <Link href="/reservas">Voltar para Reservas</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/reservas/agenda">Reservas Aprovadas</Link>
-              </Button>
-            </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 rounded-2xl border border-black/5 bg-white/70 px-2 py-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() - 1, 1))}
+                  >
+                    ◀
+                  </Button>
+                  <div className="min-w-[140px] text-center text-sm font-semibold text-[#0D4459]">
+                    {formatMesReferencia(mesRef)}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 1))}
+                  >
+                    ▶
+                  </Button>
+                </div>
+                <Button type="button" variant="outline" onClick={handleExportPdf}>
+                  Exportar PDF
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/reservas">Voltar para Reservas</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/reservas/agenda">Reservas Aprovadas</Link>
+                </Button>
+              </div>
           </div>
         </div>
 
@@ -319,7 +466,11 @@ export default function ReservasDashboardPage() {
               <KpiCard title="Pendentes" value={String(totalPendentes)} />
               <KpiCard title="Canceladas" value={String(totalCanceladas)} />
               <KpiCard title="Reservas manuais" value={String(totalManuais)} />
-              <KpiCard title="Receita do mês" value={moneyBRLFromCentavos(receitaTotal)} subtitle={`Fila assumida/origem fila: ${totalFilaOrigem}`} />
+              <KpiCard
+                title="Receita do mês"
+                value={moneyBRLFromCentavos(receitaTotal)}
+                subtitle={`Fila assumida/origem fila: ${totalFilaOrigem}`}
+              />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-3">

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -302,7 +303,7 @@ export default function ConvidadosCheckinPage() {
   }
 
   async function baixarPDF() {
-      const pdf = new jsPDF();
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
       const moradorNome =
         moradorInfo?.nome ||
@@ -396,13 +397,13 @@ export default function ConvidadosCheckinPage() {
       }
     >
       <div className="space-y-4">
-        <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
+        <div className="rounded-2xl border border-white/15 bg-black/20 backdrop-blur-2xl p-4 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-sm text-white/70">Área</div>
-              <div className="text-lg font-semibold">{areaLabel}</div>
-              <div className="mt-1 text-sm text-white/70">
-                <div className="mt-1 text-sm text-white/70">
+              <div className="text-sm font-medium text-white/85">Área</div>
+              <div className="text-xl font-semibold text-white">{areaLabel}</div>
+              <div className="mt-1 text-sm text-white/85">
+                <div className="mt-1 text-sm text-white/85">
                   Morador:{" "}
                   <span className="font-medium text-white">
                     {moradorInfo?.nome ||
@@ -414,7 +415,7 @@ export default function ConvidadosCheckinPage() {
                   moradorInfo?.blocoNome ||
                   moradorInfo?.blocoName ||
                   moradorInfo?.blocoLabel ? (
-                    <span className="text-white/70">
+                    <span className="text-white/80">
                       {" "}
                       • Bloco{" "}
                       {moradorInfo?.blocoId ||
@@ -429,7 +430,7 @@ export default function ConvidadosCheckinPage() {
                   moradorInfo?.unidadeNome ||
                   moradorInfo?.unidadeLabel ||
                   moradorInfo?.apto ? (
-                    <span className="text-white/70">
+                    <span className="text-white/80">
                       {" "}
                       • Unidade/Apto{" "}
                       {moradorInfo?.unidadeId ||
@@ -445,31 +446,31 @@ export default function ConvidadosCheckinPage() {
 
             <div className="text-right">
               <div className="text-sm text-white/70">Status</div>
-              <div className="text-lg font-semibold">{statusReserva}</div>
+              <div className="text-xl font-semibold text-white">{statusReserva}</div>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
             <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="text-white/70">Total</div>
-              <div className="text-lg font-semibold">{total}</div>
+              <div className="text-white/80">Total</div>
+              <div className="text-lg font-semibold text-white">{total}</div>
             </div>
             <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="text-white/70">Pendentes</div>
-              <div className="text-lg font-semibold">{pendente}</div>
+              <div className="text-white/80">Pendentes</div>
+              <div className="text-lg font-semibold text-white">{pendente}</div>
             </div>
             <div className="rounded-xl border bg-muted/10 p-3">
-              <div className="text-white/70">Entraram</div>
-              <div className="text-lg font-semibold">{entrou}</div>
+              <div className="text-white/80">Entraram</div>
+              <div className="text-lg font-semibold text-white">{entrou}</div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-4 shadow-sm">
+        <div className="rounded-2xl border border-white/15 bg-black/20 backdrop-blur-2xl p-4 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="font-semibold text-white">Lista</div>
+            <div className="font-semibold text-white tracking-wide">Lista</div>
             <input
-              className="h-10 w-full md:w-[360px] rounded-xl border bg-background px-3 text-sm"
+              className="h-10 w-full md:w-[360px] rounded-xl border border-white/15 bg-white/92 px-3 text-sm text-slate-900 placeholder:text-slate-500 shadow-sm"
               placeholder="Buscar por nome..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -477,11 +478,11 @@ export default function ConvidadosCheckinPage() {
           </div>
 
           {loadingLista ? (
-            <div className="mt-4 text-sm text-white/70">
+            <div className="mt-4 text-sm text-white/85">
               Carregando convidados...
             </div>
           ) : filtrados.length === 0 ? (
-            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-white/70">
+            <div className="mt-4 rounded-xl border border-white/15 bg-black/20 p-4 text-sm text-white/85">
               Nenhum convidado encontrado.
             </div>
           ) : (
@@ -493,14 +494,14 @@ export default function ConvidadosCheckinPage() {
                 return (
                   <div
                     key={c.id}
-                    className="rounded-xl border p-4 flex items-center justify-between gap-3"
+                    className="rounded-xl border border-white/15 bg-black/15 p-4 flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <div className="font-medium truncate">
+                      <div className="font-semibold text-white truncate">
                         {String(idx + 1).padStart(2, "0")} - {c.nome || "-"}
                       </div>
 
-                      <div className="text-xs text-white/70">
+                      <div className="text-xs text-white/80">
                         {c.cpf
                           ? `CPF: ${maskCpf(c.cpf)}`
                           : "CPF: (não informado)"}
@@ -508,7 +509,7 @@ export default function ConvidadosCheckinPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">
+                      <div className="text-sm font-semibold text-white">
                         {entrou ? "✅ ENTROU" : "🟢 PENDENTE"}
                       </div>
 
@@ -535,7 +536,7 @@ export default function ConvidadosCheckinPage() {
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="tc-dialog-center">
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Entrada</AlertDialogTitle>
             <AlertDialogDescription>

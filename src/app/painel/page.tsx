@@ -12,7 +12,8 @@ import {
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
 import { collection, query, where, onSnapshot, Timestamp, orderBy, limit, doc, getDoc } from "firebase/firestore";
-import { Package, AlertCircle, CalendarClock, CalendarCheck2 } from "lucide-react";
+import { Package, AlertCircle, CalendarClock, CalendarCheck2, BarChart3 } from "lucide-react";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBranding } from "@/contexts/BrandingContext";
 
@@ -24,6 +25,9 @@ export default function Dashboard() {
   const condominioId = session?.activeCondominioId;
   const uid = session?.user?.uid;
   const role = session?.role;
+
+const isAdminLike =
+  role && ["SINDICO","ADMIN","ADMIN_CONDOMINIO","SUPER_ADMIN"].includes(role);
 
   const [encomendasCount, setEncomendasCount] = useState<number | null>(null);
   const [incidentesCount, setIncidentesCount] = useState<number | null>(null);
@@ -167,6 +171,11 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">
               Aguardando retirada na portaria
             </p>
+            <div className="mt-3">
+              <Link href="/encomendas" className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#00D0E6] to-[#00A86B] px-3 py-1.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90">
+                Abrir
+              </Link>
+            </div>
           </CardContent>
         </Card>
 
@@ -186,6 +195,11 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">
               Aguardando resolução
             </p>
+            <div className="mt-3">
+              <Link href="/incidentes" className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#00D0E6] to-[#00A86B] px-3 py-1.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90">
+                Abrir
+              </Link>
+            </div>
           </CardContent>
         </Card>
 
@@ -205,6 +219,11 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground">
               Suas reservas de áreas comuns aprovadas
             </p>
+            <div className="mt-3">
+              <Link href="/reservas" className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#00D0E6] to-[#00A86B] px-3 py-1.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90">
+                Abrir
+              </Link>
+            </div>
           </CardContent>
         </Card>
 
@@ -233,8 +252,31 @@ export default function Dashboard() {
                 ? 'Buscando...'
                 : proximaAssembleia?.titulo || "Nenhuma assembleia agendada"}
             </p>
+            <div className="mt-3">
+              <Link href="/reunioes" className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#00D0E6] to-[#00A86B] px-3 py-1.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90">
+                Abrir
+              </Link>
+            </div>
           </CardContent>
         </Card>
+          <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Gestão de Reservas
+              </CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="mt-3">
+                <Link href="/reservas/dashboard" className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#00D0E6] to-[#00A86B] px-3 py-1.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90">
+                  Abrir
+                </Link>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Dashboard administrativo das reservas
+              </p>
+            </CardContent>
+          </Card>
       </div>
     </AppLayout>
   );

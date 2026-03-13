@@ -25,6 +25,7 @@ const NAV_ITEMS: NavDef[] = [
   { href: "/acesso", label: "Acesso", key: "acesso" },
   { href: "/anuncios", label: "Anúncios", key: "anuncios" },
   { href: "/reservas", label: "Reservas", key: "reservas" },
+    { href: "/reservas/dashboard", label: "Gestão de Reservas", key: "reservas_gestao" },
   { href: "/reservas/agenda", label: "Reservas Aprovadas", key: "reservas_agenda" },
   { href: "/reservas/solicitacoes", label: "Solicitações de Reservas", key: "reservas_solicitacoes" },
   { href: "/incidentes", label: "Incidentes", key: "incidentes" },

@@ -10,16 +10,7 @@ import { useSessionCtx } from "@/contexts/SessionContext";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { useFirestore } from "@/firebase";
 import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  onSnapshot,
-  updateDoc,
-  doc,
-  Timestamp,
-} from "firebase/firestore";
+  collection, query, where, orderBy, limit, onSnapshot, updateDoc, doc, Timestamp, serverTimestamp } from "firebase/firestore";
 
 import {
   DropdownMenu,

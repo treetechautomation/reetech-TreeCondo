@@ -591,11 +591,18 @@ return (
       pageTitle="Reservas"
         headerActions={
           isMoradorLike ? null : (
-            <Button asChild variant="default">
-              <Link href="/reservas/agenda">
-                Ver solicitações
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/reservas/dashboard">
+                  Gerenciar
+                </Link>
+              </Button>
+              <Button asChild variant="default">
+                <Link href="/reservas/agenda">
+                  Ver solicitações
+                </Link>
+              </Button>
+            </div>
           )
         }
     >
