@@ -93,3 +93,12 @@ nextn@0.1.0
 [PWA]
 
 .cleanup_backup_*/
+backup_before_rollback_*/
+*.log
+*.tmp
+public/sw.js.bak*
+public/manifest.webmanifest.bak*
+scripts/*.bak*
+src/**/*.bak*
+src/**/*.backup*
+src/**/*.DISABLED

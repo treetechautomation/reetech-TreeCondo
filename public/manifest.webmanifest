@@ -2,7 +2,7 @@
   "name": "TreeCondo - Gestão inteligente de condomínios",
   "short_name": "TreeCondo",
   "description": "TreeCondo - Gestão inteligente de condomínios",
-  "start_url": "/",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
