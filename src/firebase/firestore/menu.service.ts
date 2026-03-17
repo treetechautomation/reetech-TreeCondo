@@ -59,7 +59,7 @@ export function criarConfiguracaoDeMenuPadrao(
   );
 
   // Não use await, o erro será capturado pelo listener global
-  setDoc(menuConfigRef, permissoesPadrao).catch(async (error) => {
+  setDoc(menuConfigRef, permissoesPadrao, { merge: true }).catch(async (error) => {
     const contextualError = await createFirestorePermissionError({
       path: menuConfigRef.path,
       operation: 'create',

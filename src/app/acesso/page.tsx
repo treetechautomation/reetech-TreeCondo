@@ -18,6 +18,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+import { getAuth } from "firebase/auth";
 
 import {
   addDoc, getDoc, collection, onSnapshot, orderBy, query, serverTimestamp, Timestamp, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -171,6 +172,8 @@ export default function AcessoPage() {
 
   const [tab, setTab] = React.useState<"PENDENTE" | "AUTORIZADO" | "ENTROU" | "HISTORICO">("PENDENTE");
   const [loading, setLoading] = React.useState(true);
+  const [busca, setBusca] = React.useState("");
+  const [tipoBusca, setTipoBusca] = React.useState<"todos" | "nome" | "placa" | "documento" | "unidade">("todos");
   const [itens, setItens] = React.useState<AcessoItem[]>([]);
 
   // dialogs
@@ -261,6 +264,7 @@ list.sort((a: any, b: any) => {
         const data = snap.data() as any;
         setVincBlocoId(data?.blocoId ?? null);
         setVincUnidadeId(data?.unidadeId ?? null);
+          setFormDestinoBloco((curr) => curr || String(data?.blocoId ?? ""));
       } catch (e) {
         console.error("[acesso] erro carregar vínculo:", e);
       }
@@ -286,6 +290,35 @@ const { waiting, authorized, inside, history } = React.useMemo(() => {
       return { waiting, authorized, inside, history };
   }, [itens]);
 
+    const termoBusca = busca.trim().toLowerCase();
+
+    const filtrarBusca = (it: AcessoItem) => {
+      if (!termoBusca) return true;
+
+      const nome = String(it.nome || "").toLowerCase();
+      const empresa = String(it.empresa || "").toLowerCase();
+      const placa = String(it.placa || "").toLowerCase();
+      const documentoValor = String(it.documento || "").toLowerCase();
+      const telefone = String(it.telefone || "").toLowerCase();
+      const bloco = String(it.destinoBlocoTexto || it.blocoId || "").toLowerCase();
+      const unidade = String(it.destinoUnidadeTexto || it.unidadeId || "").toLowerCase();
+
+      const geral = [nome, empresa, placa, documentoValor, telefone, bloco, unidade].join(" ");
+
+      if (tipoBusca === "nome") return [nome, empresa].join(" ").includes(termoBusca);
+      if (tipoBusca === "placa") return placa.includes(termoBusca);
+      if (tipoBusca === "documento") return documentoValor.includes(termoBusca);
+      if (tipoBusca === "unidade") return [bloco, unidade].join(" ").includes(termoBusca);
+
+      return geral.includes(termoBusca);
+    };
+
+    const waitingFiltered = waiting.filter(filtrarBusca);
+    const authorizedFiltered = authorized.filter(filtrarBusca);
+    const insideFiltered = inside.filter(filtrarBusca);
+    const historyFiltered = history.filter(filtrarBusca);
+
+    
 
   async function criarAcesso() {
     if (!firestore || !condominioId || !uid) {
@@ -298,17 +331,23 @@ const { waiting, authorized, inside, history } = React.useMemo(() => {
       toast({ variant: "destructive", title: "Informe o nome" });
       return;
     }
-    
-    if (!blocoId && !formDestinoBloco.trim()) {
-      toast({ variant: "destructive", title: "Informe o Bloco de destino" });
-      return;
-    }
-    if (!unidadeId && !formDestinoUnidade.trim()) {
-      toast({ variant: "destructive", title: "Informe a Unidade de destino" });
-      return;
-    }
+      const roleUpValid = String(role || "").toUpperCase();
+      const isMoradorValid = roleUpValid === "MORADOR";
+      const isAdminDestinoValid =
+        roleUpValid === "ADMIN" ||
+        roleUpValid === "ADMIN_CONDOMINIO" ||
+        roleUpValid === "SINDICO";
 
-    const ini = parseDatetimeLocal(janelaInicio);
+      if (!isAdminDestinoValid && !formDestinoBloco.trim()) {
+        toast({ variant: "destructive", title: "Informe o Bloco de destino" });
+        return;
+      }
+      if (!isMoradorValid && !isAdminDestinoValid && !formDestinoUnidade.trim()) {
+        toast({ variant: "destructive", title: "Informe a Unidade de destino" });
+        return;
+      }
+
+const ini = parseDatetimeLocal(janelaInicio);
     const fim = parseDatetimeLocal(janelaFim);
 
     if (!ini || !fim) {
@@ -327,10 +366,20 @@ const { waiting, authorized, inside, history } = React.useMemo(() => {
       
         const roleUp = String(role || "").toUpperCase();
         const isMoradorNow = roleUp === "MORADOR";
+          const isAdminDestinoNow =
+            roleUp === "ADMIN" ||
+            roleUp === "ADMIN_CONDOMINIO" ||
+            roleUp === "SINDICO";
 
         // destino automático do vínculo do morador
-        const destinoBloco = isMoradorNow ? (vincBlocoId ?? null) : (blocoId ?? null);
-        const destinoUnidade = isMoradorNow ? (vincUnidadeId ?? null) : (unidadeId ?? null);
+        const destinoBloco = isAdminDestinoNow
+            ? "ADM"
+            : (formDestinoBloco.trim() || (isMoradorNow ? (vincBlocoId ?? null) : (blocoId ?? null)));
+          const destinoUnidade = isAdminDestinoNow
+            ? "Administração"
+            : isMoradorNow
+              ? (vincUnidadeId ?? null)
+              : (formDestinoUnidade.trim() || unidadeId || null);
 
         if (isMoradorNow) {
           if (!destinoUnidade) {
@@ -354,6 +403,8 @@ const { waiting, authorized, inside, history } = React.useMemo(() => {
           blocoId: destinoBloco,
           unidadeId: destinoUnidade,
 
+            destinoBlocoTexto: destinoBloco || formDestinoBloco.trim() || null,
+            destinoUnidadeTexto: destinoUnidade || formDestinoUnidade.trim() || null,
           moradorUid: uid,
           moradorNome: actorName(),
           janelaInicio: Timestamp.fromDate(ini),
@@ -368,13 +419,52 @@ const { waiting, authorized, inside, history } = React.useMemo(() => {
         // mas evita undefined (Firestore não aceita)
         Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
 
-        await addDoc(col, payload);
-toast({ title: "Acesso criado!", description: "Aguardando validação da portaria." });
-      setOpenNew(false);
-      // Reset form
-      setNome(""); setTipo("VISITANTE"); setTelefone(""); setDocumento(""); setPlaca(""); setEmpresa(""); setObservacao(""); 
-      setJanelaInicio(dtLocalNowPlus(0)); setJanelaFim(dtLocalNowPlus(4));
-      setFormDestinoBloco(""); setFormDestinoUnidade("");
+        const auth = getAuth();
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) {
+          throw new Error("Usuário sem token de autenticação.");
+        }
+
+        const resp = await fetch("/api/acessos/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            condominioId,
+            tipo,
+            nome: nomeOk,
+            telefone: telefone.trim() || null,
+            documento: documento.trim() || null,
+            placa: placa.trim() || null,
+            empresa: tipo === "PRESTADOR" ? (empresa.trim() || null) : null,
+            observacao: observacao.trim() || null,
+            blocoId: destinoBloco,
+            unidadeId: destinoUnidade,
+            destinoBlocoTexto: destinoBloco || formDestinoBloco.trim() || null,
+            destinoUnidadeTexto: destinoUnidade || formDestinoUnidade.trim() || null,
+            janelaInicio,
+            janelaFim,
+          }),
+        });
+
+        const out = await resp.json().catch(() => ({}));
+        if (!resp.ok || !out?.ok) {
+          throw new Error(String(out?.error || "Falha ao criar acesso."));
+        }
+
+        toast({
+          title: "Acesso criado!",
+          description: out?.push?.successCount
+            ? "Acesso criado e push enviado ao morador."
+            : "Acesso criado. Push será enviado quando houver token ativo no app do morador."
+        });
+        setOpenNew(false);
+        // Reset form
+        setNome(""); setTipo("VISITANTE"); setTelefone(""); setDocumento(""); setPlaca(""); setEmpresa(""); setObservacao(""); 
+        setJanelaInicio(dtLocalNowPlus(0)); setJanelaFim(dtLocalNowPlus(4));
+        setFormDestinoBloco(""); setFormDestinoUnidade("");
     } catch (e: any) {
       console.error(e);
       toast({ variant: "destructive", title: "Erro ao criar", description: String(e?.message || e) });
@@ -422,7 +512,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
               </div>
 
               <div className="text-right text-sm text-muted-foreground">
-                {(it.blocoId || "-")} • {(it.unidadeId || "-")}
+                {(it.destinoBlocoTexto || it.blocoId || "-")} • {(it.destinoUnidadeTexto || it.unidadeId || "-")}
               </div>
 
               <div className="text-right text-sm text-muted-foreground">
@@ -434,6 +524,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
   variant="outline"
   size="icon"
   title="Detalhes"
+    onClick={() => setDetailedItem(it)}
   className="border-white/40 bg-white/85 backdrop-blur hover:bg-white shadow-sm group transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(0,208,230,.35),0_8px_30px_rgba(0,208,230,.25)]"
 >
   <Eye className="h-4 w-4 text-[#0f172a] group-hover:text-[#00d0e6] transition-colors duration-200" />
@@ -471,7 +562,13 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
                 )}
 
                 {canOperarPortaria && it.status === "ENTROU" && (
-                  <Button size="sm" variant="outline" onClick={() => atualizarStatusAcesso(it, "SAIU")} title="Liberar saída">
+                  <Button
+size="sm"
+variant="outline"
+onClick={() => atualizarStatusAcesso(it, "SAIU")}
+title="Liberar saída"
+className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
+>
                     <LogOut className="mr-2 h-4 w-4" />
                     Saída
                   </Button>
@@ -487,96 +584,182 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
     <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid}><Plus className="mr-2 h-4 w-4" />Novo Acesso</Button></DialogTrigger><DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto max-h-[85dvh] overflow-y-auto tc-dialog-center"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
       <div className="grid gap-1"><Label>Tipo</Label><select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value as TipoAcesso)}><option value="VISITANTE">Visitante</option><option value="PRESTADOR">Prestador</option></select></div>
       
-      {blocoId && unidadeId ? (
-          <div className="grid gap-1.5 rounded-lg border bg-muted/50 p-3">
-              <Label>Destino</Label>
-              <div className="text-sm text-muted-foreground">Sua solicitação será para o <b>Bloco {blocoId}</b>, <b>Unidade {unidadeId}</b>.</div>
-          </div>
-      ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="grid gap-1"><Label htmlFor="form-bloco">Bloco de Destino</Label><Input id="form-bloco" value={formDestinoBloco} onChange={(e) => setFormDestinoBloco(e.target.value)} placeholder="Ex: Bloco A" /></div>
-              <div className="grid gap-1"><Label htmlFor="form-unidade">Unidade de Destino</Label><Input id="form-unidade" value={formDestinoUnidade} onChange={(e) => setFormDestinoUnidade(e.target.value)} placeholder="Ex: 101" /></div>
-          </div>
-      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid gap-1">
+                <Label htmlFor="form-bloco">Bloco de Destino</Label>
+                <Input
+                  id="form-bloco"
+                  value={formDestinoBloco}
+                  onChange={(e) => setFormDestinoBloco(e.target.value)}
+                  placeholder="Ex: Bloco A"
+                />
+              </div>
+
+              {String(role || "").toUpperCase() === "MORADOR" ? (
+                <div className="grid gap-1">
+                  <Label>Unidade de Destino</Label>
+                  <div className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                    {vincUnidadeId || unidadeId || formDestinoUnidade || "-"}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-1">
+                  <Label htmlFor="form-unidade">Unidade de Destino</Label>
+                  <Input
+                    id="form-unidade"
+                    value={formDestinoUnidade}
+                    onChange={(e) => setFormDestinoUnidade(e.target.value)}
+                    placeholder="Ex: 101"
+                  />
+                </div>
+              )}
+            </div>
 
       <div className="grid gap-1"><Label>Nome do Visitante/Prestador</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João da Silva" /></div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Telefone (opcional)</Label><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(00) 00000-0000" /></div><div className="grid gap-1"><Label>Documento (opcional)</Label><Input value={documento} onChange={(e) => setDocumento(e.target.value)} placeholder="CPF/RG" /></div></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Placa (opcional)</Label><Input value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-1234" /></div><div className="grid gap-1"><Label>Empresa (prestador) (opcional)</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ex: Manutenção Elétrica" disabled={tipo !== "PRESTADOR"} /></div></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Janela - Início</Label><Input type="datetime-local" value={janelaInicio} onChange={(e) => setJanelaInicio(e.target.value)} /></div><div className="grid gap-1"><Label>Janela - Fim</Label><Input type="datetime-local" value={janelaFim} onChange={(e) => setJanelaFim(e.target.value)} /></div></div><div className="grid gap-1"><Label>Observação (opcional)</Label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: vai entregar material / vai instalar internet / etc." /></div></div><DialogFooter><Button onClick={criarAcesso} disabled={saving}>{saving ? "Salvando..." : "Criar"}</Button></DialogFooter></DialogContent></Dialog>}>
       <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] tc-acesso-white">
         <CardHeader><CardTitle>Acessos</CardTitle><CardDescription>Pré-autorizações para visitantes e prestadores de serviço.</CardDescription></CardHeader>
         <CardContent>
-          {!condominioId ? <div className="p-4 text-sm text-muted-foreground">Selecione um condomínio para ver/criar acessos.</div> :
-            
-<div className="space-y-4">
-  {/* MOBILE: lista (um embaixo do outro) */}
-  <div className="md:hidden space-y-5">
-    {[
-      { key: "PENDENTE", title: "Pendentes", items: waiting },
-      { key: "AUTORIZADO", title: "Autorizados", items: authorized },
-      { key: "ENTROU", title: "Dentro do Condomínio", items: inside },
-      { key: "HISTORICO", title: "Histórico", items: history },
-    ].map((sec) => (
-      <div key={sec.key} className="rounded-2xl border border-black/5 bg-white/30 backdrop-blur-xl shadow-sm">
-        <div className="px-4 py-3 border-b border-black/5">
-          <div className="text-sm font-semibold text-slate-900">{sec.title}</div>
-          <div className="text-xs text-muted-foreground">{sec.items.length} item(ns)</div>
-        </div>
-
-        <div className="p-3 space-y-2">
-          {sec.items.length === 0 ? (
-            <div className="rounded-xl border border-black/5 bg-white/40 p-4 text-sm text-muted-foreground">
-              Nada aqui ainda.
+          {!condominioId ? (
+            <div className="p-4 text-sm text-muted-foreground">
+              Selecione um condomínio para ver/criar acessos.
             </div>
           ) : (
-            sec.items.map((it) => {
-              const destino = (it.blocoId || it.destinoBlocoTexto || "-") + " / " + (it.unidadeId || it.destinoUnidadeTexto || "-");
-              return (
-                <button
-                  key={it.id}
-                  type="button"
-                  onClick={() => setDetailedItem(it)} className="w-full text-left rounded-xl border border-black/5 bg-white/45 p-3 active:scale-[0.99] transition cursor-pointer hover:bg-black/5 active:scale-[0.99] transition"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-900 truncate">{it.nome || "-"}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 truncate">Destino: {destino}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Janela fim: {formatDateTimeBR(it.janelaFim)}
-                      </div>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl p-3">
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <Input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar visitante, prestador, placa, documento, bloco ou unidade..."
+                    className="bg-white/80 text-slate-900 placeholder:text-slate-500"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant={tipoBusca === "todos" ? "default" : "outline"}
+                      size="sm"
+                      className={tipoBusca === "todos" ? "text-white" : "text-black hover:text-black"}
+                      onClick={() => setTipoBusca("todos")}
+                    >
+                      Todos
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={tipoBusca === "nome" ? "default" : "outline"}
+                      size="sm"
+                      className={tipoBusca === "nome" ? "text-white" : "text-black hover:text-black"}
+                      onClick={() => setTipoBusca("nome")}
+                    >
+                      Nome
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={tipoBusca === "placa" ? "default" : "outline"}
+                      size="sm"
+                      className={tipoBusca === "placa" ? "text-white" : "text-black hover:text-black"}
+                      onClick={() => setTipoBusca("placa")}
+                    >
+                      Placa
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={tipoBusca === "documento" ? "default" : "outline"}
+                      size="sm"
+                      className={tipoBusca === "documento" ? "text-white" : "text-black hover:text-black"}
+                      onClick={() => setTipoBusca("documento")}
+                    >
+                      Documento
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={tipoBusca === "unidade" ? "default" : "outline"}
+                      size="sm"
+                      className={tipoBusca === "unidade" ? "text-white" : "text-black hover:text-black"}
+                      onClick={() => setTipoBusca("unidade")}
+                    >
+                      Unidade
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="md:hidden space-y-5">
+                {[
+                  { key: "PENDENTE", title: "Pendentes", items: waitingFiltered },
+                  { key: "AUTORIZADO", title: "Autorizados", items: authorizedFiltered },
+                  { key: "ENTROU", title: "Dentro do Condomínio", items: insideFiltered },
+                  { key: "HISTORICO", title: "Histórico", items: historyFiltered },
+                ].map((sec) => (
+                  <div key={sec.key} className="rounded-2xl border border-black/5 bg-white/30 backdrop-blur-xl shadow-sm">
+                    <div className="px-4 py-3 border-b border-black/5">
+                      <div className="text-sm font-semibold text-slate-900">{sec.title}</div>
+                      <div className="text-xs text-muted-foreground">{sec.items.length} item(ns)</div>
                     </div>
-                    <div className="shrink-0">
-                      <span className="inline-flex items-center rounded-full border border-black/10 bg-white/50 px-2 py-1 text-[11px] font-medium text-slate-700">
-                        {it.status}
-                      </span>
+
+                    <div className="p-3 space-y-2">
+                      {sec.items.length === 0 ? (
+                        <div className="rounded-xl border border-black/5 bg-white/40 p-4 text-sm text-muted-foreground">
+                          Nada aqui ainda.
+                        </div>
+                      ) : (
+                        sec.items.map((it) => {
+                          const destino =
+                            (it.blocoId || it.destinoBlocoTexto || "-") +
+                            " / " +
+                            (it.unidadeId || it.destinoUnidadeTexto || "-");
+
+                          return (
+                            <button
+                              key={it.id}
+                              type="button"
+                              onClick={() => setDetailedItem(it)}
+                              className="w-full cursor-pointer rounded-xl border border-black/5 bg-white/45 p-3 text-left transition hover:bg-black/5 active:scale-[0.99]"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-semibold text-slate-900">
+                                    {it.nome || "-"}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                                    Destino: {destino}
+                                  </div>
+                                  <div className="mt-0.5 text-xs text-muted-foreground">
+                                    Janela fim: {formatDateTimeBR(it.janelaFim)}
+                                  </div>
+                                </div>
+                                <div className="shrink-0">
+                                  <span className="inline-flex items-center rounded-full border border-black/10 bg-white/50 px-2 py-1 text-[11px] font-medium text-slate-700">
+                                    {it.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
-                </button>
-              );
-            })
+                ))}
+              </div>
+
+              <div className="hidden md:block">
+                <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+                  <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-black/5 p-2 h-auto md:flex md:flex-wrap md:justify-start md:gap-2 md:w-full lg:flex-nowrap bg-gradient-to-r from-[#B7CD0C]/20 via-[#00D0E6]/20 to-[#F4EFE9]/80 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,.06)] tc-acesso-tabs">
+                    <TabsTrigger value="PENDENTE" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-black data-[state=active]:font-semibold data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Pendentes</TabsTrigger>
+                    <TabsTrigger value="AUTORIZADO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-black data-[state=active]:font-semibold data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Autorizados</TabsTrigger>
+                    <TabsTrigger value="ENTROU" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-black data-[state=active]:font-semibold data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60"><span className="lg:hidden">Dentro</span><span className="hidden lg:inline">Dentro do Condomínio</span></TabsTrigger>
+                    <TabsTrigger value="HISTORICO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-black data-[state=active]:font-semibold data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Histórico</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="PENDENTE" className="mt-4">{renderTable(waitingFiltered)}</TabsContent>
+                  <TabsContent value="AUTORIZADO" className="mt-4">{renderTable(authorizedFiltered)}</TabsContent>
+                  <TabsContent value="ENTROU" className="mt-4">{renderTable(insideFiltered)}</TabsContent>
+                  <TabsContent value="HISTORICO" className="mt-4">{renderTable(historyFiltered)}</TabsContent>
+                </Tabs>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-    ))}
-  </div>
-
-  {/* DESKTOP/TABLET (md+): tabs */}
-  <div className="hidden md:block">
-    <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-      <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-black/5 p-2 h-auto md:flex md:flex-wrap md:justify-start md:gap-2 md:w-full lg:flex-nowrap bg-gradient-to-r from-[#B7CD0C]/20 via-[#00D0E6]/20 to-[#F4EFE9]/80 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,.06)] tc-acesso-tabs">
-        <TabsTrigger value="PENDENTE" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Pendentes</TabsTrigger>
-        <TabsTrigger value="AUTORIZADO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Autorizados</TabsTrigger>
-        <TabsTrigger value="ENTROU" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60"><span className="lg:hidden">Dentro</span><span className="hidden lg:inline">Dentro do Condomínio</span></TabsTrigger>
-        <TabsTrigger value="HISTORICO" className="h-10 w-full justify-center rounded-xl px-3 text-sm whitespace-normal leading-tight transition select-none cursor-pointer text-slate-700 hover:bg-[#B7CD0C]/18 hover:text-slate-900 data-[state=active]:bg-[#00D0E6] data-[state=active]:text-slate-900 data-[state=active]:shadow-[0_10px_30px_rgba(0,208,230,.25)] data-[state=active]:border data-[state=active]:border-[#00D0E6]/60">Histórico</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="PENDENTE" className="mt-4">{renderTable(waiting)}</TabsContent>
-      <TabsContent value="AUTORIZADO" className="mt-4">{renderTable(authorized)}</TabsContent>
-      <TabsContent value="ENTROU" className="mt-4">{renderTable(inside)}</TabsContent>
-      <TabsContent value="HISTORICO" className="mt-4">{renderTable(history)}</TabsContent>
-    </Tabs>
-  </div>
-</div>
-
-          }
         </CardContent>
       </Card>
       
@@ -593,7 +776,7 @@ toast({ title: "Acesso criado!", description: "Aguardando validação da portari
                     <div className="flex justify-between"><span>Nome:</span> <span>{detailedItem.nome}</span></div>
                     <div className="flex justify-between">
                         <span>Destino:</span>
-                        <span>{detailedItem.blocoId || detailedItem.destinoBlocoTexto} / {detailedItem.unidadeId || detailedItem.destinoUnidadeTexto}</span>
+                        <span>{detailedItem.destinoBlocoTexto || detailedItem.blocoId || "-"} / {detailedItem.destinoUnidadeTexto || detailedItem.unidadeId || "-"}</span>
                     </div>
                       <div className="flex justify-between">
                           <span>Janela fim:</span>

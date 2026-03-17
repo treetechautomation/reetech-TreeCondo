@@ -105,12 +105,12 @@ export async function registerFcmToken(params: {
 
     const messaging = getMessaging(app);
 
-    const swReg = await navigator.serviceWorker
-      .register("/firebase-messaging-sw.js", { scope: "/firebase-messaging/" })
-      .catch((e) => {
-        console.warn("[FCM] sw register failed", e);
-        return null;
-      });
+    const swReg =
+        (await navigator.serviceWorker.getRegistration("/").catch(() => null)) ||
+        (await navigator.serviceWorker.register("/sw.js").catch((e) => {
+          console.warn("[FCM] sw register failed", e);
+          return null;
+        }));
 
     diag.swRegistered = !!swReg;
     await saveDiag({ step: "sw_registered", swRegistered: !!swReg });
