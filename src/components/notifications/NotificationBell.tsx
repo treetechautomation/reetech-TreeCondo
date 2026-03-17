@@ -10,17 +10,23 @@ import { useSessionCtx } from "@/contexts/SessionContext";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { useFirestore } from "@/firebase";
 import {
-  collection, query, where, orderBy, limit, onSnapshot, updateDoc, doc, Timestamp, serverTimestamp } from "firebase/firestore";
-
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  updateDoc,
+  doc,
+  Timestamp,
+  serverTimestamp,
+} from "firebase/firestore";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 
-// Type definition as per prompt's context
 type NotifDoc = {
   id: string;
   title?: string;
@@ -38,10 +44,10 @@ type NotifDoc = {
   path?: string;
 };
 
-// Helper to format timestamp
 function formatWhen(v: any) {
   try {
-    const t: Date | null = v instanceof Timestamp ? v.toDate() : v?.toDate ? v.toDate() : null;
+    const t: Date | null =
+      v instanceof Timestamp ? v.toDate() : v?.toDate ? v.toDate() : null;
     if (!t) return "";
     const hh = String(t.getHours()).padStart(2, "0");
     const mm = String(t.getMinutes()).padStart(2, "0");
@@ -53,39 +59,42 @@ function formatWhen(v: any) {
   }
 }
 
-// Helper to find the navigation link in a notification
 function pickLink(n: NotifDoc): string {
   return (
     (n.link && String(n.link)) ||
     (n.href && String(n.href)) ||
     (n.url && String(n.url)) ||
     (n.path && String(n.path)) ||
-    (String(n.tipo || "").toUpperCase().includes("ENCOMENDA") ? "/encomendas" : "/notificacoes")
+    (String(n.tipo || "").toUpperCase().includes("ENCOMENDA")
+      ? "/encomendas"
+      : "/notificacoes")
   );
 }
-
-const dbg = (...args: any[]) => console.log("[NotificationBell]", ...args);
 
 export function NotificationBell({ className }: { className?: string }) {
   const router = useRouter();
   const firestore = useFirestore();
-  const { user, session, isAuthenticated } = useSessionCtx();
+  const { session, isAuthenticated } = useSessionCtx();
   const { condominioAtivoId } = useCondominio();
 
   const [open, setOpen] = React.useState(false);
   const [items, setItems] = React.useState<NotifDoc[]>([]);
-  const [unread, setUnread] = React.useState<number>(0);
+  const [unread, setUnread] = React.useState(0);
   const [snapErr, setSnapErr] = React.useState<string | null>(null);
 
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const prevIdsRef = React.useRef<string[]>([]);
+
   const uid = session?.user?.uid ?? null;
-  const condoId = condominioAtivoId;
+  const condoId = condominioAtivoId ?? null;
 
-  // Debugging log for context
   React.useEffect(() => {
-    dbg("Context Update:", { isAuthenticated, uid, condoId, hasFirestore: !!firestore });
-  }, [isAuthenticated, uid, condoId, firestore]);
+    audioRef.current = new Audio("/sounds/notificacao.mp3");
+    if (audioRef.current) {
+      audioRef.current.volume = 0.8;
+    }
+  }, []);
 
-  // Data fetching from Firestore
   React.useEffect(() => {
     if (!firestore || !isAuthenticated || !uid || !condoId) {
       setItems([]);
@@ -100,43 +109,62 @@ export function NotificationBell({ className }: { className?: string }) {
       where("targetUid", "==", String(uid)),
       where("arquivada", "==", false),
       orderBy("createdAt", "desc"),
-      limit(8) // Limit to 8 items as requested
+      limit(8)
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
         setSnapErr(null);
-        const list: NotifDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        const list: NotifDoc[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
         setItems(list);
         setUnread(list.filter((n) => !n.lida).length);
-        
-        // Debugging log for snapshot
-        dbg("Snapshot Received:", {
-          count: list.length,
-          uid,
-          condoId,
-          firstTargetUid: list[0]?.targetUid ?? null,
-          firstTitle: list[0]?.title || list[0]?.titulo || null,
-        });
       },
       (err) => {
         const code = (err as any)?.code ?? "unknown";
         const msg = (err as any)?.message ?? String(err);
-        const fullError = `${code}: ${msg}`;
-        setSnapErr(fullError);
+        setSnapErr(`${code}: ${msg}`);
         console.error("[NotificationBell] onSnapshotError:", err);
-        dbg("Snapshot Error:", { code, msg });
       }
     );
 
     return () => unsub();
   }, [firestore, isAuthenticated, uid, condoId]);
 
+  // 🔊 tocar som somente para novas notificações
+  React.useEffect(() => {
+    const currentIds = items.map((i) => i.id);
+
+    const newItems = currentIds.filter(
+      (id) => !prevIdsRef.current.includes(id)
+    );
+
+    if (newItems.length > 0 && prevIdsRef.current.length > 0) {
+      try {
+        audioRef.current?.play();
+
+        try {
+          (globalThis as any).__showRealtimeToast?.({
+            id: newItems[0],
+            title: "🚪 Novo acesso",
+            message: "Novo registro na portaria",
+            link: "/acesso"
+          });
+        } catch {}
+
+      } catch {}
+    }
+
+    prevIdsRef.current = currentIds;
+  }, [items]);
+
   async function markRead(n: NotifDoc) {
     if (!firestore || !condoId || n.lida) return;
     try {
-      await updateDoc(doc(firestore, "condominios", condoId, "notificacoes", n.id), {
+      await updateDoc(doc(firestore, "condominios", String(condoId), "notificacoes", n.id), {
         lida: true,
         updatedAt: serverTimestamp(),
       });
@@ -148,8 +176,8 @@ export function NotificationBell({ className }: { className?: string }) {
   async function handleItemClick(n: NotifDoc) {
     await markRead(n);
     const link = pickLink(n);
-    router.push(link);
     setOpen(false);
+    router.push(link);
   }
 
   if (!isAuthenticated || !uid || !condoId) {
@@ -157,16 +185,15 @@ export function NotificationBell({ className }: { className?: string }) {
   }
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(isOpen) => {
-        dbg("onOpenChange", isOpen);
-        setOpen(isOpen);
-      }}
-      modal={false}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={cn("rounded-xl relative", className)} title="Notificações">
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("rounded-xl relative", className)}
+          title="Notificações"
+          type="button"
+        >
           <Bell className="h-5 w-5" />
           {unread > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] leading-[18px] bg-red-600 text-white text-center font-semibold shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_10px_40px_rgba(0,208,230,0.35),0_18px_60px_rgba(211,234,0,0.25)]">
@@ -174,36 +201,38 @@ export function NotificationBell({ className }: { className?: string }) {
             </span>
           )}
         </Button>
-      </DropdownMenuTrigger>
+      </PopoverTrigger>
 
-      <DropdownMenuContent
-        side="bottom"
+      <PopoverContent
         align="end"
+        side="bottom"
         sideOffset={8}
-        collisionPadding={12}
         className={cn(
-          "w-[380px] max-w-[92vw] rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg",
-          "z-[2147483647]"
+          "w-[380px] max-w-[92vw] p-0 rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl z-[2147483647]"
         )}
         style={{ zIndex: 2147483647 }}
-        onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
-          <span>Notificações</span>
-          <Link href="/notificacoes" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <span className="font-semibold">Notificações</span>
+          <Link
+            href="/notificacoes"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            onClick={() => setOpen(false)}
+          >
             Ver todas
           </Link>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        </div>
 
         <div className="px-4 py-1 text-[10px] text-muted-foreground border-b">
-          DBG: uid:{uid?.slice(0,5)} condo:{condoId?.slice(0,5)} items:{items.length} unread:{unread}
+          uid:{uid?.slice(0, 5)} condo:{String(condoId).slice(0, 5)} items:{items.length} unread:{unread}
         </div>
-        
+
         {snapErr ? (
-            <div className="px-4 py-5 text-sm text-destructive">{snapErr}</div>
+          <div className="px-4 py-5 text-sm text-destructive">{snapErr}</div>
         ) : items.length === 0 ? (
-            <div className="px-4 py-5 text-sm text-muted-foreground">Nenhuma notificação nova.</div>
+          <div className="px-4 py-5 text-sm text-muted-foreground">
+            Nenhuma notificação nova.
+          </div>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <div className="divide-y divide-border">
@@ -228,7 +257,12 @@ export function NotificationBell({ className }: { className?: string }) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className={cn("font-semibold truncate", isUnread ? "text-foreground" : "text-muted-foreground")}>
+                          <div
+                            className={cn(
+                              "font-semibold truncate",
+                              isUnread ? "text-foreground" : "text-muted-foreground"
+                            )}
+                          >
                             {title}
                           </div>
                           {isUnread && (
@@ -237,12 +271,14 @@ export function NotificationBell({ className }: { className?: string }) {
                             </span>
                           )}
                         </div>
+
                         {msg && (
                           <div className="mt-1 text-[13px] leading-snug text-muted-foreground line-clamp-2">
                             {msg}
                           </div>
                         )}
                       </div>
+
                       {when && (
                         <div className="shrink-0 text-[11px] text-muted-foreground pt-[2px]">
                           {when}
@@ -255,7 +291,7 @@ export function NotificationBell({ className }: { className?: string }) {
             </div>
           </div>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -91,3 +91,5 @@ nextn@0.1.0
 
 # next-pwa stray artifact
 [PWA]
+
+.cleanup_backup_*/

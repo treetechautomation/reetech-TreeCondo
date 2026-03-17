@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { RealtimeToast } from "@/components/toast/RealtimeToast";
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -56,7 +58,8 @@ export default function RootLayout({
 
         {/* Root de Portals (Radix) */}
         <div id="tc-portal-root" />
-      </body>
+        <RealtimeToast />
+  </body>
     </html>
   );
 }

@@ -4,7 +4,6 @@ import * as React from "react";
 import { collection, limit, onSnapshot, orderBy, query, where, Timestamp } from "firebase/firestore";
 
 import { useToast } from "@/hooks/use-toast";
-import { playNotificationBeep } from "@/lib/notifyBeep";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { useFirestore } from "@/firebase";
@@ -84,9 +83,7 @@ export function useInAppNotifications() {
             title,
             description: desc || undefined,
           });
-
-          playNotificationBeep();
-        }
+}
       },
       (err) => {
         console.warn("[INAPP NOTIF] snapshot error", err);

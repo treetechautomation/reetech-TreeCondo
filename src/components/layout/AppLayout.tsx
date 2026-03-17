@@ -238,8 +238,16 @@ React.useEffect(() => {
                   <div className="lg:hidden relative z-[2147483000] pointer-events-auto">
                     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                       <SheetTrigger asChild>
-  <Button type="button" variant="ghost" size="icon" onClick={handleLogout} title="Sair" className="rounded-xl relative z-[2147483000] pointer-events-auto text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]">
-    <LogOut className="h-5 w-5" />
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon"
+    className="rounded-xl relative z-[2147483000] pointer-events-auto text-slate-900 hover:text-[#00d0e6]"
+    title="Menu"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
   </Button>
 </SheetTrigger>
 
