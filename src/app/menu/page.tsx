@@ -7,7 +7,6 @@ import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { useSessionCtx } from "@/contexts/SessionContext";
-import { CondominioSwitcher } from "@/components/condominios/CondominioSwitcher";
 import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions } from "@/lib/menuPermissions";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -182,7 +181,6 @@ export default function MenuPage() {
   return (
     <AppLayout
       pageTitle="Menu"
-      headerActions={<CondominioSwitcher />}
     >
       <div className="p-4 lg:p-6 space-y-6">
         <div className="space-y-1">
