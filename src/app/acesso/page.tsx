@@ -21,7 +21,7 @@ import { useFirestore } from "@/firebase";
 import { getAuth } from "firebase/auth";
 
 import {
-  addDoc, getDoc, collection, onSnapshot, orderBy, query, serverTimestamp, Timestamp, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
+  addDoc, getDoc, collection, onSnapshot, orderBy, query, serverTimestamp, Timestamp, where, doc, deleteDoc } from "firebase/firestore";
 
 type TipoAcesso = "VISITANTE" | "PRESTADOR";
 type StatusAcesso = "PENDENTE" | "AUTORIZADO" | "NEGADO" | "ENTROU" | "SAIU" | "EXPIRADO" | "CANCELADO";
@@ -127,50 +127,46 @@ export default function AcessoPage() {
   }
 
   async function atualizarStatusAcesso(it: AcessoItem, next: StatusAcesso) {
-    if (!firestore || !condominioId || !uid) return;
+      if (!condominioId) return;
 
-    try {
-      const ref = doc(firestore, `condominios/${condominioId}/acessos/${it.id}`);
-      const base: Partial<AcessoItem> = {
-        status: next,
-        updatedAt: serverTimestamp(),
-      };
+      try {
+        const auth = getAuth();
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) throw new Error("Sessão expirada. Faça login novamente.");
 
-      if (next === "AUTORIZADO") {
-        base.autorizadoPorUid = uid;
-        base.autorizadoPorNome = actorName();
-        base.autorizadoEm = serverTimestamp();
-      }
-      if (next === "NEGADO") {
-        base.negadoPorUid = uid;
-        base.negadoPorNome = actorName();
-        base.negadoEm = serverTimestamp();
-      }
-      if (next === "ENTROU") {
-        base.entradaPorUid = uid;
-        base.entradaPorNome = actorName();
-        base.entradaEm = serverTimestamp();
-      }
-      if (next === "SAIU") {
-        base.saidaPorUid = uid;
-        base.saidaPorNome = actorName();
-        base.saidaEm = serverTimestamp();
-      }
-      if (next === "CANCELADO") {
-        base.canceladoPorUid = uid;
-        base.canceladoPorNome = actorName();
-        base.canceladoEm = serverTimestamp();
-      }
+        const resp = await fetch("/api/acessos/status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            condominioId,
+            acessoId: it.id,
+            next,
+          }),
+        });
 
-      await updateDoc(ref, base);
-      toast({ title: "Status atualizado!", description: `Novo status: ${next}` });
-    } catch (e: any) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Erro ao atualizar status", description: String(e?.message || e) });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.ok) {
+          throw new Error(String(data?.error || "Falha ao atualizar status do acesso."));
+        }
+
+        toast({
+          title: "Status atualizado!",
+          description: `Novo status: ${next}`,
+        });
+      } catch (e: any) {
+        console.error(e);
+        toast({
+          variant: "destructive",
+          title: "Erro ao atualizar status",
+          description: String(e?.message || e),
+        });
+      }
     }
-  }
 
-  const [tab, setTab] = React.useState<"PENDENTE" | "AUTORIZADO" | "ENTROU" | "HISTORICO">("PENDENTE");
+    const [tab, setTab] = React.useState<"PENDENTE" | "AUTORIZADO" | "ENTROU" | "HISTORICO">("PENDENTE");
   const [loading, setLoading] = React.useState(true);
   const [busca, setBusca] = React.useState("");
   const [tipoBusca, setTipoBusca] = React.useState<"todos" | "nome" | "placa" | "documento" | "unidade">("todos");
