@@ -80,12 +80,13 @@ function NavLinkButton({
 }
 
 export type AppLayoutProps = {
-  pageTitle?: string;
+  pageTitle?: React.ReactNode;
   headerActions?: React.ReactNode;
+  hideMobileMenuButton?: boolean;
   children: React.ReactNode;
 };
 
-export function AppLayout({ pageTitle, headerActions, children }: AppLayoutProps) {
+export function AppLayout({ pageTitle, headerActions, hideMobileMenuButton = true, children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { session, isSessionLoading, isAuthenticated } = useSessionCtx();
@@ -231,11 +232,12 @@ React.useEffect(() => {
         <main className="flex-1 min-w-0">
           {!hideSidebar && (
             <header className="sticky top-0 z-[999] bg-white/35 backdrop-blur-xl border-b border-white/15">
-              <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4 gap-3">
+              <div className="grid grid-cols-[auto_1fr_auto] items-center px-3 sm:px-4 lg:px-6 py-3 lg:py-4 gap-2 sm:gap-3">
                 {/* Esquerda: menu mobile + voltar */}
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                   {/* Drawer mobile */}
-                  <div className="lg:hidden relative z-[2147483000] pointer-events-auto">
+                  {!hideMobileMenuButton && (
+                    <div className="lg:hidden relative z-[2147483000] pointer-events-auto">
                     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                       <SheetTrigger asChild>
   <Button
@@ -298,6 +300,7 @@ React.useEffect(() => {
                     </Sheet>
                   </div>
 
+                    )}
                   {/* Título */}
                   <div className="text-lg lg:text-xl font-semibold text-slate-900 truncate">
                     {pageTitle ?? ""}
@@ -305,13 +308,13 @@ React.useEffect(() => {
                 </div>
 
                 {/* Direita */}
-                <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
-                  {isSuper && <div className="w-full sm:w-auto"><CondominioSwitcher /></div>}
+                <div className="flex items-center justify-end gap-2 lg:gap-4 min-w-0">
+                  {isSuper && <div className="w-[min(44vw,220px)] min-w-0 sm:w-auto sm:min-w-[220px]"><CondominioSwitcher /></div>}
                   <NotificationBell className="text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]" />
                     {headerActions ?? null}
 
                   {/* Logout desktop (no mobile já tem no drawer) */}
-                  <div className="hidden lg:block">
+                  <div className="block">
                     <Button
                       onClick={handleLogout}
                       variant="ghost"

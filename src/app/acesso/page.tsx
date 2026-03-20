@@ -273,22 +273,18 @@ list.sort((a: any, b: any) => {
     carregarVinculoMorador();
   }, [firestore, condominioId, uid, role]);
 
-const { waiting, authorized, inside, history } = React.useMemo(() => {
-      const waiting: AcessoItem[] = [];
-      const authorized: AcessoItem[] = [];
-      const inside: AcessoItem[] = [];
-      const history: AcessoItem[] = [];
-      const historyStatus: StatusAcesso[] = ["SAIU", "NEGADO", "EXPIRADO", "CANCELADO"];
+const waiting: AcessoItem[] = [];
+const authorized: AcessoItem[] = [];
+const inside: AcessoItem[] = [];
+const history: AcessoItem[] = [];
+const historyStatus: StatusAcesso[] = ["SAIU", "NEGADO", "EXPIRADO", "CANCELADO"];
 
-      for (const item of itens) {
-          if (item.status === 'PENDENTE') waiting.push(item);
-          else if (item.status === 'AUTORIZADO') authorized.push(item);
-          else if (item.status === 'ENTROU') inside.push(item);
-          else if (historyStatus.includes(item.status)) history.push(item);
-      }
-
-      return { waiting, authorized, inside, history };
-  }, [itens]);
+for (const item of itens) {
+  if (item.status === "PENDENTE") waiting.push(item);
+  else if (item.status === "AUTORIZADO") authorized.push(item);
+  else if (item.status === "ENTROU") inside.push(item);
+  else if (historyStatus.includes(item.status)) history.push(item);
+}
 
     const termoBusca = busca.trim().toLowerCase();
 
@@ -634,7 +630,7 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                     placeholder="Buscar visitante, prestador, placa, documento, bloco ou unidade..."
                     className="bg-white/80 text-slate-900 placeholder:text-slate-500"
                   />
-                  <div className="flex flex-wrap gap-2">
+                  <div className="hidden">
                     <Button
                       type="button"
                       variant={tipoBusca === "todos" ? "default" : "outline"}

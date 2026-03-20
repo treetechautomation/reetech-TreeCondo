@@ -476,7 +476,12 @@ function matchBusca(pkg: any, q: string) {
   );
 }
 
-const pageTitle = isMorador ? "Minhas Encomendas" : "Gestão de Encomendas";
+const pageTitle = (
+  <>
+    <span className="sm:hidden">GE</span>
+    <span className="hidden sm:inline">Gestão de Encomendas</span>
+  </>
+);
 
 const buscaQ = (buscaEncomendas || "").trim();
 const waitingFiltered = (!isOperador || !buscaQ) ? waiting : waiting.filter((pkg) => matchBusca(pkg as any, buscaQ));
@@ -486,6 +491,7 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
   return (
     <AppLayout
       pageTitle={pageTitle}
+      hideMobileMenuButton
       headerActions={
         isOperador && (
             <div className="flex items-center gap-2">

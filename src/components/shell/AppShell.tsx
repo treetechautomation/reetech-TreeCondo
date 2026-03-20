@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen w-full">
-      <div className={cn("min-h-screen", !hideBottomNav && "pb-16")}>
+      <div className={cn("min-h-screen", !hideBottomNav && "pb-24 sm:pb-20")}>
         {children}
       </div>
 

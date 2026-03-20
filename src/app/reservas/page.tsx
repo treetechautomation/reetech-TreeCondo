@@ -5,6 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useReservas } from "@/hooks/useReservas";
 import { AreaCard } from "@/components/reservas/AreaCard";
@@ -84,6 +94,8 @@ export default function ReservasPage() {
 
   const [isChecking, setIsChecking] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
+  const [cancelReservaId, setCancelReservaId] = React.useState<string | null>(null);
+  const [isCancellingReserva, setIsCancellingReserva] = React.useState(false);
 
   const { areas, reservas, loadingAreas, loadingReservas } = useReservas(condId, dateStr);
 
@@ -109,7 +121,8 @@ export default function ReservasPage() {
       }
 
       loadPoliticas();
-      return () => {
+
+    return () => {
         cancelledP = true;
       };
     }, [firestore, condId]);
@@ -117,6 +130,7 @@ export default function ReservasPage() {
   const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
   const [moradoresReservaManual, setMoradoresReservaManual] = React.useState<any[]>([]);
   const [targetUidReserva, setTargetUidReserva] = React.useState<string>("");
+  const [blocoFiltroReserva, setBlocoFiltroReserva] = React.useState<string>("TODOS");
 
   const [filaByArea, setFilaByArea] = React.useState<Record<string, any[]>>({})
 
@@ -222,6 +236,39 @@ React.useEffect(() => {
       cancelled = true;
     };
   }, [firestore, condId, isAdminLike]);
+
+  const blocosReservaManual = React.useMemo(() => {
+    return Array.from(
+      new Set(
+        moradoresReservaManual
+          .map((m: any) => String(m?.bloco || "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a: string, b: string) => a.localeCompare(b, "pt-BR"));
+  }, [moradoresReservaManual]);
+
+  const moradoresReservaManualFiltrados = React.useMemo(() => {
+    if (blocoFiltroReserva === "TODOS") return moradoresReservaManual;
+    return moradoresReservaManual.filter(
+      (m: any) => String(m?.bloco || "").trim() === blocoFiltroReserva
+    );
+  }, [moradoresReservaManual, blocoFiltroReserva]);
+
+  React.useEffect(() => {
+    if (!isAdminLike) return;
+
+    if (blocoFiltroReserva !== "TODOS" && !blocosReservaManual.includes(blocoFiltroReserva)) {
+      setBlocoFiltroReserva("TODOS");
+      return;
+    }
+
+    setTargetUidReserva((prev) => {
+      if (prev && moradoresReservaManualFiltrados.some((m: any) => String(m.uid) === String(prev))) {
+        return prev;
+      }
+      return moradoresReservaManualFiltrados[0]?.uid || "";
+    });
+  }, [isAdminLike, blocoFiltroReserva, blocosReservaManual, moradoresReservaManualFiltrados]);
 
   const [slotsDoDia,setSlotsDoDia] = React.useState<Record<string,{occupied:boolean,filaCount:number}>>({})
   React.useEffect(()=>{
@@ -565,7 +612,22 @@ function canCancelBy48h(dateTs: any, minHoras = 48) {
   }
 }
 
-function formatReservaDataHora(dateTs: any) {
+async function confirmarCancelamentoReserva() {
+    if (!cancelReservaId || !condId) return;
+    try {
+      setIsCancellingReserva(true);
+      await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: cancelReservaId });
+      setCancelReservaId(null);
+      alert("✅ Reserva cancelada.");
+      router.refresh();
+    } catch (e: any) {
+      alert("❌ " + String(e?.message || e));
+    } finally {
+      setIsCancellingReserva(false);
+    }
+  }
+
+  function formatReservaDataHora(dateTs: any) {
   try {
     const d = (dateTs && typeof dateTs.toDate === "function")
       ? dateTs.toDate()
@@ -586,8 +648,36 @@ function formatReservaDataHora(dateTs: any) {
 }
 
 return (
+    <>
+      <AlertDialog
+        open={!!cancelReservaId}
+        onOpenChange={(open) => {
+          if (!open && !isCancellingReserva) setCancelReservaId(null);
+        }}
+      >
+        <AlertDialogContent className="tc-dialog-center">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar reserva</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja cancelar esta reserva?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancellingReserva}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(ev) => {
+                ev.preventDefault();
+                confirmarCancelamentoReserva();
+              }}
+              disabled={isCancellingReserva}
+            >
+              {isCancellingReserva ? "Cancelando..." : "Confirmar cancelamento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-    <AppLayout
+      <AppLayout
       pageTitle="Reservas"
         headerActions={
           isMoradorLike ? null : (
@@ -633,33 +723,54 @@ return (
                 <div className="mt-1 text-xs text-[#0D4459]">
                   Selecione abaixo o morador em nome de quem a reserva será criada.
                 </div>
-                <div className="mt-3">
-                  <label className="mb-1 block text-xs font-medium text-[#0D4459]" htmlFor="targetUidReserva">
-                    Morador
-                  </label>
-                  <select
-                    id="targetUidReserva"
-                    className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none"
-                    value={targetUidReserva}
-                    onChange={(e) => setTargetUidReserva(e.target.value)}
-                  >
-                    {moradoresReservaManual.length === 0 ? (
-                      <option value="">Nenhum morador disponível</option>
-                    ) : null}
-                    {moradoresReservaManual.map((m: any) => {
-                      const detalhes = [
-                        m.bloco ? "Bloco " + m.bloco : "",
-                        m.unidade ? "Unidade " + m.unidade : "",
-                        m.status || "",
-                      ].filter(Boolean).join(" • ");
-                      return (
-                        <option key={m.uid} value={m.uid}>
-                          {detalhes ? `${m.nome} • ${detalhes}` : m.nome}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[#0D4459]" htmlFor="blocoFiltroReserva">
+                        Filtrar por bloco
+                      </label>
+                      <select
+                        id="blocoFiltroReserva"
+                        className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none"
+                        value={blocoFiltroReserva}
+                        onChange={(e) => setBlocoFiltroReserva(e.target.value)}
+                      >
+                        <option value="TODOS">Todos os blocos</option>
+                        {blocosReservaManual.map((bloco: string) => (
+                          <option key={bloco} value={bloco}>
+                            {bloco}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[#0D4459]" htmlFor="targetUidReserva">
+                        Morador
+                      </label>
+                      <select
+                        id="targetUidReserva"
+                        className="w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none"
+                        value={targetUidReserva}
+                        onChange={(e) => setTargetUidReserva(e.target.value)}
+                      >
+                        {moradoresReservaManualFiltrados.length === 0 ? (
+                          <option value="">Nenhum morador disponível</option>
+                        ) : null}
+                        {moradoresReservaManualFiltrados.map((m: any) => {
+                          const detalhes = [
+                            m.bloco ? "Bloco " + m.bloco : "",
+                            m.unidade ? "Unidade " + m.unidade : "",
+                            m.status || "",
+                          ].filter(Boolean).join(" • ");
+                          return (
+                            <option key={m.uid} value={m.uid}>
+                              {detalhes ? `${m.nome} • ${detalhes}` : m.nome}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
               </div>
             ) : null}
             <div className="flex items-center justify-between">
@@ -742,7 +853,7 @@ return (
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0D4459]">
             Opções desta reserva
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             {areaOptionItems.map((opt: any) => {
               const active =
                 selectedAreaId === a.id &&
@@ -754,7 +865,7 @@ return (
                   type="button"
                   variant={active ? "default" : "outline"}
                   size="sm"
-                  className="rounded-full"
+                  className="w-full justify-start whitespace-normal rounded-full px-4 py-3 text-left sm:w-auto sm:justify-center sm:whitespace-nowrap sm:py-2"
                   onClick={(ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
@@ -1011,7 +1122,7 @@ return (
 
                             try {
 
-                              if (!confirm("Cancelar esta reserva?")) return;
+                              setCancelReservaId(String(r.id));
 
                               await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
 
@@ -1112,7 +1223,7 @@ return (
                               ev.preventDefault();
                               ev.stopPropagation();
                               try {
-                                if (!confirm("Cancelar esta reserva?")) return;
+                                setCancelReservaId(String(r.id));
                                 await apiPostAuth("/api/reservas/cancelar", { condominioId: condId, reservaId: r.id });
                                 alert("✅ Reserva cancelada.");
                                 router.refresh();
@@ -1179,5 +1290,6 @@ return (
         </div>
       )}
     </AppLayout>
+    </>
   );
 }

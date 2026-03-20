@@ -105,7 +105,7 @@ export function CondominioSwitcher() {
 
   if (!isSuper && options.length <= 1) {
     return (
-      <Button variant="outline" role="combobox" className="w-full justify-between" disabled>
+      <Button variant="outline" role="combobox" className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4" disabled>
         <span className="truncate">{active ? active.condominioNome : "Nenhum condomínio"}</span>
       </Button>
     );
@@ -113,7 +113,7 @@ export function CondominioSwitcher() {
 
   if (options.length === 0) {
     return (
-      <Button variant="outline" role="combobox" className="w-full justify-between" disabled>
+      <Button variant="outline" role="combobox" className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4" disabled>
         <span className="truncate">{isDisabled ? "Carregando..." : "Nenhum condomínio"}</span>
       </Button>
     );
@@ -126,17 +126,17 @@ export function CondominioSwitcher() {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4"
           disabled={isDisabled}
         >
           <span className="truncate">
             {active ? active.condominioNome : isDisabled ? "Carregando..." : "Selecione um condomínio"}
           </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[260px] p-0 z-[9999]" align="start">
+      <PopoverContent className="w-[min(260px,calc(100vw-24px))] p-0 z-[9999]" align="start" side="bottom" sideOffset={8}>
         <Command filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}>
           <CommandInput placeholder="Procurar condomínio..." />
           <CommandList>
