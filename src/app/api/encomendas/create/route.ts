@@ -158,16 +158,31 @@ async function sendPushToUids(params: {
   const resp = await msg.sendEachForMulticast({
     tokens,
     webpush: {
+      headers: {
+        Urgency: "high",
+      },
       notification: {
         title,
         body,
         icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
       },
       fcmOptions: {
         link: "/encomendas",
       },
     },
-    data: data || {},
+    android: {
+      priority: "high",
+    },
+    apns: {
+      headers: {
+        "apns-priority": "10",
+      },
+    },
+    data: {
+      click_action: "/encomendas",
+      ...(data || {}),
+    },
   });
 
   console.log("[FCM] push multicast result:", {

@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const uid = decodedToken.uid;
 
     const body = await req.json();
-    const { condominioId, titulo, descricao, tipo } = body;
+    const { condominioId, titulo, descricao, tipo, fotos = [] } = body;
 
     if (!condominioId || !titulo || !descricao || !tipo) {
       return NextResponse.json({ ok: false, error: "Dados incompletos" }, { status: 400 });
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       createdAt: now,
       updatedAt: now,
       avaliacao: null,
+        fotos: Array.isArray(fotos) ? fotos : [],
     });
 
     batch.set(historicoRef, {

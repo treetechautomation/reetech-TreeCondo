@@ -96,7 +96,7 @@ function formatTimestamp(ts: any) {
   }).format(ts.toDate());
 }
 
-async function uploadFoto(file: File, condominioId: string): Promise<string> {
+async function uploadFoto(file, condominioId) {
   const { app } = initializeFirebase();
   const storage = getStorage(app);
 
@@ -371,7 +371,7 @@ const handleCreate = async () => {
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4 md:items-start">
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="tipo" className="text-right">
               Tipo
             </Label>
@@ -399,84 +399,31 @@ const handleCreate = async () => {
               className="col-span-3"
             />
           </div>
-<div className="grid grid-cols-1 gap-3 md:grid-cols-4 md:items-start">
-              <Label htmlFor="descricao" className="text-left md:text-right md:pt-2">
-                Descrição
-              </Label>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="descricao" className="text-right">
+              Descrição
+            </Label>
+            <input type="file" accept="image/*" multiple
+onChange={async (e) => {
+  const files = Array.from(e.target.files || []).slice(0,3);
+  const urls = [];
+  for (const f of files) {
+    const url = await uploadFoto(f, condominioAtivoId);
+    urls.push(url);
+  }
+  setFotos(urls);
+}}
+className="mb-2"
+/>
 
-              <div className="space-y-3 md:col-span-3">
-
-                <label className="inline-flex w-full justify-center sm:w-auto cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-                  <span>📸 Adicionar fotos do problema</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={async (e) => {
-                      try {
-                        const files = Array.from(e.target.files || []).slice(0, 3);
-                        if (!files.length) return;
-
-                        if (!condominioAtivoId) {
-                          throw new Error("Condomínio ativo não encontrado.");
-                        }
-
-                        const urls: string[] = [];
-                        for (const f of files) {
-                          const url = await uploadFoto(f, condominioAtivoId);
-                          urls.push(url);
-                        }
-
-                        setFotos((prev) => [...prev, ...urls].slice(0, 3));
-                        e.target.value = "";
-                      } catch (err) {
-                        console.error(err);
-                        alert("Erro ao enviar fotos.");
-                      }
-                    }}
-                  />
-                </label>
-
-                <p className="text-xs leading-5 text-slate-500">
-                  Adicione até 3 fotos para ajudar na análise da ocorrência.
-                </p>
-
-                {Array.isArray(fotos) && fotos.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {fotos.map((foto, i) => (
-                      <div key={i} className="relative">
-                        <img
-                          src={foto}
-                          alt=""
-                          className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg border object-cover"
-                        />
-                        <button
-                          type="button"
-                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border bg-white text-xs"
-                          onClick={() => setFotos((prev) => prev.filter((_, idx) => idx !== i))}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <Textarea
-                  id="descricao"
-                  value={descricao}
-                  onChange={(e) => setDescricao(e.target.value)}
-                  placeholder="Descreva com clareza o problema..."
-                  className="min-h-[140px] w-full resize-y"
-                />
-
-                <p className="text-xs text-slate-500">
-                  Ex: Vazamento na garagem, próximo à vaga 12.
-                </p>
-
-              </div>
-            </div>
+<Textarea
+              id="descricao"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Detalhe o que está acontecendo."
+              className="col-span-3"
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button className="text-black" onClick={handleCreate} disabled={saving}>
