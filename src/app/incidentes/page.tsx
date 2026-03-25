@@ -101,10 +101,21 @@ async function uploadFoto(file: File, condominioId: string): Promise<string> {
   const { app } = initializeFirebase();
   const storage = getStorage(app);
 
-  const fileName = Date.now() + "_" + file.name;
+  const compressed = await compressImage(file);
+
+  console.log("[Incidentes] upload original/comprimido:", {
+    originalName: file.name,
+    originalType: file.type,
+    originalSizeKB: Math.round(file.size / 1024),
+    compressedName: compressed.name,
+    compressedType: compressed.type,
+    compressedSizeKB: Math.round(compressed.size / 1024),
+  });
+
+  const fileName = Date.now() + "_" + compressed.name;
   const storageRef = ref(storage, `condominios/${condominioId}/incidentes/${fileName}`);
 
-  await uploadBytes(storageRef, file);
+  await uploadBytes(storageRef, compressed);
   const url = await getDownloadURL(storageRef);
   return url;
 }
@@ -433,10 +444,7 @@ const handleCreate = async () => {
                 <label className="inline-flex w-full justify-center sm:w-auto cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
                   <span>📸 Adicionar fotos do problema</span>
                   <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
+                    type="file" accept="image/*" className="hidden"
                     onChange={async (e) => {
                       try {
                         const files = Array.from(e.target.files || []).slice(0, 1);
@@ -448,11 +456,12 @@ const handleCreate = async () => {
 
                         const urls: string[] = [];
                         for (const f of files) {
-                          const url = await uploadFoto(f, condominioAtivoId);
+                          console.log("[compress] enviando imagem");
+const url = await uploadFoto(await compressImage(f), condominioAtivoId);
                           urls.push(url);
                         }
 
-                        setFotos((prev) => [...prev, ...urls].slice(0, 3));
+                        setFotos(urls.slice(0, 1));
                         e.target.value = "";
                       } catch (err) {
                         console.error(err);
@@ -468,7 +477,7 @@ const handleCreate = async () => {
 
                 {Array.isArray(fotos) && fotos.length > 0 && (
                     <div className="flex flex-wrap gap-3">
-                      {fotos.map((foto: string, i: number) => (
+                      {fotos.slice(0, 1).map((foto: string, i: number) => (
                         <div
                           key={i}
                           className="relative rounded-xl border border-black/10 bg-white p-2 shadow-sm"
@@ -641,6 +650,53 @@ const RateDialog = ({ incidente }: { incidente: Incidente }) => {
     </Dialog>
   );
 };
+
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = reject;
+    image.src = url;
+  });
+
+  const max = 1600;
+  let { width, height } = img;
+
+  if (width > height && width > max) {
+    height = Math.round((height * max) / width);
+    width = max;
+  } else if (height > max) {
+    width = Math.round((width * max) / height);
+    height = max;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((res) =>
+    canvas.toBlob(res, "image/jpeg", 0.75)
+  );
+
+  if (!blob) return file;
+
+  return new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
+    type: "image/jpeg",
+  });
+}
+
 
 export default function IncidentesPage() {
   const { session } = useSessionCtx();
