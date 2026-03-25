@@ -303,18 +303,7 @@ React.useEffect(() => {
           {isOperator && (
             <select
   value={statusLocal}
-  onChange={async (e) => {
-    const newStatus = e.target.value as Incidente['status'];
-    try {
-      await apiPost('/api/incidentes/status', {
-        condominioId: condominioAtivoId,
-        incidenteId: incidente.id,
-        status: newStatus,
-      });
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao atualizar status');
-    }
-  }}
+  onChange={(e) => setStatusLocal(e.target.value as any)}
   className="h-8 w-[150px] rounded-md border border-input bg-white/90 px-2 text-xs text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/40"
 >
   <option value="ABERTO">Aberto</option>
@@ -358,6 +347,7 @@ const CreateIncidenteDialog = () => {
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 const [fotos, setFotos] = React.useState<string[]>([]);
+const [fotoFile, setFotoFile] = React.useState<File | null>(null);
   const [titulo, setTitulo] = React.useState('');
   const [descricao, setDescricao] = React.useState('');
   const [tipo, setTipo] = React.useState<Incidente['tipo'] | ''>('');
@@ -370,19 +360,37 @@ const handleCreate = async () => {
       alert('Preencha todos os campos.');
       return;
     }
+
     setSaving(true);
+
     try {
-      await apiPost('/api/incidentes/create', { fotos,
+      let fotosUrls: string[] = [];
+
+      if (fotoFile) {
+        console.log("[incidentes] upload apenas no submit", {
+          nome: fotoFile.name,
+          tamanho: fotoFile.size,
+          tipo: fotoFile.type,
+        });
+
+        const url = await uploadFoto(fotoFile, condominioAtivoId);
+        fotosUrls = [url];
+      }
+
+      await apiPost('/api/incidentes/create', {
         condominioId: condominioAtivoId,
         titulo,
         descricao,
         tipo,
+        fotos: fotosUrls,
       });
+
       setOpen(false);
       setTitulo('');
       setDescricao('');
       setTipo('');
-        setFotos([]);
+      setFotos([]);
+      setFotoFile(null);
     } catch (error: any) {
       alert(`Erro: ${error.message}`);
     } finally {
@@ -391,7 +399,16 @@ const handleCreate = async () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setFotos([]);
+          setFotoFile(null);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="text-black" size="sm" disabled={!condominioAtivoId}>
           <PlusCircle />{' '}
@@ -442,32 +459,30 @@ const handleCreate = async () => {
               <div className="space-y-3 md:col-span-3">
 
                 <label className="inline-flex w-full justify-center sm:w-auto cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-                  <span>📸 Adicionar fotos do problema</span>
+                  <span>📸 Adicionar foto do problema</span>
                   <input
                     type="file" accept="image/*" className="hidden"
                     onChange={async (e) => {
-                      try {
-                        const files = Array.from(e.target.files || []).slice(0, 1);
-                        if (!files.length) return;
+                        try {
+                          const input = e.currentTarget;
+                          const file = input.files?.[0];
+                          if (!file) return;
 
-                        if (!condominioAtivoId) {
-                          throw new Error("Condomínio ativo não encontrado.");
+                          if (!condominioAtivoId) {
+                            throw new Error("Condomínio ativo não encontrado.");
+                          }
+
+                          console.log("[compress] enviando imagem única");
+                          // apenas preview local (sem upload)
+const previewUrl = URL.createObjectURL(file);
+setFotoFile(file);
+                          setFotos([previewUrl]);
+                          input.value = "";
+                        } catch (err) {
+                          console.error(err);
+                          alert("Erro ao enviar foto.");
                         }
-
-                        const urls: string[] = [];
-                        for (const f of files) {
-                          console.log("[compress] enviando imagem");
-const url = await uploadFoto(await compressImage(f), condominioAtivoId);
-                          urls.push(url);
-                        }
-
-                        setFotos(urls.slice(0, 1));
-                        e.target.value = "";
-                      } catch (err) {
-                        console.error(err);
-                        alert("Erro ao enviar fotos.");
-                      }
-                    }}
+                      }}
                   />
                 </label>
 
@@ -491,9 +506,10 @@ const url = await uploadFoto(await compressImage(f), condominioAtivoId);
                           <button
                             type="button"
                             className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-white text-sm font-bold text-red-600 shadow hover:bg-red-50"
-                            onClick={() =>
-                              setFotos((prev: string[]) => prev.filter((_, idx) => idx !== i))
-                            }
+                            onClick={() => {
+                                setFotos((prev: string[]) => prev.filter((_, idx) => idx !== i));
+                                setFotoFile(null);
+                              }}
                             title="Excluir esta foto"
                             aria-label={`Excluir foto ${i + 1}`}
                           >
