@@ -65,6 +65,75 @@ export async function POST(req: Request) {
 
     await batch.commit();
 
+      // ===== ALERTA_SINDICO_INCIDENTE =====
+      try {
+        const membrosRef = db.collection("condominios").doc(condominioId).collection("membros");
+        const snap = await membrosRef.where("status", "in", ["ATIVO", "PENDENTE"]).get();
+
+        const operadores = snap.docs
+          .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
+          .filter((m: any) => {
+            const role = String(m.role || "").toUpperCase().trim();
+            return ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"].includes(role);
+          });
+
+        if (operadores.length) {
+          const notifBatch = db.batch();
+          const uids = [];
+
+          for (const op of operadores) {
+            const uidOp = op.id;
+            uids.push(uidOp);
+
+            const ref = db
+              .collection("condominios")
+              .doc(condominioId)
+              .collection("notificacoes")
+              .doc();
+
+            notifBatch.set(ref, {
+              tipo: "INCIDENTE_NOVO",
+              title: "Novo incidente aberto",
+              message: titulo,
+              titulo: "Novo incidente aberto",
+              mensagem: titulo,
+              targetUid: uidOp,
+              condominioId,
+              incidenteId: novoIncidenteRef.id,
+              lida: false,
+              arquivada: false,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
+          }
+
+          await notifBatch.commit();
+
+          // PUSH
+          try {
+            const { sendPushToUids } = require("@/lib/serverPush");
+
+            await sendPushToUids({
+              db,
+              uids,
+              title: "Novo incidente",
+              body: titulo,
+              link: "/incidentes",
+              data: {
+                tipo: "INCIDENTE_NOVO",
+                incidenteId: String(novoIncidenteRef.id),
+              },
+            });
+          } catch (e: any) {
+            console.warn("Push incidente falhou:", e?.message || String(e));
+          }
+        }
+      } catch (e: any) {
+        console.warn("Notificação incidente falhou:", e?.message || String(e));
+      }
+      // ===== /ALERTA_SINDICO_INCIDENTE =====
+
+
     return NextResponse.json({ ok: true, incidenteId: novoIncidenteRef.id });
   } catch (error: any) {
     console.error("Erro ao criar incidente:", error);
