@@ -231,7 +231,7 @@ React.useEffect(() => {
         
         {Array.isArray(incidente.fotos) && incidente.fotos.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-2">
-            {incidente.fotos.slice(0, 3).map((foto: string, i: number) => (
+            {incidente.fotos.slice(0, 1).map((foto: string, i: number) => (
               <a
                 key={i}
                 href={foto}
@@ -439,7 +439,7 @@ const handleCreate = async () => {
                     className="hidden"
                     onChange={async (e) => {
                       try {
-                        const files = Array.from(e.target.files || []).slice(0, 3);
+                        const files = Array.from(e.target.files || []).slice(0, 1);
                         if (!files.length) return;
 
                         if (!condominioAtivoId) {
@@ -463,7 +463,7 @@ const handleCreate = async () => {
                 </label>
 
                 <p className="text-xs leading-5 text-slate-500">
-                  Adicione até 3 fotos para ajudar na análise da ocorrência.
+                  Adicione 1 foto para ajudar na análise da ocorrência.
                 </p>
 
                 {Array.isArray(fotos) && fotos.length > 0 && (
@@ -492,7 +492,7 @@ const handleCreate = async () => {
                           </button>
 
                           <div className="mt-2 text-center text-[11px] text-slate-500">
-                            Foto {i + 1}
+                            Foto
                           </div>
                         </div>
                       ))}
