@@ -70,6 +70,7 @@ type Incidente = {
   id: string;
   titulo: string;
   descricao: string;
+  fotos?: string[];
   tipo: 'MANUTENCAO' | 'RECLAMACAO' | 'DUVIDA_SUGESTAO';
   status: 'ABERTO' | 'EM_ANDAMENTO' | 'RESOLVIDO' | 'FINALIZADO';
   criadoPorUid: string;
@@ -227,7 +228,29 @@ React.useEffect(() => {
       </CardHeader>
       <CardContent>
         <p className="text-[#FFFEE9]">{incidente.descricao}</p>
-        <Separator className="my-4 bg-white/25" />
+        
+        {Array.isArray(incidente.fotos) && incidente.fotos.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {incidente.fotos.slice(0, 3).map((foto: string, i: number) => (
+              <a
+                key={i}
+                href={foto}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+                title={`Abrir foto ${i + 1}`}
+              >
+                <img
+                  src={foto}
+                  alt={`Foto da ocorrência ${i + 1}`}
+                  className="h-24 w-24 rounded-lg border object-cover shadow-sm transition hover:scale-[1.05]"
+                />
+              </a>
+            ))}
+          </div>
+        )}
+
+<Separator className="my-4 bg-white/25" />
         <div className="space-y-3">
           <h4 className="text-sm font-semibold">Histórico</h4>
           {loadingHistorico ? (
@@ -348,6 +371,7 @@ const handleCreate = async () => {
       setTitulo('');
       setDescricao('');
       setTipo('');
+        setFotos([]);
     } catch (error: any) {
       alert(`Erro: ${error.message}`);
     } finally {
@@ -443,27 +467,39 @@ const handleCreate = async () => {
                 </p>
 
                 {Array.isArray(fotos) && fotos.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {fotos.map((foto, i) => (
-                      <div key={i} className="relative">
-                        <img
-                          src={foto}
-                          alt=""
-                          className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg border object-cover"
-                        />
-                        <button
-                          type="button"
-                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border bg-white text-xs"
-                          onClick={() => setFotos((prev) => prev.filter((_, idx) => idx !== i))}
+                    <div className="flex flex-wrap gap-3">
+                      {fotos.map((foto: string, i: number) => (
+                        <div
+                          key={i}
+                          className="relative rounded-xl border border-black/10 bg-white p-2 shadow-sm"
                         >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          <img
+                            src={foto}
+                            alt={`Foto da ocorrência ${i + 1}`}
+                            className="h-24 w-24 rounded-lg border object-cover"
+                          />
 
-                <Textarea
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-white text-sm font-bold text-red-600 shadow hover:bg-red-50"
+                            onClick={() =>
+                              setFotos((prev: string[]) => prev.filter((_, idx) => idx !== i))
+                            }
+                            title="Excluir esta foto"
+                            aria-label={`Excluir foto ${i + 1}`}
+                          >
+                            ×
+                          </button>
+
+                          <div className="mt-2 text-center text-[11px] text-slate-500">
+                            Foto {i + 1}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <Textarea
                   id="descricao"
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
