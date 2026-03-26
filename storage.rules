@@ -59,6 +59,12 @@ service firebase.storage {
         allow write: if isSuper() || isOperador(condId);
       }
 
+      // INCIDENTES (fotos das ocorrências)
+      match /condominios/{condId}/incidentes/{fileName} {
+        allow read: if isSuper() || isMembroAtivo(condId);
+        allow write: if isSuper() || isMembroAtivo(condId);
+      }
+
 match /condominios/{condId}/documentos/{docId}/{fileName} {
       allow read: if isSuper() || isMembroAtivo(condId);
       allow write: if isSuper() || isOperador(condId);

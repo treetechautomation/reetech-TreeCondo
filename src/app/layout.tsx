@@ -5,7 +5,52 @@ import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { AppShell } from "@/components/shell/AppShell";
 import Providers from "./providers";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://treecondo.treetechautomation.com"),
+
+  title: {
+    default: "TreeCondo - Gestão inteligente de condomínios",
+    template: "%s | TreeCondo"
+  },
+
+  description:
+    "Sistema completo para gestão de condomínios. Controle reservas, acessos, incidentes, encomendas e comunicação em um único lugar.",
+
+  keywords: [
+    "gestão de condomínio",
+    "sistema para condomínio",
+    "software para síndico",
+    "controle de portaria",
+    "reservas condomínio",
+    "TreeCondo"
+  ],
+
+  openGraph: {
+    title: "TreeCondo - Gestão inteligente de condomínios",
+    description:
+      "Sistema moderno para síndicos, moradores e portaria.",
+    url: "https://treecondo.treetechautomation.com",
+    siteName: "TreeCondo",
+    locale: "pt_BR",
+    type: "website",
+    images: [
+      {
+        url: "/logo-treecondo.jpeg",
+        width: 1200,
+        height: 630,
+        alt: "TreeCondo"
+      }
+    ]
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "TreeCondo",
+    description: "Gestão inteligente de condomínios",
+    images: ["/logo-treecondo.jpeg"]
+  },
+
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -16,15 +61,10 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
   },
-  title: "TreeCondo - Gestão inteligente de condomínios",
-  description: "TreeCondo - Gestão inteligente de condomínios",
-  manifest: "/manifest.webmanifest?v=20260225_1772033181849",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "TreeCondo",
-  },
+
+  manifest: "/manifest.webmanifest",
 };
+
 
 import { RealtimeToast } from "@/components/toast/RealtimeToast";
 
