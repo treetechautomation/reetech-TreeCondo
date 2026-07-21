@@ -18,7 +18,7 @@ export function TcPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm",
+        "inline-flex items-center rounded-full border border-border bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 shadow-sm",
         className
       )}
     >
@@ -37,20 +37,20 @@ export function CategoriaBadge({
   const c = normalize(categoria);
 
   const map: Record<string, string> = {
-    EXTINTORES: "bg-rose-500/25 text-rose-50 border-rose-300/30",
-    ELEVADOR: "bg-violet-500/25 text-violet-50 border-violet-300/30",
-    CAIXA_DAGUA: "bg-sky-500/25 text-sky-50 border-sky-300/30",
-    "CAIXA D'AGUA": "bg-sky-500/25 text-sky-50 border-sky-300/30",
-    DEDETIZACAO: "bg-amber-500/25 text-amber-50 border-amber-300/30",
-    OUTROS: "bg-white/10 text-white/85 border-white/15",
+    EXTINTORES: "bg-destructive/15 text-destructive border-destructive/20",
+    ELEVADOR: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    CAIXA_DAGUA: "bg-info/15 text-info border-info/20",
+    "CAIXA D'AGUA": "bg-info/15 text-info border-info/20",
+    DEDETIZACAO: "bg-warning/20 text-warning-foreground border-warning/30",
+    OUTROS: "bg-slate-100 text-slate-700 border-border",
   };
 
-  const cls = map[c] ?? "bg-white/10 text-white/85 border-white/15";
+  const cls = map[c] ?? "bg-slate-100 text-slate-700 border-border";
 
   return (
     <Badge
       className={cn(
-        "border shadow-sm px-2.5 py-0.5 font-semibold tracking-wide",
+        "border shadow-sm px-2.5 py-0.5 font-semibold tracking-wide hover:bg-transparent",
         cls,
         className
       )}
@@ -74,7 +74,7 @@ export function StatusBadge({
     return (
       <Badge
         className={cn(
-          "border px-2.5 py-0.5 font-semibold shadow-sm bg-emerald-600/25 text-emerald-100 border-emerald-400/30",
+          "border px-2.5 py-0.5 font-semibold shadow-sm bg-success/15 text-success border-success/20 hover:bg-success/20",
           className
         )}
       >
@@ -86,7 +86,7 @@ export function StatusBadge({
     return (
       <Badge
         className={cn(
-          "border px-2.5 py-0.5 font-semibold shadow-sm bg-red-600/25 text-red-100 border-red-400/30",
+          "border px-2.5 py-0.5 font-semibold shadow-sm bg-destructive/15 text-destructive border-destructive/20 hover:bg-destructive/20",
           className
         )}
       >
@@ -100,7 +100,7 @@ export function StatusBadge({
     return (
       <Badge
         className={cn(
-          "border px-2.5 py-0.5 font-semibold shadow-sm bg-emerald-600/25 text-emerald-100 border-emerald-400/30",
+          "border px-2.5 py-0.5 font-semibold shadow-sm bg-success/15 text-success border-success/20 hover:bg-success/20",
           className
         )}
       >
@@ -112,7 +112,7 @@ export function StatusBadge({
     return (
       <Badge
         className={cn(
-          "border px-2.5 py-0.5 font-semibold shadow-sm bg-white/10 text-white/85 border-white/15",
+          "border px-2.5 py-0.5 font-semibold shadow-sm bg-slate-100 text-slate-700 border-border hover:bg-slate-200",
           className
         )}
       >
@@ -124,7 +124,7 @@ export function StatusBadge({
     return (
       <Badge
         className={cn(
-          "border px-2.5 py-0.5 font-semibold shadow-sm bg-emerald-600/25 text-emerald-100 border-emerald-400/30",
+          "border px-2.5 py-0.5 font-semibold shadow-sm bg-success/15 text-success border-success/20 hover:bg-success/20",
           className
         )}
       >
@@ -136,7 +136,7 @@ export function StatusBadge({
     return (
       <Badge
         className={cn(
-          "border px-2.5 py-0.5 font-semibold shadow-sm bg-amber-500/25 text-amber-100 border-amber-300/30",
+          "border px-2.5 py-0.5 font-semibold shadow-sm bg-warning/20 text-warning-foreground border-warning/30 hover:bg-warning/30",
           className
         )}
       >
@@ -147,7 +147,7 @@ export function StatusBadge({
   return (
     <Badge
       className={cn(
-        "border px-2.5 py-0.5 font-semibold shadow-sm bg-white/10 text-white/85 border-white/15",
+        "border px-2.5 py-0.5 font-semibold shadow-sm bg-slate-100 text-slate-700 border-border hover:bg-slate-200",
         className
       )}
     >
@@ -166,16 +166,16 @@ export function AlertaBadge({
   className?: string;
 }) {
   const toneMap = {
-    neutral: "bg-white/10 text-white/85 border-white/15",
-    danger: "bg-red-600/25 text-red-100 border-red-400/30",
-    warning: "bg-amber-500/25 text-amber-100 border-amber-300/30",
-    success: "bg-emerald-600/25 text-emerald-100 border-emerald-400/30",
+    neutral: "bg-slate-100 text-slate-700 border-border",
+    danger: "bg-destructive/15 text-destructive border-destructive/20",
+    warning: "bg-warning/20 text-warning-foreground border-warning/30",
+    success: "bg-success/15 text-success border-success/20",
   } as const;
 
   return (
     <Badge
       className={cn(
-        "border px-2.5 py-0.5 font-semibold shadow-sm",
+        "border px-2.5 py-0.5 font-semibold shadow-sm hover:bg-transparent",
         toneMap[tone],
         className
       )}
