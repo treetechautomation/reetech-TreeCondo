@@ -4,267 +4,273 @@
       "collectionGroup": "reservas",
       "queryScope": "COLLECTION",
       "fields": [
-        "fieldPath": "uid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "uid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "userId",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "userId",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "moradorUid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "moradorUid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "createdByUid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "createdByUid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "data",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "notificacoes",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "targetUid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "arquivada",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "createdAt",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "notificacoes",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "targetUid",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "lida",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "arquivada",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "createdAt",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "accessLinks",
-    "queryScope": "COLLECTION_GROUP",
-    "fields": [
-      {
-        "fieldPath": "accessStatus",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "emailNorm",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "__name__",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "portariaQrCodes",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "criadoPor",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "createdAt",
-        "order": "DESCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "reunioes",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "status",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "tipo",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "dataInicio",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "usoCampo",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "dateStr",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "status",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "inicioMin",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "campoAgenda",
-    "queryScope": "COLLECTION",
-    "fields": [
-      {
-        "fieldPath": "exclusividade.status",
-        "order": "ASCENDING"
-      },
-      {
-        "fieldPath": "exclusividade.expiresAt",
-        "order": "ASCENDING"
-      }
-    ]
-  },
-  {
-    "collectionGroup": "bloqueiosReservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      { "fieldPath": "ativo", "order": "ASCENDING" },
-      { "fieldPath": "blocoIdNorm", "order": "ASCENDING" },
-      { "fieldPath": "unidadeIdNorm", "order": "ASCENDING" }
-    ]
-  },
-  {
-    "collectionGroup": "bloqueiosReservas",
-    "queryScope": "COLLECTION",
-    "fields": [
-      { "fieldPath": "ativo", "order": "ASCENDING" },
-      { "fieldPath": "uid", "order": "ASCENDING" }
-    ]
-  }
-],
-"fieldOverrides": [
-  {
-    "collectionGroup": "accessLinks",
-    "fieldPath": "emailNorm",
-    "indexes": [
-      {
-        "order": "ASCENDING",
-        "queryScope": "COLLECTION_GROUP"
-      },
-      {
-        "order": "DESCENDING",
-        "queryScope": "COLLECTION_GROUP"
-      }
-    ]
-  }
-]
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "moradorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "moradorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "createdByUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "createdByUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "notificacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "arquivada",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "notificacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "targetUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lida",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "arquivada",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "bloqueiosReservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ativo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "blocoIdNorm",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "unidadeIdNorm",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "bloqueiosReservas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ativo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "usoCampo",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dateStr",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "campoAgenda",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "inicioMin",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "exclusividade.status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "exclusividade.expiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "accessLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "accessStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "emailNorm",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "accessLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "portariaQrCodes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "criadoPor",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "reunioes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dataInicio",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ]
 }
