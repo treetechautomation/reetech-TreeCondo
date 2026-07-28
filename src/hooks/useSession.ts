@@ -5,17 +5,11 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import type { User } from "firebase/auth";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { useUser, useClaims, useFirestore } from "@/firebase";
+import type { VinculoRole, Vinculo } from "@/lib/pessoas/types";
 
 export type RoleKey = "SUPER_ADMIN" | "SINDICO" | "ADMIN" | "ADMIN_CONDOMINIO" | "PORTEIRO" | "ZELADOR" | "MORADOR";
-export type VinculoRole = "SINDICO" | "MORADOR" | "PORTEIRO" | "ZELADOR" | "ADMIN" | "ADMIN_CONDOMINIO";
 
-export type Vinculo = {
-  condominioId: string;
-  role: VinculoRole;
-  blocoId?: string | null;
-  unidadeId?: string | null;
-  status: "ATIVO" | "INATIVO";
-};
+export type { VinculoRole, Vinculo };
 
 type UserDoc = {
   displayName?: string;
@@ -26,21 +20,11 @@ type UserDoc = {
 function isSuperAdminUser(user: User | null, claims: Record<string, any> | null): boolean {
   if (!user) return false;
 
-  const email = (user.email || "").toLowerCase();
-
-  // ✅ lista de emails que SEMPRE serão super admin (coloque o seu aqui também)
-  const allowEmails = new Set<string>([
-    "treecommunity@treetechautomation.com",
-    "treetechautomation@treetechautomation.com",
-    // "SEU_EMAIL_AQUI@SEUDOMINIO.COM",
-  ]);
-  if (allowEmails.has(email)) return true;
-
-  // ✅ claims comuns
+  // claims comuns
   if (claims?.super_admin === true) return true;
   if (claims?.superAdmin === true) return true;
 
-  // ✅ alguns setups salvam role/roles
+  // alguns setups salvam role/roles
   if (String(claims?.role || "") === "SUPER_ADMIN") return true;
   if (Array.isArray(claims?.roles) && claims.roles.includes("SUPER_ADMIN")) return true;
 
@@ -115,8 +99,10 @@ export function useSessionBase() {
           .map((d) => d.data() as Vinculo)
           .filter((v) => v.status === "ATIVO");
         
-        // LOG REQUESTED BY USER
-        console.warn(`[SessionContext] Vínculos carregados para UID ${user.uid}:`, list);
+        // Debug: habilitar apenas em desenvolvimento
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[SessionContext] Vínculos carregados para UID ${user.uid}:`, list);
+        }
         
         setVinculos(list);
         setIsVinculosLoading(false);
@@ -218,7 +204,23 @@ export function useSessionBase() {
   };
 }
 
+import { createContext, useContext } from "react";
 
-export function useSession() {
+export type SessionContextType = {
+  session: Session | null;
+  user: Session["user"] | null;
+  isSessionLoading: boolean;
+  isUserLoading: boolean;
+  isAuthenticated: boolean;
+  activeCondominioId: string | null;
+  setActiveCondominioId: (id: string | null) => void;
+  claims: Record<string, any> | null;
+};
+
+export const SessionContext = createContext<SessionContextType | undefined>(undefined);
+
+export function useSession(): SessionContextType {
+  const ctx = useContext(SessionContext);
+  if (ctx) return ctx;
   return useSessionBase();
 }

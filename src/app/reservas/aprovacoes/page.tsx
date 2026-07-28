@@ -5,8 +5,6 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useReservas } from "@/hooks/useReservas";
-import { useFirestore } from "@/firebase";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 function toISODateLocal(d: Date) {
   const y = d.getFullYear();
@@ -19,37 +17,66 @@ export default function ReservasAprovacoesPage() {
   const { session, isSessionLoading } = useSessionCtx();
   const condId = session?.activeCondominioId ?? null;
   const role = session?.role ?? null;
-  const user = session?.user ?? null;
-
-  const firestore = useFirestore();
 
   const podeVer = !isSessionLoading && !!session && !!condId;
-  const canAprovar = podeVer && ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"].includes(String(role ?? ""));
+  const canAprovar =
+    podeVer &&
+    (!!session?.superAdmin ||
+      ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO"].includes(String(role ?? "")));
 
   const [dateStr, setDateStr] = React.useState(() => toISODateLocal(new Date()));
   const { reservas, loadingReservas } = useReservas(condId, dateStr);
+  const [busyId, setBusyId] = React.useState<string | null>(null);
 
   const pendentes = React.useMemo(() => {
-    return (reservas || []).filter((r: any) => String(r.status ?? "") === "PENDENTE");
+    return (reservas || []).filter(
+      (r: any) => String(r.status ?? "") === "PENDENTE",
+    );
   }, [reservas]);
 
-  async function setStatus(reservaId: string, status: "APROVADA" | "REJEITADA") {
-    if (!firestore || !condId || !user?.uid) return;
-
-    await updateDoc(doc(firestore, "condominios", condId, "reservas", reservaId), {
-      status,
-      atualizadoEm: serverTimestamp(),
-      atualizadoPor: user.uid,
-      ...(status === "APROVADA" ? { aprovadoEm: serverTimestamp(), aprovadoPor: user.uid } : {}),
-      ...(status === "REJEITADA" ? { rejeitadoEm: serverTimestamp(), rejeitadoPor: user.uid } : {}),
+  async function apiPostAuth(path: string, body: any) {
+    const authMod: any = await import("firebase/auth");
+    const { getAuth } = authMod;
+    const auth = getAuth();
+    const u = auth?.currentUser;
+    if (!u) throw new Error("Sem usuário autenticado.");
+    const token = await u.getIdToken();
+    const r = await fetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
     });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.error || `Erro ${r.status}`);
+    return data;
+  }
+
+  async function setStatus(reservaId: string, status: "APROVADA" | "REJEITADA") {
+    if (!condId) return;
+    setBusyId(reservaId);
+    try {
+      await apiPostAuth("/api/reservas/aprovar", {
+        condominioId: condId,
+        reservaId,
+        status,
+      });
+    } catch (e: any) {
+      window.alert("❌ " + (e?.message || "Erro ao alterar status."));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
     <AppLayout pageTitle="Aprovações de Reservas" headerActions={null}>
       {!podeVer ? (
         <div className="rounded-2xl border bg-card p-6">
-          <div className="text-sm text-muted-foreground">Carregando sessão/condomínio...</div>
+          <div className="text-sm text-muted-foreground">
+            Carregando sessão/condomínio...
+          </div>
         </div>
       ) : !canAprovar ? (
         <div className="rounded-2xl border bg-card p-6">
@@ -72,7 +99,9 @@ export default function ReservasAprovacoesPage() {
             </div>
 
             <div className="text-xs text-muted-foreground">
-              {loadingReservas ? "Carregando..." : `${pendentes.length} pendente(s)`}
+              {loadingReservas
+                ? "Carregando..."
+                : `${pendentes.length} pendente(s)`}
             </div>
           </div>
 
@@ -80,7 +109,9 @@ export default function ReservasAprovacoesPage() {
             <div className="font-semibold">Pendentes</div>
 
             {loadingReservas ? (
-              <div className="mt-4 text-sm text-muted-foreground">Buscando reservas...</div>
+              <div className="mt-4 text-sm text-muted-foreground">
+                Buscando reservas...
+              </div>
             ) : pendentes.length === 0 ? (
               <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
                 Nenhuma reserva pendente neste dia.
@@ -88,21 +119,35 @@ export default function ReservasAprovacoesPage() {
             ) : (
               <div className="mt-4 space-y-3">
                 {pendentes.map((r: any) => (
-                  <div key={r.id} className="rounded-xl border p-4 flex flex-col gap-2">
+                  <div
+                    key={r.id}
+                    className="rounded-xl border p-4 flex flex-col gap-2"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="font-medium">
-                        Área: <span className="text-muted-foreground">{r.areaId}</span>
+                        Área:{" "}
+                        <span className="text-muted-foreground">
+                          {r.areaId}
+                        </span>
                       </div>
                       <div className="text-sm">
                         Status: <span className="font-semibold">{r.status}</span>
                       </div>
                     </div>
 
-
                     <div className="flex gap-2">
-                      <Button onClick={() => setStatus(r.id, "APROVADA")}>Aprovar</Button>
-                      <Button variant="secondary" onClick={() => setStatus(r.id, "REJEITADA")}>
-                        Rejeitar
+                      <Button
+                        disabled={busyId === r.id}
+                        onClick={() => setStatus(r.id, "APROVADA")}
+                      >
+                        {busyId === r.id ? "Processando..." : "Aprovar"}
+                      </Button>
+                      <Button
+                        disabled={busyId === r.id}
+                        variant="secondary"
+                        onClick={() => setStatus(r.id, "REJEITADA")}
+                      >
+                        {busyId === r.id ? "Processando..." : "Rejeitar"}
                       </Button>
                     </div>
                   </div>

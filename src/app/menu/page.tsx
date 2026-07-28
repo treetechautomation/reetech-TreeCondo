@@ -11,6 +11,7 @@ import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { navIconColor } from "@/lib/navigationIconColors";
 
 import {
   CalendarCheck2,
@@ -27,6 +28,11 @@ import {
   Wrench,
   Settings,
   Shield,
+  User,
+  ShoppingBag,
+  DollarSign,
+  ArrowLeft,
+  LayoutDashboard,
 } from "lucide-react";
 
 type Item = {
@@ -51,6 +57,8 @@ function Tile({
   selected: boolean;
   onPick: (key: string, href: string) => void;
 }) {
+  const iconColor = navIconColor(item.key);
+
   return (
     <button
       type="button"
@@ -67,7 +75,10 @@ function Tile({
     >
       <div className="flex items-start gap-4 min-w-0">
         <div className="h-10 w-10 shrink-0 rounded-2xl border border-white/12 bg-black/20 flex items-center justify-center">
-          <item.icon className="h-5 w-5 text-white/85 transition-all group-hover:text-[#00d0e6] group-hover:drop-shadow-[0_0_10px_rgba(0,208,230,.55)]" />
+          <item.icon
+            className="h-5 w-5 transition-all group-hover:drop-shadow-[0_0_10px_rgba(0,208,230,.35)]"
+            style={{ color: selected ? "#00d0e6" : iconColor }}
+          />
         </div>
 
         <div className="min-w-0">
@@ -146,17 +157,21 @@ export default function MenuPage() {
     {
       title: "Operacional",
       items: [
+        { key: "dashboard", href: "/painel", label: "Dashboard", icon: LayoutDashboard, desc: "Painel de controle principal" },
         { key: "reservas", href: "/reservas", label: "Reservas", icon: CalendarCheck2, desc: "Agendar áreas comuns" },
         { key: "reservas_solicitacoes", href: "/reservas/solicitacoes", label: "Solicitações de Reservas", icon: ClipboardList, desc: "Aprovar / recusar" },
         { key: "encomendas", href: "/encomendas", label: "Encomendas", icon: Package, desc: "Controle de entregas" },
         { key: "anuncios", href: "/anuncios", label: "Anúncios", icon: Megaphone, desc: "Comunicados do condomínio" },
         { key: "incidentes", href: "/incidentes", label: "Incidentes", icon: AlertTriangle, desc: "Ocorrências e registros" },
+        { key: "comunidade", href: "/comunidade", label: "Comunidade", icon: ShoppingBag, desc: "Mural social, classificados e indicações" },
       ],
     },
     {
       title: "Gestão",
       items: [
         { key: "cadastros", href: "/cadastros", label: "Cadastros", icon: Users, desc: "Moradores, síndicos, etc." },
+        { key: "meus_dados", href: "/cadastros/meus-dados", label: "Meus Dados", icon: User, desc: "Seus veículos e pets" },
+        { key: "financeiro", href: "/financeiro", label: "Financeiro", icon: DollarSign, desc: "Mensalidades e boletos Pix" },
         { key: "condominios", href: "/condominios", label: "Condomínios", icon: Building2, desc: "Gerir condomínios" },
         { key: "acesso", href: "/acesso", label: "Acesso", icon: KeyRound, desc: "Usuários e permissões" },
         { key: "documentos", href: "/documentos", label: "Documentos", icon: FileText, desc: "Arquivos e atas" },
@@ -169,6 +184,7 @@ export default function MenuPage() {
       title: "Sistema",
       items: [
         { key: "configuracoes", href: "/configuracoes", label: "Configurações", icon: Settings, desc: "Preferências do sistema" },
+        { key: "whatsapp_logs", href: "/admin/whatsapp-logs", label: "Logs de WhatsApp", icon: Megaphone, desc: "Histórico de disparos de notificações" },
         { key: "administrador_global", href: "/administrador-global", label: "Administrador Global", icon: Shield, desc: "Somente super-admin" },
       ],
     },
@@ -180,7 +196,20 @@ export default function MenuPage() {
 
   return (
     <AppLayout
-      pageTitle="Menu"
+      pageTitle={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-xl p-1 text-slate-900 hover:text-[#00d0e6] transition-colors"
+            onClick={() => router.push("/painel")}
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <span>Menu</span>
+        </div>
+      }
+      hideMobileMenuButton={true}
     >
       <div className="p-4 lg:p-6 space-y-6">
         <div className="space-y-1">

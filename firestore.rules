@@ -71,7 +71,7 @@ function isOperador(condominioId) {
 
     // aliases usados em outras partes das rules (mantém compatibilidade do projeto)
     function canManageCondo(condominioId) {
-      return isOperador(condominioId);
+      return isSuper() || isOperador(condominioId);
     }
 
     function isPorteiro(condominioId) {
@@ -269,17 +269,23 @@ function isOperador(condominioId) {
         allow read: if isSuper()
                     || (signedIn() && request.auth.uid == uid)
                     || canManageCondo(condominioId);
-        
-        allow create, update, delete: if canManageCondo(condominioId);
 
-        // Morador pode atualizar seu próprio PIN
-        allow update: if signedIn() && request.auth.uid == uid
-                      && request.resource.data.diff(resource.data).changedKeys()
-                         .hasOnly(['encomendaPinHash', 'encomendaPinLast4', 'encomendaPinUpdatedAt', 'updatedAt', 'encomendaPinFailedAttempts']);
+        allow create, delete: if canManageCondo(condominioId);
+
+        // FIX: Consolidado em única regra allow update (era duplicado)
+        // Gestor pode atualizar qualquer campo; morador só pode atualizar campos de PIN
+        allow update: if canManageCondo(condominioId)
+                      || (
+                        signedIn()
+                        && request.auth.uid == uid
+                        && request.resource.data.diff(resource.data).changedKeys()
+                           .hasOnly(['encomendaPinHash', 'encomendaPinLast4', 'encomendaPinUpdatedAt', 'updatedAt', 'encomendaPinFailedAttempts'])
+                      );
       }
 
       match /anuncios/{anuncioId} {
-        allow read: if isSuper() || isMembroAtivo(condominioId);
+        // AN.2: API server-side gerencia leitura. Client SDK só para gestores.
+        allow read: if canManageCondo(condominioId);
         allow create, update, delete: if canManageCondo(condominioId);
       }
 
@@ -322,9 +328,10 @@ function isOperador(condominioId) {
           return signedIn() && resource.data.criadoPorUid == request.auth.uid;
         }
 
-        // Leitura: Gestores podem ler tudo. Moradores podem ler apenas os seus.
+        // Leitura: Gestores podem ler tudo. Moradores podem ler apenas os seus (API server-side).
         allow get: if canManageCondo(condominioId) || (isMembroAtivo(condominioId) && isOwner());
-        allow list: if canManageCondo(condominioId) || isMembroAtivo(condominioId); // Filtro é feito no client-side query
+        // UN.6D.1: Listagem migrada para API server-side. Client não deve fazer list direto.
+        allow list: if false;
 
         // Escrita: Morador pode criar. Gestores podem criar em nome de outros (via API).
         allow create: if signedIn() && 
@@ -355,6 +362,127 @@ function isOperador(condominioId) {
         allow write: if canManageCondo(condominioId);
       }
 
+      // --- REGRAS DE COMUNIDADE (Classificados, Achados/Perdidos e Serviços) ---
+      match /classificados/{anuncioId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create: if isMembroAtivo(condominioId) && request.resource.data.criadoPor == request.auth.uid;
+        allow update, delete: if isMembroAtivo(condominioId) && (resource.data.criadoPor == request.auth.uid || canManageCondo(condominioId));
+      }
+
+      match /achados-perdidos/{itemId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create, update: if isMembroAtivo(condominioId) || isPortariaOrOperador(condominioId);
+        allow delete: if canManageCondo(condominioId) || isSuper();
+      }
+
+      match /servicos-indicados/{servicoId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create: if isMembroAtivo(condominioId) && request.resource.data.indicadoPor == request.auth.uid;
+        allow update, delete: if isMembroAtivo(condominioId) && (resource.data.indicadoPor == request.auth.uid || canManageCondo(condominioId));
+      }
+
+      // --- REGRAS DE QR CODES DE PORTARIA ---
+      match /portariaQrCodes/{qrId} {
+        allow read: if isMembroAtivo(condominioId) || isSuper() || isPortariaOrOperador(condominioId);
+        allow create: if isMembroAtivo(condominioId) && request.resource.data.criadoPor == request.auth.uid;
+        allow update: if isPortariaOrOperador(condominioId) 
+                      || (isMembroAtivo(condominioId) && resource.data.criadoPor == request.auth.uid);
+        allow delete: if isMembroAtivo(condominioId) && resource.data.criadoPor == request.auth.uid;
+      }
+
+      // --- REGRAS DE FINANCEIRO ---
+      match /financeiro/{cobrancaId} {
+        allow read: if isSuper() || canManageCondo(condominioId);
+        allow create, delete: if canManageCondo(condominioId);
+        // Confirmação de pagamento só por backend administrativo (ou futuro webhook).
+        // MORADOR não pode alterar status/paidAt/paymentMethod diretamente.
+        allow update: if canManageCondo(condominioId);
+      }
+
+      // --- REGRAS DE WHATSAPP LOGS ---
+      match /whatsappLogs/{logId} {
+        allow read, write: if canManageCondo(condominioId) || isSuper();
+      }
+
+      // --- REGRAS DE PROCURAÇÕES ---
+      match /procuracoes/{procId} {
+        allow read: if isMembroAtivo(condominioId) || isSuper();
+        allow create: if isMembroAtivo(condominioId) && (request.resource.data.outorganteUid == request.auth.uid || canManageCondo(condominioId));
+        allow update: if isMembroAtivo(condominioId) && (resource.data.outorganteUid == request.auth.uid || canManageCondo(condominioId));
+        allow delete: if canManageCondo(condominioId) || (isMembroAtivo(condominioId) && resource.data.outorganteUid == request.auth.uid);
+      }
+
+
+      // --- BLOCOS E UNIDADES ---
+      match /blocos/{blocoId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+
+        match /unidades/{unidadeId} {
+          allow read: if isSuper() || isMembroAtivo(condominioId);
+          allow write: if canManageCondo(condominioId);
+
+          match /veiculos/{veiculoId} {
+            allow read: if isSuper() || isMembroAtivo(condominioId);
+            allow write: if canManageCondo(condominioId) || (
+              isMembroAtivo(condominioId)
+              && membroData(condominioId).blocoId == blocoId
+              && (
+                (membroData(condominioId).unitDocId != null && membroData(condominioId).unitDocId == unidadeId)
+                || (membroData(condominioId).unitDocId == null && membroData(condominioId).unidadeId == unidadeId)
+              )
+            );
+          }
+
+          match /pets/{petId} {
+            allow read: if isSuper() || isMembroAtivo(condominioId);
+            allow write: if canManageCondo(condominioId) || (
+              isMembroAtivo(condominioId)
+              && membroData(condominioId).blocoId == blocoId
+              && (
+                (membroData(condominioId).unitDocId != null && membroData(condominioId).unitDocId == unidadeId)
+                || (membroData(condominioId).unitDocId == null && membroData(condominioId).unidadeId == unidadeId)
+              )
+            );
+          }
+
+          match /consumo/{consumoId} {
+            allow read: if isSuper() || isMembroAtivo(condominioId);
+            allow write: if canManageCondo(condominioId);
+          }
+        }
+
+        match /ramais/{ramalId} {
+          allow read: if isSuper() || isMembroAtivo(condominioId);
+          allow write: if canManageCondo(condominioId);
+        }
+      }
+
+      // --- FUNCIONARIOS E FORNECEDORES ---
+      match /funcionarios/{funcionarioId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+
+      match /fornecedores/{fornecedorId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow write: if canManageCondo(condominioId);
+      }
+
+      // --- REGRAS DE TREEMIDIA ---
+      match /treemidia_telas/{telaId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create, update, delete: if isSuper() || canManageCondo(condominioId);
+      }
+      match /treemidia_campanhas/{campanhaId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create, update, delete: if isSuper() || canManageCondo(condominioId);
+      }
+      match /treemidia_playlists/{playlistId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow create, update, delete: if isSuper() || canManageCondo(condominioId);
+      }
+
       // --- REGRAS DE RESERVAS E CONVIDADOS ---
       match /reservas/{reservaId} {
         function isOwner() {
@@ -368,12 +496,14 @@ function isOperador(condominioId) {
             );
           }
 
-        allow read: if canManageCondo(condominioId) || isOwner()
-                    || (isPorteiro(condominioId) && resource.data.status == 'APROVADA');
+        allow read: if isMembroAtivo(condominioId) || isSuper();
 
         allow create: if isMembroAtivo(condominioId)
                       && request.resource.data.uid == request.auth.uid;
         
+        // MORADOR não pode alterar reservas diretamente (nem para CANCELADA).
+        // Cancelamento é exclusivamente via /api/reservas/cancelar (Admin SDK),
+        // que aplica prazo/48h, slot, fila, notificações e auditoria.
         allow update: if canManageCondo(condominioId)
                       || (
                            isPorteiro(condominioId) &&
@@ -417,11 +547,20 @@ function isOperador(condominioId) {
       // Comunicação (Threads / Mensagens)
       // -------------------------
       match /threads/{threadId} {
-        allow read: if isSuper() || isMembroAtivo(condominioId);
+        allow read: if isSuper() || canManageCondo(condominioId) ||
+                    (isMembroAtivo(condominioId) && (
+                      resource.data.tipo == "CONDOMINIO" ||
+                      (resource.data.toUids is list && request.auth.uid in resource.data.toUids)
+                    ));
         allow create, update, delete: if canManageCondo(condominioId);
 
         match /mensagens/{msgId} {
-          allow read: if isSuper() || isMembroAtivo(condominioId);
+          allow read: if isSuper() || canManageCondo(condominioId) ||
+                      (isMembroAtivo(condominioId) && (
+                        get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.tipo == "CONDOMINIO" ||
+                        (get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.toUids is list &&
+                         request.auth.uid in get(/databases/$(database)/documents/condominios/$(condominioId)/threads/$(threadId)).data.toUids)
+                      ));
 
           allow create: if canManageCondo(condominioId)
             || (
@@ -476,7 +615,7 @@ function isOperador(condominioId) {
 
 match /fila/{uid} {
             // admin/síndico vê tudo; morador vê só o próprio
-            allow read: if isSuper() || canManageCondo(condominioId) || (signedIn() && request.auth.uid == uid && isMembroAtivo(condominioId));
+            allow read: if isSuper() || isMembroAtivo(condominioId);
 
             // entrar na fila: só o próprio uid
             allow create: if signedIn()
@@ -492,9 +631,56 @@ match /fila/{uid} {
           }
         }
 
+      // ── FASE 16.6 / R1 — USO DO CAMPO ──
+      match /usoCampo/{registroId} {
+        allow read: if isSuper() || isMembroAtivo(condominioId) || isPortaria(condominioId);
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
+
+        // ── FASE 16.18 / R6 — CONVIDADOS DO CAMPO ──
+        match /convidados/{convidadoId} {
+          allow read: if isSuper() || canManageCondo(condominioId)
+                      || (isMembroAtivo(condominioId)
+                          && get(/databases/$(database)/documents/condominios/$(condominioId)/usoCampo/$(registroId)).data.uid == request.auth.uid);
+          allow create, update, delete: if false;
+        }
+      }
+
+      // ── FASE 16.10 / R2 — CAMPO AGENDA (EXCLUSIVIDADE) ──
+      match /campoAgenda/{dateStr} {
+        allow read: if isSuper() || isMembroAtivo(condominioId) || isPortaria(condominioId);
+        allow create: if false;
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      // ── FASE 16.13 / R4 — BLOQUEIOS ADMINISTRATIVOS ──
+      match /bloqueiosReservas/{bloqueioId} {
+        allow read: if isSuper() || canManageCondo(condominioId);
+        allow create, update, delete: if false;
+      }
+
+      // ── FASE 16.14 / R4.1 — COORDENADORES DE CONCORRÊNCIA ──
+      match /bloqueiosReservasControle/{targetKey} {
+        allow read: if isSuper() || canManageCondo(condominioId);
+        allow create, update, delete: if false;
+      }
+
+      // ── FASE 16.18 / R6 — LEDGER DE CONVIDADOS ──
+      match /convidadosLedger/{ledgerId} {
+        allow read: if isSuper() || canManageCondo(condominioId);
+        allow create, update, delete: if false;
+      }
+
+      // ── FASE 16.18 / R6 — ENTRIES DO LEDGER DE CONVIDADOS ──
+      match /convidadosLedgerEntries/{entryId} {
+        allow read: if isSuper() || canManageCondo(condominioId);
+        allow create, update, delete: if false;
+      }
+
 match /{subcollection}/{docId=**} {
-        allow read: if isSuper() || isMembroAtivo(condominioId);
-        allow write: if canManageCondo(condominioId);
+        allow read, write: if false;
       }
 
     }

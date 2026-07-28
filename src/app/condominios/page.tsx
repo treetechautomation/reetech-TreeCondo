@@ -13,6 +13,7 @@ import CondominioSelect from "@/components/condominios/CondominioSelect";
 import { useCondominio } from "@/contexts/CondominioContext";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { hasRole } from "@/lib/acl";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 interface Condominio {
   id: string;
@@ -54,10 +55,12 @@ export default function CondominiosPage() {
     <AppLayout
       pageTitle="Gestão de Condomínios"
       headerActions={
-        <Button onClick={() => setIsModalOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Novo Condomínio
-        </Button>
+        isSuper ? (
+          <Button onClick={() => setIsModalOpen(true)}>
+            <PlusCircle className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Novo Condomínio</span>
+          </Button>
+        ) : null
       }
     >
       {isSuper ? (
@@ -105,13 +108,9 @@ export default function CondominiosPage() {
                     <td className="tc-td">{c.cnpj ?? "-"}</td>
                     <td className="tc-td">
                       {c.ativo ? (
-                        <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-200 border border-emerald-400/20">
-                          Ativo
-                        </span>
+                        <StatusBadge tone="success">Ativo</StatusBadge>
                       ) : (
-                        <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-semibold text-white/60 border border-white/15">
-                          Inativo
-                        </span>
+                        <StatusBadge tone="neutral">Inativo</StatusBadge>
                       )}
                     </td>
                   </tr>

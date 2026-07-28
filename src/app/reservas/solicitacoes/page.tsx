@@ -2,31 +2,34 @@
 
 import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
-import { useFirestore } from "@/firebase";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { initializeFirebase } from "@/firebase";
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, getDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  where,
+  getDoc,
+} from "firebase/firestore";
 
 type Reserva = {
   id: string;
   status?: string;
-  dia?: any; // pode ser string ou timestamp
+  dia?: any;
   dateStr?: string;
   areaId?: string;
   areaNome?: string;
   areaName?: string;
-
   moradorNome?: string;
   moradorName?: string;
   blocoNome?: string;
   blocoName?: string;
   unidadeNome?: string;
   unidadeLabel?: string;
-
   valor?: number;
   price?: number;
-
   createdAt?: any;
   uid?: string;
   userId?: string;
@@ -47,33 +50,54 @@ function moneyBRLFromCentavos(v?: number) {
 }
 
 export default function ReservasSolicitacoesPage() {
-const { session, isSessionLoading } = useSessionCtx();
-  const firestore = useFirestore();
+  const { session, isSessionLoading } = useSessionCtx();
   const [loading, setLoading] = React.useState(true);
   const [itens, setItens] = React.useState<Reserva[]>([]);
-
-
   const [busyId, setBusyId] = React.useState<string | null>(null);
-  const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>({});
+  const [membrosByUid, setMembrosByUid] = React.useState<Record<string, any>>(
+    {},
+  );
+  const fetchedUidsRef = React.useRef<Set<string>>(new Set());
+  const [modoAuditoria, setModoAuditoria] = React.useState(false);
 
-  // carregar membros faltantes (nome/bloco/unidade) para cada UID pendente
+  const canApprove =
+    !!session &&
+    (!!session.superAdmin ||
+      session.role === "SINDICO" ||
+      session.role === "ADMIN" ||
+      session.role === "ADMIN_CONDOMINIO");
+
+  // carregar membros faltantes
   React.useEffect(() => {
     if (!session?.activeCondominioId) return;
     const condId = session.activeCondominioId;
 
-    const uids = Array.from(new Set((itens || []).map((r: any) => r?.uid).filter(Boolean)));
-    const faltantes = uids.filter((uid) => !membrosByUid[uid]);
-
+    const uids = Array.from(
+      new Set((itens || []).map((r: any) => r?.uid).filter(Boolean)),
+    );
+    const faltantes = uids.filter((uid) => !fetchedUidsRef.current.has(uid));
     if (faltantes.length === 0) return;
+
+    faltantes.forEach((uid) => fetchedUidsRef.current.add(uid));
 
     (async () => {
       try {
+        const { firestore } = initializeFirebase() as any;
         const pairs = await Promise.all(
           faltantes.map(async (uid) => {
-            const ref = doc(firestore, "condominios", String(condId), "membros", String(uid));
+            const ref = doc(
+              firestore,
+              "condominios",
+              String(condId),
+              "membros",
+              String(uid),
+            );
             const snap = await getDoc(ref);
-            return [uid, snap.exists() ? snap.data() : null];
-          })
+            return [
+              uid,
+              snap.exists() ? snap.data() : { nome: "Usuário Excluído" },
+            ];
+          }),
         );
 
         setMembrosByUid((prev) => {
@@ -85,12 +109,9 @@ const { session, isSessionLoading } = useSessionCtx();
         console.error("[solicitacoes] falha ao carregar membros:", e);
       }
     })();
-  }, [firestore, session?.activeCondominioId, itens]);
-  const [modoAuditoria, setModoAuditoria] = React.useState(false);
+  }, [session?.activeCondominioId, itens]);
 
-  const canApprove =
-    !!session && (session.superAdmin || session.role === "SINDICO" || session.role === "ADMIN" || session.role === "ZELADOR");
-
+  // snapshot de reservas pendentes
   React.useEffect(() => {
     if (isSessionLoading) return;
 
@@ -102,21 +123,29 @@ const { session, isSessionLoading } = useSessionCtx();
 
     const { firestore } = initializeFirebase() as any;
     const condId = session.activeCondominioId;
-
-    // Padrão: pendentes
     const ref = collection(firestore, "condominios", condId, "reservas");
-
-    // Se no seu banco "pendente" for outro status (ex: "SOLICITADA"), você ajusta aqui.
-    const q = query(ref, where("status", "in", ["PENDENTE","SOLICITADA","AGUARDANDO_APROVACAO","AGUARDANDO_APROVACAO_SINDICO"]));
+    const q = query(
+      ref,
+      where(
+        "status",
+        "in",
+        [
+          "PENDENTE",
+          "SOLICITADA",
+          "AGUARDANDO_APROVACAO",
+          "AGUARDANDO_APROVACAO_SINDICO",
+        ],
+      ),
+    );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
         const out: Reserva[] = [];
         snap.forEach((d) => out.push({ id: d.id, ...(d.data() as any) }));
-        out.sort((a,b) => {
-          const ta = (a.createdAt?.toMillis?.() ?? 0);
-          const tb = (b.createdAt?.toMillis?.() ?? 0);
+        out.sort((a, b) => {
+          const ta = a.createdAt?.toMillis?.() ?? 0;
+          const tb = b.createdAt?.toMillis?.() ?? 0;
           return tb - ta;
         });
         setItens(out);
@@ -126,76 +155,90 @@ const { session, isSessionLoading } = useSessionCtx();
         console.error("[Solicitacoes] erro snapshot:", err);
         setItens([]);
         setLoading(false);
-      }
+      },
     );
 
     return () => unsub();
   }, [isSessionLoading, session?.activeCondominioId, canApprove]);
 
+  async function apiPostAuth(path: string, body: any) {
+    const authMod: any = await import("firebase/auth");
+    const { getAuth } = authMod;
+    const auth = getAuth();
+    const u = auth?.currentUser;
+    if (!u) throw new Error("Sem usuário autenticado.");
+    const token = await u.getIdToken();
+    const r = await fetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.error || `Erro ${r.status}`);
+    return data;
+  }
+
   const aprovar = async (r: Reserva) => {
     if (!session?.activeCondominioId) return;
-
-        try {
-      setBusyId(r.id);
-
-      const { firestore } = initializeFirebase() as any;
-      const ref = doc(firestore, "condominios", session.activeCondominioId, "reservas", r.id);
-
-      await updateDoc(ref, {
+    setBusyId(r.id);
+    try {
+      await apiPostAuth("/api/reservas/aprovar", {
+        condominioId: session.activeCondominioId,
+        reservaId: r.id,
         status: "APROVADA",
-        approvedAt: serverTimestamp(),
-        approvedBy: session.user?.uid ?? null,
-        approvedByEmail: session.user?.email ?? null,
-        updatedAt: serverTimestamp(),
       });
-
       window.alert("✅ Reserva aprovada!");
-    } catch (e) {
-      console.error("[Solicitacoes] erro ao aprovar:", e);
-      window.alert("❌ Não consegui aprovar. Veja o console (F12) para o erro.");
+    } catch (e: any) {
+      window.alert(
+        "❌ " + (e?.message || "Erro ao aprovar."),
+      );
     } finally {
       setBusyId(null);
     }
   };
 
-  const bloquear = async (r: Reserva) => {
+  const rejeitar = async (r: Reserva) => {
     if (!session?.activeCondominioId) return;
-
-    const motivo = window.prompt("Motivo do bloqueio? (opcional)") ?? "";
-        try {
-      setBusyId(r.id);
-
-      const { firestore } = initializeFirebase() as any;
-      const ref = doc(firestore, "condominios", session.activeCondominioId, "reservas", r.id);
-
-      await updateDoc(ref, {
-        status: "BLOQUEADA",
-        blockedAt: serverTimestamp(),
-        blockedBy: session.user?.uid ?? null,
-        blockedByEmail: session.user?.email ?? null,
-        blockedReason: motivo.trim() || null,
-        updatedAt: serverTimestamp(),
+    const motivo = window.prompt("Motivo da rejeição? (opcional)") ?? "";
+    setBusyId(r.id);
+    try {
+      await apiPostAuth("/api/reservas/aprovar", {
+        condominioId: session.activeCondominioId,
+        reservaId: r.id,
+        status: "REJEITADA",
+        ...(motivo.trim() ? { motivoRejeicao: motivo.trim() } : {}),
       });
-
-      window.alert("✅ Reserva bloqueada!");
-    } catch (e) {
-      console.error("[Solicitacoes] erro ao bloquear:", e);
-      window.alert("❌ Não consegui bloquear. Veja o console (F12) para o erro.");
+      window.alert("✅ Reserva rejeitada!");
+    } catch (e: any) {
+      window.alert(
+        "❌ " + (e?.message || "Erro ao rejeitar."),
+      );
     } finally {
       setBusyId(null);
     }
   };
 
   if (isSessionLoading) {
-    return <AppLayout pageTitle="Solicitações de Reservas">Carregando sessão...</AppLayout>;
+    return (
+      <AppLayout pageTitle="Solicitações de Reservas">
+        Carregando sessão...
+      </AppLayout>
+    );
   }
 
   if (!session) {
-    return <AppLayout pageTitle="Solicitações de Reservas">Sem sessão.</AppLayout>;
+    return (
+      <AppLayout pageTitle="Solicitações de Reservas">Sem sessão.</AppLayout>
+    );
   }
 
   if (!canApprove) {
-    return <AppLayout pageTitle="Solicitações de Reservas">Acesso negado.</AppLayout>;
+    return (
+      <AppLayout pageTitle="Solicitações de Reservas">Acesso negado.</AppLayout>
+    );
   }
 
   return (
@@ -223,7 +266,9 @@ const { session, isSessionLoading } = useSessionCtx();
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-black/10 bg-white p-4">Carregando...</div>
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            Carregando...
+          </div>
         ) : itens.length === 0 ? (
           <div className="rounded-2xl border border-black/10 bg-white p-4">
             Nenhuma solicitação pendente.
@@ -233,22 +278,43 @@ const { session, isSessionLoading } = useSessionCtx();
             {itens.map((r) => {
               const area = r.areaNome || r.areaName || r.areaId || "Área";
               const uid = (r as any)?.uid || (r as any)?.userId || null;
-                const m = uid ? (membrosByUid as any)?.[uid] || null : null;
-
-                const nome = m?.nome || m?.displayName || m?.name || r.moradorNome || r.moradorName || "Morador";
-                const bloco = m?.blocoId || m?.bloco || m?.blocoNome || r.blocoNome || r.blocoName || "";
-                const un = m?.unidadeId || m?.unidade || m?.unidadeNome || m?.apto || r.unidadeLabel || r.unidadeNome || "";
-                const morador = nome;
-const valor =
-                  typeof (r as any)?.valorCobrado === "number"
-                    ? moneyBRLFromCentavos((r as any).valorCobrado)
-                    : typeof (r as any)?.precoCentavos === "number"
-                      ? moneyBRLFromCentavos((r as any).precoCentavos)
-                      : money(r.valor ?? r.price);
+              const m = uid ? (membrosByUid as any)?.[uid] || null : null;
+              const nome =
+                m?.nome ||
+                m?.displayName ||
+                m?.name ||
+                r.moradorNome ||
+                r.moradorName ||
+                "Morador";
+              const bloco =
+                m?.blocoId ||
+                m?.bloco ||
+                m?.blocoNome ||
+                r.blocoNome ||
+                r.blocoName ||
+                "";
+              const un =
+                m?.unidadeId ||
+                m?.unidade ||
+                m?.unidadeNome ||
+                m?.apto ||
+                r.unidadeLabel ||
+                r.unidadeNome ||
+                "";
+              const morador = nome;
+              const valor =
+                typeof (r as any)?.valorCobrado === "number"
+                  ? moneyBRLFromCentavos((r as any).valorCobrado)
+                  : typeof (r as any)?.precoCentavos === "number"
+                    ? moneyBRLFromCentavos((r as any).precoCentavos)
+                    : money(r.valor ?? r.price);
               const status = safeStatus(r.status);
 
               return (
-                <div key={r.id} className="rounded-2xl border border-black/10 bg-white p-4">
+                <div
+                  key={r.id}
+                  className="rounded-2xl border border-black/10 bg-white p-4"
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <div className="font-semibold">Área: {area}</div>
@@ -269,9 +335,18 @@ const valor =
                     <div className="flex flex-col items-end gap-2">
                       <div className="text-sm font-medium">{status}</div>
                       <div className="flex gap-2">
-                        <Button disabled={busyId === r.id} onClick={() => aprovar(r)}>{busyId === r.id ? "Processando..." : "Aprovar"}</Button>
-                        <Button disabled={busyId === r.id} variant="outline" onClick={() => bloquear(r)}>
-                          Bloquear
+                        <Button
+                          disabled={busyId === r.id}
+                          onClick={() => aprovar(r)}
+                        >
+                          {busyId === r.id ? "Processando..." : "Aprovar"}
+                        </Button>
+                        <Button
+                          disabled={busyId === r.id}
+                          variant="outline"
+                          onClick={() => rejeitar(r)}
+                        >
+                          Rejeitar
                         </Button>
                       </div>
                     </div>

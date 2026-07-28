@@ -1,9 +1,0 @@
-import dynamicImport from "next/dynamic";
-
-export const dynamic = "force-dynamic";
-
-const CadastrosClient = dynamicImport(() => import("./CadastrosClient"), { ssr: false });
-
-export default function CadastrosPage() {
-  return <CadastrosClient />;
-}

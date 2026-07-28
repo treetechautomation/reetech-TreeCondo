@@ -50,6 +50,7 @@ export default function MobileNav({
 
       <SheetContent
         side="left"
+        aria-describedby={undefined}
         className="w-[86vw] max-w-[360px] p-0 border-none bg-slate-900 text-white z-[2147483647]"
       >
         <div className="h-[100dvh] flex flex-col">

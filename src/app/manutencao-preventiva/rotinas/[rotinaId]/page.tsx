@@ -223,30 +223,32 @@ export default function RotinaDetalhePage() {
             <CardHeader><CardTitle>Histórico de Execuções</CardTitle></CardHeader>
             <CardContent>
               {loadingExec ? <p>Carregando...</p> : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Programada</TableHead>
-                      <TableHead>Feita em</TableHead>
-                      <TableHead>Próxima</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {execucoes.length === 0 ? <TableRow><TableCell colSpan={5}>Nenhuma execução.</TableCell></TableRow> : execucoes.map((ex) => (
-                      <TableRow key={ex.id}>
-                        <TableCell>{formatDateBR(ex.dataProgramada)}</TableCell>
-                        <TableCell>{formatDateBR(ex.dataExecutadaEm ?? ex.dataConcluida)}</TableCell>
-                        <TableCell>{formatDateBR(ex.proximaProgramadaEm)}</TableCell>
-                        <TableCell><Badge variant={ex.status === "CONCLUIDA" ? "default" : "secondary"}>{ex.status}</Badge></TableCell>
-                        <TableCell>
-                          {ex.status !== "CONCLUIDA" && <Button size="sm" onClick={() => handleConcluir(ex)}>Marcar como concluída</Button>}
-                        </TableCell>
+                <div className="overflow-x-auto w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Programada</TableHead>
+                        <TableHead>Feita em</TableHead>
+                        <TableHead>Próxima</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {execucoes.length === 0 ? <TableRow><TableCell colSpan={5}>Nenhuma execução.</TableCell></TableRow> : execucoes.map((ex) => (
+                        <TableRow key={ex.id}>
+                          <TableCell>{formatDateBR(ex.dataProgramada)}</TableCell>
+                          <TableCell>{formatDateBR(ex.dataExecutadaEm ?? ex.dataConcluida)}</TableCell>
+                          <TableCell>{formatDateBR(ex.proximaProgramadaEm)}</TableCell>
+                          <TableCell><Badge variant={ex.status === "CONCLUIDA" ? "default" : "secondary"}>{ex.status}</Badge></TableCell>
+                          <TableCell>
+                            {ex.status !== "CONCLUIDA" && <Button size="sm" onClick={() => handleConcluir(ex)}>Marcar como concluída</Button>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

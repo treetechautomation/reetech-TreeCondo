@@ -12,12 +12,15 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
+import { useSession } from "@/hooks/useSession";
 
 export type AreaOpcao = {
   id: string;
   nome: string;
   preco: number; // centavos
+  precoCentavos?: number;
   bloqueiaAreaId?: string | null;
+  resourceIds?: string[] | null;
 };
 
 export type AreaReservavel = {
@@ -35,6 +38,9 @@ export type AreaReservavel = {
   fotoUrl?: string | null;
   capacidadeMax?: number | null;
   fotoHint?: string | null; // path candidato do storage
+  ordem?: number | null;
+  escopoReserva?: string | null;
+  blocosPermitidos?: string[] | null;
 };
 
 export type Reserva = {
@@ -51,11 +57,17 @@ export type Reserva = {
 
 const areaNomeFallback: Record<string, string> = {
   salao_festas: "Salao de Festas",
+  salao_festas_rosas: "Salão de Festas — Bloco Rosas",
+  salao_festas_dalias: "Salão de Festas — Bloco Dalias",
   churrasqueira_1: "Churrasqueira 1",
   churrasqueira_2: "Churrasqueira 2",
   campo_quadra: "Campo",
-  quadra: "Campo",
+  quadra: "Campo / Quadra",
 };
+
+// Perfis que operam reservas por targetUid e precisam ver todas as áreas ativas.
+// O backend continua validando o bloco do titular final ao criar a reserva.
+const OPERADOR_ROLES = new Set(["SUPER_ADMIN", "ADMIN_CONDOMINIO", "SINDICO", "ADMIN"]);
 
 function startOfDayUTC(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -113,11 +125,17 @@ function normalizeOpcoes(rawOpcoes: any): AreaOpcao[] | null {
       const bloqueiaAreaId =
         o?.bloqueiaAreaId ?? o?.bloqueia ?? o?.bloqueiaId ?? null;
 
+      const resourceIds: string[] | null = Array.isArray(o?.resourceIds)
+        ? o.resourceIds.map((x: any) => String(x)).filter(Boolean)
+        : null;
+
       return {
         id,
         nome: nome || id,
         preco,
+        precoCentavos: preco,
         bloqueiaAreaId: bloqueiaAreaId ? String(bloqueiaAreaId) : null,
+        resourceIds: resourceIds && resourceIds.length ? resourceIds : null,
       };
     })
     // remove opções vazias/duplicadas ruins
@@ -137,6 +155,17 @@ export function useReservas(condominioId: string | null, dateStr: string) {
     [firestoreRaw]
   );
 
+  const { session } = useSession();
+  const role = session?.role ?? null;
+  const isOperador = !!role && OPERADOR_ROLES.has(role);
+  const meuBlocoNorm = React.useMemo(() => {
+    if (!condominioId) return "";
+    const vinculo =
+      (session?.vinculos ?? []).find((v) => v.condominioId === condominioId) ??
+      null;
+    return normalizeLower(vinculo?.blocoId ?? "");
+  }, [session?.vinculos, condominioId]);
+
   const storage = React.useMemo(() => {
     try {
       return getStorage(getApp());
@@ -149,6 +178,7 @@ export function useReservas(condominioId: string | null, dateStr: string) {
   const [areaStorageUrls, setAreaStorageUrls] = React.useState<
     Record<string, string>
   >({});
+  const areaStorageUrlsRef = React.useRef<Record<string, string>>({});
   const [reservas, setReservas] = React.useState<Reserva[]>([]);
   const [loadingAreas, setLoadingAreas] = React.useState(true);
   const [loadingReservas, setLoadingReservas] = React.useState(true);
@@ -215,6 +245,14 @@ export function useReservas(condominioId: string | null, dateStr: string) {
 
             const opcoes = normalizeOpcoes(data?.opcoes);
 
+            const blocosPermitidos: string[] | null = Array.isArray(
+              data?.blocosPermitidos
+            )
+              ? data.blocosPermitidos
+                  .map((b: any) => normalizeLower(b))
+                  .filter(Boolean)
+              : null;
+
             return {
               id,
               nome,
@@ -238,12 +276,22 @@ export function useReservas(condominioId: string | null, dateStr: string) {
               fotoHint: imgPathCandidates.length
                 ? String(imgPathCandidates[0])
                 : null,
+              ordem: Number.isFinite(Number(data?.ordem))
+                ? Number(data?.ordem)
+                : null,
+              escopoReserva: data?.escopoReserva
+                ? String(data.escopoReserva).toUpperCase().trim()
+                : null,
+              blocosPermitidos:
+                blocosPermitidos && blocosPermitidos.length
+                  ? blocosPermitidos
+                  : null,
             };
           });
 
           // resolve urls (storage) só para itens que não têm fotoUrl e ainda não estão no cache
           const pending = list.filter(
-            (a) => !a.fotoUrl && a.fotoHint && !areaStorageUrls[a.id]
+            (a) => !a.fotoUrl && a.fotoHint && !areaStorageUrlsRef.current[a.id]
           );
 
           if (storage && pending.length) {
@@ -254,6 +302,7 @@ export function useReservas(condominioId: string | null, dateStr: string) {
                   storageRef(storage, String(a.fotoHint))
                 );
                 updates[a.id] = url;
+                areaStorageUrlsRef.current[a.id] = url;
               } catch {
                 // ignora se não existe
               }
@@ -263,24 +312,56 @@ export function useReservas(condominioId: string | null, dateStr: string) {
             }
           }
 
-          const withImgs = list.map((a) => ({
-            ...a,
-            fotoUrl: a.fotoUrl || areaStorageUrls[a.id] || null,
-          }));
+          const withImgs = list.map((a) => {
+            let fallbackUrl: string | null = null;
+            const normId = a.id.toLowerCase();
+            if (normId.startsWith("salao_festas")) {
+              fallbackUrl = "/salao.jpeg";
+            } else if (normId === "churrasqueira_1") {
+              fallbackUrl = "/churrasqueira1.jpeg";
+            } else if (normId === "churrasqueira_2") {
+              fallbackUrl = "/churrasqueira2.jpeg";
+            } else if (normId === "quadra" || normId === "campo" || normId === "campo_quadra") {
+              fallbackUrl = "/campo.jpg";
+            }
+
+            return {
+              ...a,
+              fotoUrl: a.fotoUrl || areaStorageUrlsRef.current[a.id] || areaStorageUrls[a.id] || fallbackUrl,
+            };
+          });
 
           if (alive) {
-            // mostra só as 3 áreas principais no /reservas (campo/quadra fica “invisível” no card)
-            const allowedIds = new Set(
-              ["salao_festas", "churrasqueira_1", "churrasqueira_2"].map((x) =>
-                normalizeLower(x)
-              )
-            );
+            // Fonte da verdade: coleção areasReservaveis do Firestore.
+            // Regras de visibilidade:
+            // - somente áreas ativas (docs legados sem "ativo" contam como ativos);
+            // - escopoReserva === "BLOCO": morador só vê se seu bloco (normalizado)
+            //   estiver em blocosPermitidos; operadores veem todas (reserva manual
+            //   por targetUid — o backend valida o bloco do titular final);
+            // - escopoReserva === "CONDOMINIO" ou ausente (legado): visível a todos.
+            const visiveis = withImgs.filter((a) => {
+              if (!a.ativo) return false;
+              if ((a as any).ehUsoComum) return false;
+              const isPorBloco =
+                a.escopoReserva === "BLOCO" &&
+                Array.isArray(a.blocosPermitidos) &&
+                a.blocosPermitidos.length > 0;
+              if (!isPorBloco) return true;
+              if (isOperador) return true;
+              return !!meuBlocoNorm && a.blocosPermitidos!.includes(meuBlocoNorm);
+            });
 
-            setAreas(
-              withImgs.filter(
-                (a) => a.ativo && allowedIds.has(normalizeLower(a.id))
-              )
-            );
+            // Ordenação determinística: ordem numérica (se existir) > nome > id.
+            visiveis.sort((a, b) => {
+              const oa = a.ordem ?? Number.POSITIVE_INFINITY;
+              const ob = b.ordem ?? Number.POSITIVE_INFINITY;
+              if (oa !== ob) return oa - ob;
+              const byNome = String(a.nome).localeCompare(String(b.nome), "pt-BR");
+              if (byNome !== 0) return byNome;
+              return a.id.localeCompare(b.id);
+            });
+
+            setAreas(visiveis);
             setLoadingAreas(false);
           }
         } catch (e) {
@@ -304,7 +385,7 @@ export function useReservas(condominioId: string | null, dateStr: string) {
       alive = false;
       unsub();
     };
-  }, [firestore, storage, condominioId, areaStorageUrls]);
+  }, [firestore, storage, condominioId, isOperador, meuBlocoNorm]);
 
   // ===== RESERVAS DO DIA (usado na lista de “reservas do dia”) =====
   React.useEffect(() => {

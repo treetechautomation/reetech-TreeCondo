@@ -19,6 +19,7 @@ function getLocalCondoId(): string | null {
 type VinculoAny = {
   blocoId?: string | null;
   unidadeId?: string | null;
+  unitDocId?: string | null;
   unidadeNumero?: string | number | null;
   apartamento?: string | number | null;
   blocoNome?: string | null;
@@ -56,6 +57,7 @@ export default function UserBadge({ variant = "sidebar", className }: Props) {
 
         const v = (vincSnap.data() as VinculoAny) || {};
         const blocoId = v.blocoId ?? null;
+        const unitDocId = v.unitDocId ?? null;
         const unidadeId = v.unidadeId ?? null;
 
         // tenta achar um número de unidade/apto direto no vínculo
@@ -72,20 +74,26 @@ export default function UserBadge({ variant = "sidebar", className }: Props) {
           blocoNome = (bSnap.exists() ? (bSnap.data() as any)?.nome : null) ?? null;
         }
 
-        // se não veio unidadeNumero mas tem unidadeId, tenta buscar no Firestore
+        // se não veio unidadeNumero mas tem unitDocId (canônico), tenta buscar
         let unidadeNumResolved: string | number | null = unidadeNumero as any;
-        if ((unidadeNumResolved === null || unidadeNumResolved === undefined || unidadeNumResolved === "") && blocoId && unidadeId) {
-          const uRef = doc(
-            firestore,
-            "condominios",
-            condominioId,
-            "blocos",
-            blocoId,
-            "unidades",
-            unidadeId
-          );
-          const uSnap = await getDoc(uRef);
-          unidadeNumResolved = (uSnap.exists() ? (uSnap.data() as any)?.numero : null) ?? null;
+        if ((unidadeNumResolved === null || unidadeNumResolved === undefined || unidadeNumResolved === "") && blocoId) {
+          const uId = unitDocId || unidadeId;
+          if (uId) {
+            const uRef = doc(
+              firestore,
+              "condominios",
+              condominioId,
+              "blocos",
+              blocoId,
+              "unidades",
+              uId
+            );
+            const uSnap = await getDoc(uRef);
+            if (uSnap.exists()) {
+              const data = uSnap.data();
+              unidadeNumResolved = data?.numero ?? data?.id ?? null;
+            }
+          }
         }
 
         const parts: string[] = [];

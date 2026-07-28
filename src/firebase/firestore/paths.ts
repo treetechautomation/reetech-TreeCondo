@@ -15,9 +15,11 @@ export const getMoradoresRef = (db: Firestore, condominioId: string, blocoId: st
 export const getVeiculosRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string) => collection(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/veiculos`);
 export const getPetsRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string) => collection(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/pets`);
 export const getMembrosRef = (db: Firestore, condominioId: string) => collection(db, `condominios/${condominioId}/membros`);
+export const getPessoasRef = (db: Firestore, condominioId: string) => collection(db, `condominios/${condominioId}/pessoas`);
 export const getFuncionariosRef = (db: Firestore, condominioId: string) => collection(db, `condominios/${condominioId}/funcionarios`);
 export const getFornecedoresRef = (db: Firestore, condominioId: string) => collection(db, `condominios/${condominioId}/fornecedores`);
 export const getUserVinculosRef = (db: Firestore, uid: string) => collection(db, `userCondominios/${uid}/vinculos`);
+export const getUsoCampoRef = (db: Firestore, condominioId: string) => collection(db, `condominios/${condominioId}/usoCampo`);
 
 // Documentos
 export const getCondominioDocRef = (db: Firestore, condominioId: string) => doc(db, 'condominios', condominioId);
@@ -25,6 +27,7 @@ export const getBlocoDocRef = (db: Firestore, condominioId: string, blocoId: str
 export const getUnidadeDocRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string) => doc(db, `condominios/${condominioId}/blocos/${blocoId}/unidades`, unidadeId);
 export const getMoradorDocRef = (db: Firestore, condominioId: string, blocoId: string, unidadeId: string, uid: string) => doc(db, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}/moradores`, uid);
 export const getMembroDocRef = (db: Firestore, condominioId: string, uid: string) => doc(db, `condominios/${condominioId}/membros`, uid);
+export const getPessoaDocRef = (db: Firestore, condominioId: string, personId: string) => doc(db, `condominios/${condominioId}/pessoas`, personId);
 export const getUserVinculoDocRef = (db: Firestore, uid: string, condominioId: string) => doc(db, `userCondominios/${uid}/vinculos`, condominioId);
 export const getConfigMenuDocRef = (db: Firestore, condominioId: string) => doc(db, `condominios/${condominioId}/config/menu`);
 export const getFuncionarioDocRef = (db: Firestore, condominioId: string, funcionarioId: string) => doc(db, `condominios/${condominioId}/funcionarios`, funcionarioId);

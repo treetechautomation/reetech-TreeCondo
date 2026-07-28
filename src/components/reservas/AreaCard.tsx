@@ -112,6 +112,24 @@ export function AreaCard({
                   className="h-full w-full object-cover"
                   referrerPolicy="no-referrer"
                   data-ai-hint={area.fotoHint ?? undefined}
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    const normId = String(area.id || "").toLowerCase();
+                    let fallbackUrl = "";
+                    if (normId.startsWith("salao_festas")) {
+                      fallbackUrl = "/salao.jpeg";
+                    } else if (normId === "churrasqueira_1") {
+                      fallbackUrl = "/churrasqueira1.jpeg";
+                    } else if (normId === "churrasqueira_2") {
+                      fallbackUrl = "/churrasqueira2.jpeg";
+                    } else if (normId === "quadra" || normId === "campo" || normId === "campo_quadra") {
+                      fallbackUrl = "/campo.jpg";
+                    }
+
+                    if (fallbackUrl && target.src !== window.location.origin + fallbackUrl) {
+                      target.src = fallbackUrl;
+                    }
+                  }}
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-muted-foreground">

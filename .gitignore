@@ -92,6 +92,12 @@ nextn@0.1.0
 # next-pwa stray artifact
 [PWA]
 
+# backup directories (FASE 16.19.3)
+.backups/
+_backup/
+backup_*/
+*_backup_*.tgz
+
 .cleanup_backup_*/
 backup_before_rollback_*/
 *.log

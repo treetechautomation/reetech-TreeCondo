@@ -46,11 +46,13 @@ const snap = await getDocs(q);
     const areaDaReserva = String(data?.areaId ?? "");
     const bloqueiaAreaId = data?.bloqueiaAreaId != null ? String(data.bloqueiaAreaId) : "";
     const bloqueiaAreaIds = Array.isArray(data?.bloqueiaAreaIds) ? data.bloqueiaAreaIds.map((x: any) => String(x)) : [];
+    const resourceIds = Array.isArray(data?.resourceIds) ? data.resourceIds.map((x: any) => String(x)) : [];
 
     const afetaEstaArea =
       areaDaReserva === String(areaId) ||
       bloqueiaAreaId === String(areaId) ||
-      bloqueiaAreaIds.includes(String(areaId));
+      bloqueiaAreaIds.includes(String(areaId)) ||
+      resourceIds.includes(String(areaId));
 
     if (!afetaEstaArea) return;
 

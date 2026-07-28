@@ -20,6 +20,7 @@ function isOperatorRole(role: any) {
 async function getActorInfo(db: any, condominioId: string, uid: string, decoded: any) {
   let nome = String(decoded?.name || decoded?.email || "Usuário").trim();
   let role: string | null = null;
+  let status: string | null = null;
 
   try {
     const msnap = await db
@@ -33,12 +34,13 @@ async function getActorInfo(db: any, condominioId: string, uid: string, decoded:
       const md = msnap.data() || {};
       if (md?.nome) nome = String(md.nome).trim();
       if (md?.role) role = String(md.role).trim();
+      if (md?.status) status = String(md.status).trim();
     }
   } catch (e: any) {
     console.warn("[reservas/fila-cancelar] getActorInfo falhou:", e?.message || String(e));
   }
 
-  return { uid, nome, role };
+  return { uid, nome, role, status };
 }
 
 export async function POST(req: Request) {
@@ -67,6 +69,12 @@ export async function POST(req: Request) {
       isOperatorRole(actor.role) ||
       (decoded as any)?.super_admin === true ||
       (decoded as any)?.superAdmin === true;
+
+    if (!isOperador) {
+      if (upper(actor.status) !== "ATIVO") {
+        return jsonError("Membro inativo.", 403);
+      }
+    }
 
     if (!isOperador && targetUid !== decoded.uid) {
       return jsonError("Sem permissão para remover este usuário da fila.", 403);

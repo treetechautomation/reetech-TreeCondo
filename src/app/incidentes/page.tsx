@@ -9,6 +9,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { EmptyState } from '@/components/layout/EmptyState';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -411,8 +412,8 @@ const handleCreate = async () => {
     >
       <DialogTrigger asChild>
         <Button className="text-black" size="sm" disabled={!condominioAtivoId}>
-          <PlusCircle />{' '}
-          <span className="hidden sm:inline-block ml-2">Abrir Chamado</span>
+          <PlusCircle className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline-block">Abrir Chamado</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px] tc-dialog-center">
@@ -744,37 +745,24 @@ export default function IncidentesPage() {
     }
 
     setLoading(true);
-    const incidentesRef = collection(
-      firestore,
-      `condominios/${condominioAtivoId}/incidentes`
-    );
+    let alive = true;
 
-    let q;
-    if (isOperator) {
-      q = query(incidentesRef, orderBy('updatedAt', 'desc'));
-    } else {
-      q = query(
-        incidentesRef,
-        where('criadoPorUid', '==', session.user.uid),
-        orderBy('updatedAt', 'desc')
-      );
+    async function load() {
+      try {
+        const token = await session?.user?.getIdToken();
+        const res = await fetch(`/api/incidentes?condominioId=${encodeURIComponent(condominioAtivoId!)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (alive && data.ok) setIncidentes(data.incidents || []);
+      } catch { /* ignore */ }
+      if (alive) setLoading(false);
     }
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setIncidentes(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() } as Incidente))
-        );
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Erro ao buscar incidentes:', error);
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
+    load();
+    // Poll every 30s for updates (replaces Firestore real-time listener)
+    const interval = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(interval); };
   }, [firestore, condominioAtivoId, session?.user?.uid, isOperator]);
 
   const incidentesAbertos = React.useMemo(
@@ -817,8 +805,11 @@ export default function IncidentesPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {incidentesAbertos.length === 0 ? (
-                <div className="col-span-full text-center p-6 border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] rounded-2xl">
-                  Nenhum chamado aberto encontrado.
+                <div className="col-span-full">
+                  <EmptyState
+                    title="Nenhum chamado aberto"
+                    description="Não há chamados ou incidentes em aberto no momento."
+                  />
                 </div>
               ) : (
                 incidentesAbertos.map((incidente) => (
@@ -835,9 +826,10 @@ export default function IncidentesPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {incidentesFinalizados.length === 0 ? (
-                <p className="col-span-full text-center p-6 border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] rounded-2xl">
-                  Nenhum chamado finalizado encontrado.
-                </p>
+                <EmptyState
+                  title="Nenhum chamado finalizado"
+                  description="Os chamados resolvidos e finalizados aparecerão aqui."
+                />
               ) : (
                 incidentesFinalizados.map((incidente) => (
                   <IncidenteItem key={incidente.id} incidente={incidente} />

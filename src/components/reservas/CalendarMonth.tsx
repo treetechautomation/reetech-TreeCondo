@@ -230,18 +230,24 @@ export function CalendarMonth({
             
             const isGreen = Boolean(!isRed && !isQueued);
 
-            // permite selecionar qualquer dia do mês para consulta;
-            // a criação continua sendo validada nas regras/na API
-            const disabled = Boolean(!inMonth);
+            // datas anteriores a "hoje" (local) ficam desabilitadas.
+            // comparação por string YYYY-MM-DD evita virada por UTC e preserva o dia atual.
+            const todayStr = toISODateLocal(new Date());
+            const isPast = Boolean(inMonth && iso && iso < todayStr);
 
-          // classes (verde disponível / vermelho bloqueado / destaque selecionado)
+            // a criação continua sendo validada nas regras/na API
+            const disabled = Boolean(!inMonth || isPast);
+
+          // classes (cinza passado / verde disponível / vermelho bloqueado / destaque selecionado)
           const stateClass = !inMonth
                 ? "opacity-0 pointer-events-none"
-                : isRed
-                  ? "bg-[#FEE2E2] border-[#EF4444]/50 text-[#B91C1C]"
-                  : isQueued
-                    ? "bg-[#FFF3B0] border-[#FFDE21]/80 text-[#8A6A00]"
-                    : "bg-[#DCFCE7] border-[#34D399]/60 text-[#047857]";
+                : isPast
+                  ? "bg-muted border-border text-muted-foreground opacity-50 cursor-not-allowed"
+                  : isRed
+                    ? "bg-[#FEE2E2] border-[#EF4444]/50 text-[#B91C1C]"
+                    : isQueued
+                      ? "bg-[#FFF3B0] border-[#FFDE21]/80 text-[#8A6A00]"
+                      : "bg-[#DCFCE7] border-[#34D399]/60 text-[#047857]";
 
             const selectedClass = selected
             ? "ring-2 ring-primary/30 border-primary"
@@ -252,11 +258,13 @@ export function CalendarMonth({
               key={idx}
               type="button"
               disabled={disabled}
+              aria-disabled={disabled}
               onClick={() => {
-                if (iso) onSelectDateStr(iso);
+                if (disabled || !iso) return;
+                onSelectDateStr(iso);
               }}
               className={cn(
-                "h-14 rounded-xl border text-sm font-medium transition hover:opacity-90",
+                "h-14 rounded-xl border text-sm font-medium transition hover:opacity-90 disabled:cursor-not-allowed",
                 stateClass,
                 selectedClass
               )}

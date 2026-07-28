@@ -12,19 +12,13 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 
 import { cn } from "@/lib/utils";
 import { useCondominio } from "@/contexts/CondominioContext";
+import { normNFD } from "@/lib/normalization/text";
 
 type Option = {
   condominioId: string;
   condominioNome: string;
 };
 
-function norm(s: string) {
-  return (s || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
 
 export function CondominioSwitcher() {
   const { session } = useSessionCtx();
@@ -118,8 +112,8 @@ export function CondominioSwitcher() {
       <PopoverContent className="w-[260px] p-0" align="start">
         <Command
           filter={(value, search) => {
-            const v = norm(value);
-            const s = norm(search);
+            const v = normNFD(value);
+            const s = normNFD(search);
             return v.includes(s) ? 1 : 0;
           }}
         >

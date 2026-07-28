@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import AppLayout from "@/components/layout/AppLayout";
+import { SectionCard } from "@/components/layout/SectionCard";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -22,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { useFirestore } from "@/firebase";
+import { useCondominio } from "@/contexts/CondominioContext";
 
 import {
   addDoc,
@@ -48,6 +51,7 @@ type Enquete = {
   updatedAt?: any;
   createdByUid?: string;
   createdByNome?: string;
+  idealFractionEnabled?: boolean;
 };
 
 type Opcao = {
@@ -65,6 +69,7 @@ function isOperator(role?: string | null) {
 export default function EnquetesPage() {
   const firestore = useFirestore();
   const { session } = useSessionCtx();
+  const { vinculoAtivo } = useCondominio();
   const { toast } = useToast();
 
   const condominioId = session?.activeCondominioId ?? null;
@@ -83,6 +88,7 @@ export default function EnquetesPage() {
   const [titulo, setTitulo] = React.useState("");
   const [descricao, setDescricao] = React.useState("");
   const [opcoes, setOpcoes] = React.useState<string[]>(["", ""]);
+  const [idealFractionEnabled, setIdealFractionEnabled] = React.useState(false);
 
   // ========= LISTA ENQUETES =========
   React.useEffect(() => {
@@ -198,8 +204,9 @@ export default function EnquetesPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdByUid: uid,
-                createdByNome: ((session as any)?.user?.nome || (session as any)?.user?.displayName || session?.user?.email || ""),
+        createdByNome: ((session as any)?.user?.nome || (session as any)?.user?.displayName || session?.user?.email || ""),
         allowMultiple: false,
+        idealFractionEnabled: idealFractionEnabled,
       });
 
       // cria opções
@@ -215,6 +222,7 @@ export default function EnquetesPage() {
       setTitulo("");
       setDescricao("");
       setOpcoes(["", ""]);
+      setIdealFractionEnabled(false);
     } catch (e: any) {
       console.error(e);
       toast({ variant: "destructive", title: "Erro ao criar enquete", description: e?.message || String(e) });
@@ -238,17 +246,39 @@ export default function EnquetesPage() {
 
         const enqueteSnap = await tx.get(enqueteRef);
         if (!enqueteSnap.exists()) throw new Error("Enquete não encontrada.");
-        const enquete = enqueteSnap.data() as any;
-        if (String(enquete?.status || "").toUpperCase() !== "ABERTA") {
+        const enqueteData = enqueteSnap.data() as any;
+        if (String(enqueteData?.status || "").toUpperCase() !== "ABERTA") {
           throw new Error("Esta enquete está encerrada.");
+        }
+
+        let weight = 1.0;
+        if (enqueteData?.idealFractionEnabled) {
+          const blocoId = vinculoAtivo?.blocoId;
+          const unidadeId = vinculoAtivo?.unidadeId;
+          if (!blocoId || !unidadeId) {
+            throw new Error("Você precisa ter uma unidade vinculada para votar nesta enquete por fração ideal.");
+          }
+          const unitRef = doc(firestore, `condominios/${condominioId}/blocos/${blocoId}/unidades/${unidadeId}`);
+          const unitSnap = await tx.get(unitRef);
+          if (!unitSnap.exists()) {
+            throw new Error("Unidade não encontrada no cadastro.");
+          }
+          const unitData = unitSnap.data();
+          if (unitData?.fracaoIdeal === undefined || unitData?.fracaoIdeal === null) {
+            throw new Error("Sua unidade não possui a fração ideal cadastrada. Solicite à administração.");
+          }
+          weight = Number(unitData.fracaoIdeal);
+          if (isNaN(weight) || weight <= 0) {
+            throw new Error("Fração ideal da unidade inválida.");
+          }
         }
 
         const opcaoSnap = await tx.get(opcaoRef);
         if (!opcaoSnap.exists()) throw new Error("Opção inválida.");
 
-        tx.set(votoRef, { opcaoId, createdAt: serverTimestamp() });
-        tx.update(opcaoRef, { votes: increment(1) });
-        tx.update(enqueteRef, { totalVotes: increment(1), updatedAt: serverTimestamp() });
+        tx.set(votoRef, { opcaoId, weight, createdAt: serverTimestamp() });
+        tx.update(opcaoRef, { votes: increment(weight) });
+        tx.update(enqueteRef, { totalVotes: increment(weight), updatedAt: serverTimestamp() });
       });
 
       toast({ title: "Voto registrado!" });
@@ -280,7 +310,10 @@ export default function EnquetesPage() {
       canManage ? (
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild>
-            <Button>Nova Enquete</Button>
+            <Button className="flex items-center">
+              <span className="hidden sm:inline">Nova Enquete</span>
+              <span className="sm:hidden">+ Enquete</span>
+            </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[650px] tc-dialog-center">
             <DialogHeader>
@@ -328,6 +361,19 @@ export default function EnquetesPage() {
                   </Button>
                 </div>
               </div>
+
+              <div className="flex items-center space-x-2 py-2">
+                <input
+                  id="idealFractionEnabled"
+                  type="checkbox"
+                  checked={idealFractionEnabled}
+                  onChange={(e) => setIdealFractionEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-primary/20 bg-card text-primary focus:ring-primary cursor-pointer"
+                />
+                <Label htmlFor="idealFractionEnabled" className="cursor-pointer text-white font-medium text-sm">
+                  Ativar Votação por Fração Ideal (Votos Ponderados)
+                </Label>
+              </div>
             </div>
 
             <DialogFooter>
@@ -337,7 +383,7 @@ export default function EnquetesPage() {
         </Dialog>
       ) : null
     }>
-      <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+      <Card className="border bg-card">
         <CardHeader>
           <CardTitle className="text-white">Enquetes</CardTitle>
           <CardDescription className="text-white/75">Votações do condomínio (dados em tempo real).</CardDescription>
@@ -356,7 +402,7 @@ export default function EnquetesPage() {
                 const aberta = poll.status === "ABERTA";
 
                 return (
-                  <Card key={poll.id} className="rounded-2xl border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)] w-full overflow-hidden">
+                  <Card key={poll.id} className="rounded-2xl border bg-card w-full overflow-hidden">
                     <CardHeader className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div className="min-w-0">
                         <CardTitle className="text-white text-lg sm:text-xl leading-tight break-words">{poll.titulo}</CardTitle>
@@ -365,7 +411,14 @@ export default function EnquetesPage() {
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
                           <StatusBadge status={poll.status} />
-                          <Badge variant="outline" className="text-white/90 border-white/25">{totalVotes} voto(s)</Badge>
+                          {poll.idealFractionEnabled ? (
+                            <>
+                              <Badge className="bg-primary/20 text-primary hover:bg-primary/20 border border-primary/30">Fração Ideal</Badge>
+                              <Badge variant="outline" className="text-white/90 border-white/25">Fração Total: {totalVotes.toFixed(6)}</Badge>
+                            </>
+                          ) : (
+                            <Badge variant="outline" className="text-white/90 border-white/25">{totalVotes} voto(s)</Badge>
+                          )}
                           {myVote ? <Badge variant="secondary">Você já votou</Badge> : null}
                         </div>
                       </div>
@@ -398,7 +451,11 @@ export default function EnquetesPage() {
                                     {option.texto} {votedThis ? "✅" : ""}
                                   </p>
                                   <p className="text-xs text-white/80 mt-1">
-                                    {Math.round(percentage)}% ({votes} voto(s))
+                                    {poll.idealFractionEnabled ? (
+                                      <>Ponderado: {votes.toFixed(6)} ({percentage.toFixed(2)}%)</>
+                                    ) : (
+                                      <>{Math.round(percentage)}% ({votes} voto(s))</>
+                                    )}
                                   </p>
                                 </div>
 

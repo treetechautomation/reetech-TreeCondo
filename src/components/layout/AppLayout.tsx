@@ -11,21 +11,21 @@ import { signOut } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 import UserBadge from "./UserBadge";
 import { CondominioSwitcher } from "@/components/condominios/CondominioSwitcher";
-import { LogOut, Menu, ArrowLeft, X } from "lucide-react";
+import { LogOut, Menu, ArrowLeft } from "lucide-react";
 import { TreeCondoBrand } from "@/components/branding/TreeCondoBrand";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 type NavDef = { href: string; label: string; key: MenuKey };
 
 const NAV_ITEMS: NavDef[] = [
   { href: "/painel", label: "Dashboard", key: "dashboard" },
+  { href: "/portaria", label: "Painel da Portaria", key: "portaria" },
   { href: "/condominios", label: "Condomínios", key: "condominios" },
   { href: "/cadastros", label: "Cadastros", key: "cadastros" },
   { href: "/acesso", label: "Acesso", key: "acesso" },
   { href: "/anuncios", label: "Anúncios", key: "anuncios" },
   { href: "/reservas", label: "Reservas", key: "reservas" },
-    { href: "/reservas/dashboard", label: "Gestão de Reservas", key: "reservas_gestao" },
+    { href: "/reservas/gestao", label: "Gestão de Áreas e Reservas", key: "reservas_gestao" },
   { href: "/reservas/agenda", label: "Reservas Aprovadas", key: "reservas_agenda" },
   { href: "/reservas/solicitacoes", label: "Solicitações de Reservas", key: "reservas_solicitacoes" },
   { href: "/incidentes", label: "Incidentes", key: "incidentes" },
@@ -86,7 +86,7 @@ export type AppLayoutProps = {
   children: React.ReactNode;
 };
 
-export function AppLayout({ pageTitle, headerActions, hideMobileMenuButton = true, children }: AppLayoutProps) {
+export function AppLayout({ pageTitle, headerActions, hideMobileMenuButton = false, children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { session, isSessionLoading, isAuthenticated } = useSessionCtx();
@@ -98,16 +98,84 @@ React.useEffect(() => {
     const isPublicRoute =
       pathname?.startsWith("/login") ||
       pathname?.startsWith("/definir-senha") ||
-      pathname?.startsWith("/primeiro-acesso");
+      pathname?.startsWith("/primeiro-acesso") ||
+      pathname?.startsWith("/signup") ||
+      pathname?.startsWith("/onboarding");
 
     if (isPublicRoute) return;
 
-    // ✅ usa isAuthenticated (não depende da session estar "completa")
     if (!isAuthenticated) {
       router.replace("/login");
     }
   }, [isSessionLoading, isAuthenticated, pathname, router]);
 /** /AUTO_REDIRECT_LOGIN_GUARD **/
+
+/** ONBOARDING_GATE: sem vínculo ATIVO -> /onboarding/vincular-condominio **/
+React.useEffect(() => {
+    if (isSessionLoading) return;
+    if (!session) return;
+
+    const isPublicOrOnboarding =
+      pathname?.startsWith("/login") ||
+      pathname?.startsWith("/signup") ||
+      pathname?.startsWith("/primeiro-acesso") ||
+      pathname?.startsWith("/onboarding");
+
+    if (isPublicOrOnboarding) return;
+
+    const isSuperAdmin =
+      Boolean((session as any).superAdmin) ||
+      String(session.role || "").toUpperCase() === "SUPER_ADMIN";
+
+    if (isSuperAdmin) return;
+
+    const hasActiveVinculo = (session.vinculos ?? []).some(
+      (v: any) => v.status === "ATIVO"
+    );
+
+    if (!hasActiveVinculo) {
+      router.replace("/onboarding/vincular-condominio");
+    }
+  }, [isSessionLoading, session, pathname, router]);
+/** /ONBOARDING_GATE **/
+
+/** PORTEIRO_REDIRECT: PORTEIRO sempre vai para /portaria **/
+React.useEffect(() => {
+    if (isSessionLoading) return;
+    if (!session) return;
+
+    const isExcluded =
+      pathname?.startsWith("/login") ||
+      pathname?.startsWith("/signup") ||
+      pathname?.startsWith("/primeiro-acesso") ||
+      pathname?.startsWith("/onboarding") ||
+      pathname?.startsWith("/portaria") ||
+      pathname?.startsWith("/acesso") ||
+      pathname?.startsWith("/encomendas") ||
+      pathname?.startsWith("/incidentes") ||
+      pathname?.startsWith("/reservas") ||
+      pathname?.startsWith("/anuncios") ||
+      pathname?.startsWith("/notificacoes") ||
+      pathname?.startsWith("/menu") ||
+      pathname?.startsWith("/meus-dados") ||
+      pathname?.startsWith("/manutencao-preventiva") ||
+      pathname?.startsWith("/api/") ||
+      pathname?.startsWith("/_next");
+
+    if (isExcluded) return;
+
+    const isSuperAdmin =
+      Boolean((session as any).superAdmin) ||
+      String(session.role || "").toUpperCase() === "SUPER_ADMIN";
+
+    if (isSuperAdmin) return;
+
+    const role = String(session.role || "").toUpperCase();
+    if (role === "PORTEIRO") {
+      router.replace("/portaria");
+    }
+  }, [isSessionLoading, session, pathname, router]);
+/** /PORTEIRO_REDIRECT **/
 
 
   const isSuper =
@@ -118,14 +186,7 @@ React.useEffect(() => {
 
   const hideSidebar = pathname?.startsWith("/login");
 
-    React.useEffect(() => {
-      setMobileOpen(false);
-    }, [pathname]);
-
   const [perms, setPerms] = React.useState<MenuPermissions | null>(null);
-
-  // drawer mobile
-  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (isSessionLoading || !session?.activeCondominioId) {
@@ -231,106 +292,87 @@ React.useEffect(() => {
 
         <main className="flex-1 min-w-0">
           {!hideSidebar && (
-            <header className="sticky top-0 z-[999] bg-white/35 backdrop-blur-xl border-b border-white/15">
-              <div className="grid grid-cols-[auto_1fr_auto] items-center px-3 sm:px-4 lg:px-6 py-3 lg:py-4 gap-2 sm:gap-3">
-                {/* Esquerda: menu mobile + voltar */}
-                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                  {/* Drawer mobile */}
+            <header className="sticky top-0 z-[999] bg-white/35 backdrop-blur-xl border-b border-white/15" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+
+              {/* ─── MOBILE: duas camadas (lg:hidden) ─── */}
+              <div className="lg:hidden">
+                {/* Camada 1 — Navegação Global */}
+                <div className="flex items-center px-3 py-2.5 gap-1.5">
                   {!hideMobileMenuButton && (
-                    <div className="lg:hidden relative z-[2147483000] pointer-events-auto">
-                    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                      <SheetTrigger asChild>
-  <Button
-    type="button"
-    variant="ghost"
-    size="icon"
-    className="rounded-xl relative z-[2147483000] pointer-events-auto text-slate-900 hover:text-[#00d0e6]"
-    title="Menu"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  </Button>
-</SheetTrigger>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-xl text-slate-900 hover:text-[#00d0e6] min-h-[44px] min-w-[44px] shrink-0"
+                      title="Menu"
+                      aria-label="Abrir menu de navegação"
+                      onClick={() => router.push("/menu")}
+                    >
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  )}
+                  {isSuper && (
+                    <div className="flex-1 min-w-0 max-w-[160px]">
+                      <CondominioSwitcher />
+                    </div>
+                  )}
+                  {!isSuper && <div className="flex-1" />}
+                  <NotificationBell className="text-slate-900 hover:text-[#00d0e6] shrink-0" />
+                  <Button
+                    onClick={handleLogout}
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-xl shrink-0 min-h-[44px] min-w-[44px]"
+                    title="Sair"
+                    aria-label="Sair da conta"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </Button>
+                </div>
 
-                      <SheetContent
-                        side="left"
-                        className="p-0 w-[88vw] max-w-[360px] border-r border-white/10 bg-black/30 backdrop-blur-2xl z-[2147483647]"
-                      >
-                        {/* Topbar do drawer com setas */}
-                        <div className="flex items-center justify-between px-3 py-2 bg-white/15 backdrop-blur-xl border-b border-white/10">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-xl text-white/90 hover:bg-white/10"
-                              title="Voltar"
-                              onClick={() => router.back()}
-                            >
-                              <ArrowLeft className="h-5 w-5" />
-                            </Button>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-xl text-white/90 hover:bg-white/10"
-                              title="Sair"
-                              onClick={handleLogout}
-                            >
-                              <LogOut className="h-5 w-5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-xl text-white/90 hover:bg-white/10"
-                              title="Fechar"
-                              onClick={() => setMobileOpen(false)}
-                            >
-                              <X className="h-5 w-5" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Menu */}
-                        <SidebarPanel onNavigate={() => setMobileOpen(false)} />
-                      </SheetContent>
-                    </Sheet>
+                {/* Camada 2 — Contexto da Página (título + ações) */}
+                {(pageTitle || headerActions) && (
+                  <div className="flex items-center gap-2 px-3 pb-2.5">
+                    <div className="flex-1 min-w-0 text-base font-semibold text-slate-900 leading-tight">
+                      {pageTitle ?? ""}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {headerActions ?? null}
+                    </div>
                   </div>
+                )}
+              </div>
 
-                    )}
-                  {/* Título */}
-                  <div className="text-lg lg:text-xl font-semibold text-slate-900 truncate">
+              {/* ─── DESKTOP: linha única (lg:flex) ─── */}
+              <div className="hidden lg:flex items-center px-6 py-4 gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xl font-semibold text-slate-900 truncate">
                     {pageTitle ?? ""}
                   </div>
                 </div>
-
-                {/* Direita */}
-                <div className="flex items-center justify-end gap-2 lg:gap-4 min-w-0">
-                  {isSuper && <div className="w-[min(44vw,220px)] min-w-0 sm:w-auto sm:min-w-[220px]"><CondominioSwitcher /></div>}
-                  <NotificationBell className="text-slate-900 hover:text-[#00d0e6] hover:shadow-[0_0_0_2px_rgba(0,208,230,.65),0_10px_40px_rgba(0,208,230,.18)]" />
-                    {headerActions ?? null}
-
-                  {/* Logout desktop (no mobile já tem no drawer) */}
-                  <div className="block">
-                    <Button
-                      onClick={handleLogout}
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-xl"
-                      title="Sair"
-                    >
-                      <LogOut className="h-5 w-5" />
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {isSuper && (
+                    <div className="min-w-[220px]">
+                      <CondominioSwitcher />
+                    </div>
+                  )}
+                  <NotificationBell className="text-slate-900 hover:text-[#00d0e6] shrink-0" />
+                  {headerActions ?? null}
+                  <Button
+                    onClick={handleLogout}
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-xl shrink-0"
+                    title="Sair"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
             </header>
           )}
 
-          <div className="px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+          <div className="px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 lg:pb-8 pb-[calc(1rem+4rem+env(safe-area-inset-bottom,0px))]">
               <div className="mx-auto w-full max-w-screen-xl min-w-0">
                 {children}
               </div>

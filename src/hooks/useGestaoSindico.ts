@@ -1,13 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { initializeFirebase } from "@/firebase";
+import { useUser } from "@/firebase";
 import {
-  getFirestore,
   collection,
   onSnapshot,
-  writeBatch,
-  doc,
-  serverTimestamp,
 } from "firebase/firestore";
+import { getIdToken } from "firebase/auth";
 
 export type MembroCondominio = {
   uid: string;
@@ -33,6 +31,7 @@ export function useGestaoSindico(
   const [moradores, setMoradores] = useState<MembroCondominio[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const { user: currentUser } = useUser();
 
   useEffect(() => {
     if (!condominioId) {
@@ -76,92 +75,34 @@ export function useGestaoSindico(
     return () => unsub();
   }, [condominioId]);
 
-  const definirSindico = async (novoUid: string) => {
+  const definirSindico = useCallback(async (novoUid: string) => {
     if (!condominioId) {
       throw new Error("Condomínio não selecionado.");
+    }
+
+    if (!currentUser) {
+      throw new Error("Usuário não autenticado.");
     }
 
     try {
       setLoading(true);
       setError(null);
 
-      const { firestore: db } = initializeFirebase();
-      const batch = writeBatch(db);
+      const token = await getIdToken(currentUser, false);
 
-      // Rebaixa síndico atual para morador, se existir
-      if (sindicoAtual) {
-        const membroAtualRef = doc(
-          db,
-          "condominios",
-          condominioId,
-          "membros",
-          sindicoAtual.uid
-        );
-        const vinculoAtualRef = doc(
-          db,
-          "userCondominios",
-          sindicoAtual.uid,
-          "vinculos",
-          condominioId
-        );
-
-        batch.set(
-          membroAtualRef,
-          { role: "MORADOR", updatedAt: serverTimestamp() },
-          { merge: true }
-        );
-        batch.set(
-          vinculoAtualRef,
-          { role: "MORADOR", updatedAt: serverTimestamp() },
-          { merge: true }
-        );
-      }
-
-      // Promove novo síndico
-      const novoMembroRef = doc(
-        db,
-        "condominios",
-        condominioId,
-        "membros",
-        novoUid
-      );
-      const novoVinculoRef = doc(
-        db,
-        "userCondominios",
-        novoUid,
-        "vinculos",
-        condominioId
-      );
-
-      batch.set(
-        novoMembroRef,
-        {
-          role: "SINDICO",
-          updatedAt: serverTimestamp(),
+      const res = await fetch("/api/membros/promote-sindico", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        { merge: true }
-      );
-      batch.set(
-        novoVinculoRef,
-        {
-          role: "SINDICO",
-          status: "ATIVO",
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Registro de mandato (histórico simples)
-      const mandatoRef = doc(
-        collection(db, "condominios", condominioId, "mandatos")
-      );
-      batch.set(mandatoRef, {
-        sindicoUid: novoUid,
-        anteriorUid: sindicoAtual ? sindicoAtual.uid : null,
-        criadoEm: serverTimestamp(),
+        body: JSON.stringify({ condominioId, novoUid }),
       });
 
-      await batch.commit();
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao definir novo síndico.");
+      }
     } catch (err: any) {
       console.error("[useGestaoSindico] erro ao definir novo síndico:", err);
       setError(err?.message || "Erro ao definir novo síndico.");
@@ -169,7 +110,7 @@ export function useGestaoSindico(
     } finally {
       setLoading(false);
     }
-  };
+  }, [condominioId, currentUser]);
 
   return {
     sindicoAtual,

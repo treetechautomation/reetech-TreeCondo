@@ -19,6 +19,14 @@ export const MoradorFixoSchema = z.object({
   nascimento: isoDateNullable,
 });
 
+export const MoradorTemporarioSchema = z.object({
+  nome: z.string().min(2).max(120),
+  rgOuCpf: z.string().min(3).max(30).nullable().optional(),
+  dataInicio: isoDateNullable,
+  dataFim: isoDateNullable,
+  qrCodeToken: z.string().nullable().optional(),
+});
+
 export const EmpregadoSchema = z.object({
   nome: z.string().min(2).max(120),
   funcao: z.string().min(1).max(80).nullable().optional(),
@@ -54,6 +62,7 @@ export const FichaMoradorSchema = z.object({
 
   dependentes: z.array(DependenteSchema).default([]),
   moradoresFixos: z.array(MoradorFixoSchema).default([]),
+  moradoresTemporarios: z.array(MoradorTemporarioSchema).default([]),
   empregados: z.array(EmpregadoSchema).default([]),
 
   animais: z.object({
@@ -83,6 +92,7 @@ export const emptyFicha = (): FichaMorador => ({
   conjuge: { nome: null, nascimento: null, pai: null, mae: null },
   dependentes: [],
   moradoresFixos: [],
+  moradoresTemporarios: [],
   empregados: [],
   animais: { possui: false, descricao: null },
   documentosEntregues: { entregueEm: null, entreguePor: null },

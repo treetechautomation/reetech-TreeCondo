@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { checkRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rateLimiter";
+import { triarIncidente } from "@/ai/triagemIncidente";
 
 export async function POST(req: Request) {
   try {
@@ -13,6 +15,14 @@ export async function POST(req: Request) {
 
     const decodedToken = await adminAuth().verifyIdToken(token);
     const uid = decodedToken.uid;
+
+    // Rate limiting: máx 10 incidentes por minuto por usuário
+    const rl = checkRateLimit({
+      key: rateLimitKey(uid, null, "incidentes:create"),
+      limit: 10,
+      windowSec: 60,
+    });
+    if (!rl.allowed) return rateLimitResponse(rl);
 
     const body = await req.json();
     const { condominioId, titulo, descricao, tipo, fotos = [] } = body;
@@ -39,6 +49,76 @@ export async function POST(req: Request) {
 
     const now = FieldValue.serverTimestamp();
 
+    // UN.6D.1: Resolve canonical unit from VinculoUnidade
+    const pessoaId = String(membroData?.pessoaId || "");
+    let criadoPorUnitDocId: string | null = null;
+    let criadoPorUnidadeSnapshot: any = null;
+
+    if (pessoaId) {
+      try {
+        const vincSnap = await db.collection("condominios").doc(condominioId)
+          .collection("vinculosUnidades")
+          .where("pessoaId", "==", pessoaId)
+          .where("status", "==", "ATIVO")
+          .where("resideNaUnidade", "==", true)
+          .where("principal", "==", true)
+          .limit(1).get();
+
+        if (!vincSnap.empty) {
+          const vinc = vincSnap.docs[0].data() || {};
+          const cBlocoId = String(vinc.blocoId || "");
+          const cUnitDocId = String(vinc.unitDocId || "");
+
+          if (cBlocoId && cUnitDocId) {
+            criadoPorUnitDocId = cUnitDocId;
+            // Build snapshot from catalog
+            let blocoNome = cBlocoId;
+            let unidadeNumero = "";
+            try {
+              const blocoSnap = await db.collection("condominios").doc(condominioId)
+                .collection("blocos").doc(cBlocoId).get();
+              if (blocoSnap.exists) blocoNome = String((blocoSnap.data() || {}).nome || cBlocoId);
+              const unidadeSnap = await db.collection("condominios").doc(condominioId)
+                .collection("blocos").doc(cBlocoId).collection("unidades").doc(cUnitDocId).get();
+              if (unidadeSnap.exists) unidadeNumero = String((unidadeSnap.data() || {}).numero || "");
+            } catch { /* ignore */ }
+            criadoPorUnidadeSnapshot = { unitDocId: cUnitDocId, blocoId: cBlocoId, blocoNome, unidadeNumero };
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // UN.6D.1: Local do incidente from request body
+    const localUnitDocId = body.localUnitDocId ? String(body.localUnitDocId).trim() : null;
+    const localTipo = body.localTipo === "AREA_COMUM" ? "AREA_COMUM" : (localUnitDocId ? "UNIDADE" : null);
+    let localUnidadeSnapshot: any = null;
+
+    if (localUnitDocId) {
+      try {
+        // Find the bloco that contains this unit
+        const blocosSnap = await db.collection("condominios").doc(condominioId)
+          .collection("blocos").where("ativo", "==", true).get();
+        for (const bDoc of blocosSnap.docs) {
+          const unidadeSnap = await db.collection("condominios").doc(condominioId)
+            .collection("blocos").doc(bDoc.id).collection("unidades").doc(localUnitDocId).get();
+          if (unidadeSnap.exists) {
+            const ud = unidadeSnap.data() || {};
+            const bd = bDoc.data() || {};
+            localUnidadeSnapshot = {
+              unitDocId: localUnitDocId,
+              blocoId: bDoc.id,
+              blocoNome: String(bd.nome || bDoc.id),
+              unidadeNumero: String(ud.numero || ""),
+            };
+            break;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Triagem por IA (não bloqueia em caso de falha)
+    const triagem = await triarIncidente({ titulo, descricao });
+
     batch.set(novoIncidenteRef, {
       titulo,
       descricao,
@@ -47,12 +127,26 @@ export async function POST(req: Request) {
       criadoPorUid: uid,
       criadoPorNome: membroData?.nome || decodedToken.name || decodedToken.email,
       criadoPorEmail: decodedToken.email,
-      criadoPorUnidadeId: membroData?.unidadeId || null,
-      criadoPorBlocoId: membroData?.blocoId || null,
+      // UN.6D.1: Canonical fields
+      criadoPorPessoaId: pessoaId || null,
+      criadoPorUnitDocId: criadoPorUnitDocId || null,
+      criadoPorUnidadeSnapshot: criadoPorUnidadeSnapshot || null,
+      localUnitDocId: localUnitDocId || null,
+      localTipo: localTipo || null,
+      localUnidadeSnapshot: localUnidadeSnapshot || null,
+      // Legacy fields (derived from canonical or membro fallback)
+      criadoPorUnidadeId: criadoPorUnidadeSnapshot?.unidadeNumero || membroData?.unidadeId || null,
+      criadoPorBlocoId: criadoPorUnidadeSnapshot?.blocoId || membroData?.blocoId || null,
       createdAt: now,
       updatedAt: now,
       avaliacao: null,
-        fotos: Array.isArray(fotos) ? fotos : [],
+      fotos: Array.isArray(fotos) ? fotos : [],
+      // IA Triagem
+      ia_categoria: triagem?.categoria || null,
+      ia_urgencia: triagem?.urgencia || null,
+      ia_encaminhamento: triagem?.encaminhamento || null,
+      ia_resumo: triagem?.resumo || null,
+      ia_tags: triagem?.tags || [],
     });
 
     batch.set(historicoRef, {

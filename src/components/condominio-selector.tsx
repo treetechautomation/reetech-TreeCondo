@@ -18,14 +18,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { normNFD } from "@/lib/normalization/text";
 
-function norm(s: string) {
-  return (s || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
 
 export function CondominioSelector() {
   const { session } = useSessionCtx();
@@ -126,7 +120,7 @@ export function CondominioSelector() {
 
       <PopoverContent className="w-[220px] p-0" align="end">
         <Command
-          filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}
+          filter={(value, search) => (normNFD(value).includes(normNFD(search)) ? 1 : 0)}
         >
           <CommandInput placeholder="Procurar..." />
           <CommandList>

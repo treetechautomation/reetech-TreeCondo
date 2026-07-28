@@ -4,80 +4,11 @@ import { createHash, randomBytes } from "crypto";
 export const runtime = "nodejs";
 import { adminDb, adminAuth } from "@/lib/firebaseAdmin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { normUnidade, normBloco } from "@/lib/normalization/location";
 
-type Role = "MORADOR" | "SINDICO" | "PORTEIRO" | "FUNCIONARIO" | "ADMIN_CONDOMINIO";
+type Role = "MORADOR" | "SINDICO" | "PORTEIRO" | "FUNCIONARIO" | "ADMIN_CONDOMINIO" | "ZELADOR" | "ADMIN" | "SUPER_ADMIN";
 
-function buildMenuPermissions(role: string) {
-  const r = String(role || "").toUpperCase();
-
-  // Base (todos podem ver o dashboard quando ativos)
-  const base: Record<string, boolean> = {
-    dashboard: true,
-  };
-
-  // MORADOR
-  if (r === "MORADOR") {
-    return {
-      ...base,
-      acesso: true,
-      anuncios: true,
-      documentos: true,
-      enquetes: true,
-      reservas: true,
-      encomendas: true,
-      reunioes: true,
-      // NÃO: cadastros/configuracoes/condominios/administradorGlobal/incidentes
-      cadastros: false,
-      configuracoes: false,
-      condominios: false,
-      administradorGlobal: false,
-      incidentes: false,
-    };
-  }
-
-  // PORTEIRO
-  if (r === "PORTEIRO") {
-    return {
-      ...base,
-      acesso: true,
-      encomendas: true,
-      incidentes: true,
-      anuncios: true,
-      documentos: true,
-      // NÃO: administradorGlobal
-      administradorGlobal: false,
-      cadastros: false,
-      configuracoes: false,
-      condominios: false,
-      reservas: false,
-      enquetes: false,
-      reunioes: false,
-    };
-  }
-
-  // SINDICO (admin do condomínio, mas não global)
-  if (r === "SINDICO") {
-    return {
-      dashboard: true,
-      condominios: true,
-      cadastros: true,
-      configuracoes: true,
-      anuncios: true,
-      documentos: true,
-      enquetes: true,
-      reservas: true,
-      encomendas: true,
-      incidentes: true,
-      reunioes: true,
-      acesso: true,
-      // NÃO: administradorGlobal (isso fica só pro superAdmin)
-      administradorGlobal: false,
-    };
-  }
-
-  // fallback
-  return { ...base };
-}
+import { buildMenuPermissions } from "@/lib/pessoas/menuPermissions";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -179,9 +110,8 @@ export async function POST(req: Request) {
       (decoded as any).superAdmin === true ||
       String((decoded as any).role || "").toUpperCase() === "SUPER_ADMIN" ||
       (Array.isArray((decoded as any).roles) &&
-        (decoded as any).roles.includes("SUPER_ADMIN")) ||
-      requesterEmail === "treecommunity@treetechautomation.com" ||
-      requesterEmail === "treetechautomation@treetechautomation.com";
+        (decoded as any).roles.includes("SUPER_ADMIN"));
+    let requesterRole = "";
     // Se não for super, valida vínculo ATIVO no condomínio
     if (!isSuper) {
       const condominioIdPeek = String(body?.condominioId || "").trim();
@@ -206,11 +136,33 @@ export async function POST(req: Request) {
 
       if (!canManage)
         return jsonError("Sem permissão para criar convites.", 403);
+
+      requesterRole = role.toUpperCase();
+    } else {
+      requesterRole = "SUPER_ADMIN";
     }
+
     const condominioId = body.condominioId?.trim();
     const nome = (body.nome || "").trim();
     const email = (body.email || "").trim().toLowerCase();
     const role = (body.role || "MORADOR") as Role;
+
+    const targetRole = String(role).toUpperCase();
+
+    const ALLOWED_TARGET_ROLES: Record<string, string[]> = {
+      SUPER_ADMIN: ["SUPER_ADMIN", "ADMIN", "ADMIN_CONDOMINIO", "SINDICO", "MORADOR", "PORTEIRO", "ZELADOR", "FUNCIONARIO"],
+      ADMIN_CONDOMINIO: ["SINDICO", "MORADOR", "PORTEIRO", "ZELADOR", "FUNCIONARIO"],
+      ADMIN: ["SINDICO", "MORADOR", "PORTEIRO", "ZELADOR", "FUNCIONARIO"],
+      SINDICO: ["MORADOR", "PORTEIRO", "ZELADOR", "FUNCIONARIO"],
+    };
+
+    const allowedTargets = ALLOWED_TARGET_ROLES[requesterRole];
+    if (!allowedTargets || !allowedTargets.includes(targetRole)) {
+      console.warn(
+        `[API convites/create] Bloqueada tentativa de criação de convite: solicitante (UID: ${requesterUid.substring(0, 4)}***, papel solicitante: ${requesterRole}) tentou criar papel ${targetRole}.`
+      );
+      return jsonError("Você não tem privilégios para convidar um usuário com este papel.", 403);
+    }
     const blocoId = (body as any).blocoId
       ? String((body as any).blocoId).trim()
       : (body as any).bloco
@@ -222,18 +174,57 @@ export async function POST(req: Request) {
       : ((body as any).apartamento ?? (body as any).unidade)
         ? String((body as any).apartamento ?? (body as any).unidade).trim()
         : null;
+
+    const unitDocId = (body as any).unitDocId
+      ? String((body as any).unitDocId).trim()
+      : null;
     // Regras por tipo:
     // - MORADOR: bloco + unidade obrigatórios
     // - SINDICO / ADMIN_CONDOMINIO / PORTEIRO / FUNCIONARIO: bloco opcional, unidade nula
     if (role === "MORADOR") {
       if (!blocoId) return jsonError("blocoId é obrigatório para morador", 400);
-      if (!unidadeId)
-        return jsonError("unidadeId é obrigatório para morador", 400);
+      if (!unidadeId && !unitDocId)
+        return jsonError("unidadeId ou unitDocId é obrigatório para morador", 400);
     }
 
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
     if (!nome) return jsonError("nome é obrigatório", 400);
     if (!email) return jsonError("email é obrigatório", 400);
+
+    // F.1.5 — Normalização de bloco/unidade
+    const blocoIdNormVal = blocoId ? normBloco(blocoId) : null;
+
+    // F.1.5 — Validação server-side: bloco pertence ao condomínio
+    if (blocoId) {
+      const blocoRef = db.collection("condominios").doc(condominioId).collection("blocos").doc(blocoId);
+      const blocoSnap = await blocoRef.get();
+      if (!blocoSnap.exists) {
+        return jsonError("Bloco não pertence a este condomínio.", 400);
+      }
+    }
+
+    // F.2.2 — Validação server-side: unitDocId pertence ao bloco
+    let unidadeNumeroFromDoc: string | null = null;
+    if (unitDocId && blocoId) {
+      const unidadeRef = db
+        .collection("condominios")
+        .doc(condominioId)
+        .collection("blocos")
+        .doc(blocoId)
+        .collection("unidades")
+        .doc(unitDocId);
+      const unidadeSnap = await unidadeRef.get();
+      if (!unidadeSnap.exists) {
+        return jsonError("Unidade não encontrada no bloco informado.", 400);
+      }
+      const unidadeData = unidadeSnap.data();
+      unidadeNumeroFromDoc = unidadeData?.numero ?? null;
+    }
+
+    // F.2.2 — Se unitDocId foi fornecido, usa numero do doc; senão usa unidadeId legado
+    const resolvedUnidadeId = unidadeNumeroFromDoc || unidadeId;
+    const unidadeIdNormVal = resolvedUnidadeId ? normUnidade(resolvedUnidadeId) : null;
+
     // 1) cria/obtém usuário Auth
     let uid: string;
     let senhaTemporaria: string | null = null;
@@ -272,7 +263,7 @@ export async function POST(req: Request) {
 
     const primeiroAcessoUrl = `${baseUrl}/primeiro-acesso?conviteId=${conviteId}`;
 
-    // 3) grava convites + membro PENDENTE
+    // 3) grava convites + membro PENDENTE (transação com anti-duplicidade atômica)
     const membroRef = db
       .collection("condominios")
       .doc(condominioId)
@@ -281,9 +272,40 @@ export async function POST(req: Request) {
     const userCondominioRootRef = db.collection("userCondominios").doc(uid);
 
     await db.runTransaction(async (tx) => {
-      // Garante que o documento raiz do usuário exista em userCondominios
+      // FASE 1: TODAS AS LEITURAS (antes de qualquer escrita)
+      // F.1.5 — Anti-duplicidade convite (mesmo email + mesmo condo + status PENDENTE)
+      const convitesDuplicados = await tx.get(
+        db.collection("convites")
+          .where("email", "==", email)
+          .where("condominioId", "==", condominioId)
+          .where("status", "==", "PENDENTE")
+          .limit(1)
+      );
+      if (!convitesDuplicados.empty) {
+        throw new Error("Já existe um convite pendente para este e-mail neste condomínio.");
+      }
+
+      // Verifica se documento raiz do usuário existe em userCondominios
       const rootSnap = await tx.get(userCondominioRootRef);
-      if (!rootSnap.exists) {
+      const rootExists = rootSnap.exists;
+
+      // F.1.5 — Anti-duplicidade membership: membro ATIVO não pode ser recriado
+      const membroSnap = await tx.get(membroRef);
+      if (membroSnap.exists) {
+        const membroData = membroSnap.data();
+        const membroStatus = String(membroData?.status || "").toUpperCase();
+        if (membroStatus === "ATIVO") {
+          throw new Error("Este usuário já é membro ativo deste condomínio.");
+        }
+      }
+
+      const isFuncionario = role === "FUNCIONARIO";
+      const membroRole = isFuncionario ? "ZELADOR" : role;
+      const membroTipo = isFuncionario ? "FUNCIONARIO" : null;
+      const membroFuncionarioTipo = isFuncionario ? (body.funcionarioTipo || null) : null;
+
+      // FASE 2: TODAS AS ESCRITAS (após todas as leituras)
+      if (!rootExists) {
         tx.set(
           userCondominioRootRef,
           {
@@ -306,17 +328,19 @@ export async function POST(req: Request) {
           tentativas: 0,
           nome,
           email,
-          tipo: role === "FUNCIONARIO" ? "PORTEIRO" : role,
+          tipo: isFuncionario ? "FUNCIONARIO" : role,
           condominioId,
           blocoId,
-          unidadeId,
+          unidadeId: resolvedUnidadeId,
+          unitDocId: unitDocId || null,
+          unidadeIdNorm: unidadeIdNormVal,
+          blocoIdNorm: blocoIdNormVal,
           bloco: blocoId ?? null,
-          apartamento: unidadeId ?? null,
+          apartamento: resolvedUnidadeId ?? null,
           createdAt: FieldValue.serverTimestamp(),
           createdByUid: requesterUid,
           createdByEmail: requesterEmail,
           uidGerado: uid,
-          senhaTemporaria: senhaTemporaria,
           status: "PENDENTE",
         },
         { merge: true },
@@ -329,9 +353,15 @@ export async function POST(req: Request) {
           updatedAt: FieldValue.serverTimestamp(),
           nome,
           email,
-          role: role === "FUNCIONARIO" ? "FUNCIONARIO" : role,
+          role: membroRole,
+          tipo: membroTipo,
+          funcionarioTipo: membroFuncionarioTipo,
           blocoId: blocoId ?? null,
-          unidadeId: role === "MORADOR" ? (unidadeId ?? null) : null,
+          unidadeId: isFuncionario ? null : (role === "MORADOR" ? (resolvedUnidadeId ?? null) : null),
+          unitDocId: isFuncionario ? null : (role === "MORADOR" ? (unitDocId ?? null) : null),
+          blocoIdNorm: blocoIdNormVal,
+          unidadeIdNorm: isFuncionario ? null : (role === "MORADOR" ? unidadeIdNormVal : null),
+          personId: body.personId || null,
           status: "PENDENTE",
         },
         { merge: true },
@@ -374,7 +404,14 @@ export async function POST(req: Request) {
       primeiroAcessoUrl,
     });
   } catch (err: any) {
-    console.error("[API convites/create] erro:", err);
-    return jsonError(err?.message || "Erro inesperado", 500);
+    console.error("[API convites/create] erro:", err?.message ?? err);
+    const msg = String(err?.message ?? err);
+    if (msg.includes("Já existe um convite")) {
+      return jsonError(msg, 409);
+    }
+    if (msg.includes("já é membro ativo")) {
+      return jsonError(msg, 409);
+    }
+    return jsonError(msg || "Erro inesperado", 500);
   }
 }

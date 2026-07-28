@@ -3,27 +3,24 @@ export const runtime = "nodejs";
 
 import { adminAuth, adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { checkRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rateLimiter";
+import { normUnidade, normBloco } from "@/lib/normalization/location";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-function normUnidade(v: any) {
-  return String(v || "")
-    .toLowerCase()
-    .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
-    .replace(/[^0-9a-z]/gi, "")
-    .trim();
-}
 
-function normBloco(v: any) {
-  return String(v || "").toLowerCase().trim();
-}
 
 async function getActorInfo(db: any, params: { condominioId: string; uid: string; decoded: any }) {
   const { condominioId, uid, decoded } = params;
   let nome = String(decoded?.name || decoded?.email || "Operador").trim();
   let role: string | null = null;
+  let status: string | null = null;
+  let blocoId: string | null = null;
+  let unidadeId: string | null = null;
+  let blocoIdNorm: string | null = null;
+  let unidadeIdNorm: string | null = null;
 
   try {
     const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
@@ -32,12 +29,17 @@ async function getActorInfo(db: any, params: { condominioId: string; uid: string
       const md = msnap.data() || {};
       if (md?.nome) nome = String(md.nome).trim();
       if (md?.role) role = String(md.role).trim();
+      if (md?.status) status = String(md.status).trim();
+      if (md?.blocoId) blocoId = String(md.blocoId).trim();
+      if (md?.unidadeId) unidadeId = String(md.unidadeId).trim();
+      if (md?.blocoIdNorm) blocoIdNorm = String(md.blocoIdNorm).trim();
+      if (md?.unidadeIdNorm) unidadeIdNorm = String(md.unidadeIdNorm).trim();
     }
   } catch (e: any) {
     console.warn("[acessos/create] getActorInfo falhou:", e?.message || String(e));
   }
 
-  return { uid, nome, role };
+  return { uid, nome, role, status, blocoId, unidadeId, blocoIdNorm, unidadeIdNorm };
 }
 
 async function findMoradoresAlvo(db: any, params: {
@@ -222,6 +224,15 @@ export async function POST(req: Request) {
     if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
 
     const decoded = await aauth.verifyIdToken(token);
+
+    // Rate limiting: máx 20 registros de acesso por minuto por usuário
+    const rl = checkRateLimit({
+      key: rateLimitKey(decoded.uid, null, "acessos:create"),
+      limit: 20,
+      windowSec: 60,
+    });
+    if (!rl.allowed) return rateLimitResponse(rl);
+
     const body = await req.json().catch(() => ({}));
 
     const condominioId = String(body?.condominioId || "").trim();
@@ -234,10 +245,42 @@ export async function POST(req: Request) {
     const empresa = body?.empresa ? String(body.empresa).trim() : null;
     const observacao = body?.observacao ? String(body.observacao).trim() : null;
 
-    const blocoId = body?.blocoId ? String(body.blocoId).trim() : null;
-    const unidadeId = body?.unidadeId ? String(body.unidadeId).trim() : null;
-    const destinoBlocoTexto = body?.destinoBlocoTexto ? String(body.destinoBlocoTexto).trim() : null;
-    const destinoUnidadeTexto = body?.destinoUnidadeTexto ? String(body.destinoUnidadeTexto).trim() : null;
+    let blocoId = body?.blocoId ? String(body.blocoId).trim() : null;
+    let unidadeId = body?.unidadeId ? String(body.unidadeId).trim() : null;
+    let destinoBlocoTexto = body?.destinoBlocoTexto ? String(body.destinoBlocoTexto).trim() : null;
+    let destinoUnidadeTexto = body?.destinoUnidadeTexto ? String(body.destinoUnidadeTexto).trim() : null;
+
+    // UN.6B: Canonical unit fields
+    const unitDocIdInput = body?.unitDocId ? String(body.unitDocId).trim() : null;
+    let destinoUnitDocId: string | null = null;
+    let destinoUnidadeSnapshot: any = null;
+
+    // Resolve canonical if provided
+    if (unitDocIdInput && blocoId) {
+      const unidadeRef = db.collection("condominios").doc(condominioId)
+        .collection("blocos").doc(blocoId).collection("unidades").doc(unitDocIdInput);
+      const unidadeSnap = await unidadeRef.get();
+      if (!unidadeSnap.exists) return jsonError("Unidade não encontrada no bloco informado.", 404);
+      const ud = unidadeSnap.data() || {};
+      if (ud.ativo === false) return jsonError("Unidade está inativa.", 400);
+
+      const blocoRef = db.collection("condominios").doc(condominioId).collection("blocos").doc(blocoId);
+      const blocoSnap = await blocoRef.get();
+      const bd = blocoSnap.exists ? (blocoSnap.data() || {}) : {};
+
+      destinoUnitDocId = unitDocIdInput;
+      destinoUnidadeSnapshot = {
+        unitDocId: unitDocIdInput,
+        blocoId: blocoId,
+        blocoNome: String(bd.nome || bd.blocoNome || blocoId),
+        unidadeNumero: String(ud.numero || ud.unidadeNumero || ""),
+      };
+
+      // Also populate legacy fields from canonical
+      unidadeId = destinoUnidadeSnapshot.unidadeNumero || unidadeId;
+      destinoBlocoTexto = destinoBlocoTexto || destinoUnidadeSnapshot.blocoNome;
+      destinoUnidadeTexto = destinoUnidadeTexto || destinoUnidadeSnapshot.unidadeNumero;
+    }
 
     const janelaInicioRaw = String(body?.janelaInicio || "").trim();
     const janelaFimRaw = String(body?.janelaFim || "").trim();
@@ -259,6 +302,37 @@ export async function POST(req: Request) {
       decoded,
     });
 
+    const actorRoleUpper = String(actor.role || "").toUpperCase();
+    const isSuperAdmin = (decoded as any)?.super_admin === true || (decoded as any)?.superAdmin === true || actorRoleUpper === "SUPER_ADMIN";
+    const isAdminCondo = actorRoleUpper === "ADMIN_CONDOMINIO";
+    const isAdmin = actorRoleUpper === "ADMIN";
+    const isSindico = actorRoleUpper === "SINDICO";
+    const isMorador = actorRoleUpper === "MORADOR";
+
+    const hasAccess = isSuperAdmin || isAdminCondo || isAdmin || isSindico || isMorador;
+
+    if (!hasAccess) {
+      return jsonError("Você não tem permissão para registrar acessos.", 403);
+    }
+
+    if (!isSuperAdmin && String(actor.status || "").toUpperCase() !== "ATIVO") {
+      return jsonError("Seu vínculo com o condomínio não está ativo.", 403);
+    }
+
+    if (isMorador) {
+      const dbUnidadeNorm = actor.unidadeIdNorm || normUnidade(actor.unidadeId);
+
+      if (!dbUnidadeNorm) {
+        return jsonError("Morador sem unidade vinculada no cadastro do condomínio.", 403);
+      }
+
+      // Não confiar no frontend: sempre usar os valores reais do membro.
+      blocoId = actor.blocoId ?? null;
+      unidadeId = actor.unidadeId ?? null;
+      destinoBlocoTexto = actor.blocoId ?? null;
+      destinoUnidadeTexto = actor.unidadeId ?? null;
+    }
+
     const acessoRef = db.collection("condominios").doc(condominioId).collection("acessos").doc();
 
     await db.runTransaction(async (tx: any) => {
@@ -277,6 +351,10 @@ export async function POST(req: Request) {
         unidadeId,
         destinoBlocoTexto,
         destinoUnidadeTexto,
+
+        // UN.6B: Canonical fields
+        destinoUnitDocId: destinoUnitDocId || null,
+        destinoUnidadeSnapshot: destinoUnidadeSnapshot || null,
 
         moradorUid: decoded.uid,
         moradorNome: actor.nome,

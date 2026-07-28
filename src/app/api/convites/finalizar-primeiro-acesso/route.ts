@@ -3,87 +3,19 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { normUnidade, normBloco } from "@/lib/normalization/location";
+import { buildMenuPermissions } from "@/lib/pessoas/menuPermissions";
+import { normEmail } from "@/lib/onboarding/service";
+import { normalizeInviteCode, isValidInviteCode } from "@/lib/normalization/code";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-function normalizeEmail(v: any) {
-  return String(v ?? "").trim().toLowerCase();
-}
 
-function normalizeCode(v: any) {
-  return String(v ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[‐-‒–—−]/g, "-")
-    .replace(/^TC[‐-‒–—−]/, "TC-");
-}
 
 function sha256Hex(input: string) {
   return crypto.createHash("sha256").update(input, "utf8").digest("hex");
-}
-
-function buildMenuPermissions(role: string) {
-  const r = String(role || "").toUpperCase();
-  const base: Record<string, boolean> = { dashboard: true };
-
-  if (r === "MORADOR") {
-    return {
-      ...base,
-      acesso: true,
-      anuncios: true,
-      documentos: true,
-      enquetes: true,
-      reservas: true,
-      encomendas: true,
-      reunioes: true,
-      cadastros: false,
-      configuracoes: false,
-      condominios: false,
-      administradorGlobal: false,
-      incidentes: false,
-    };
-  }
-
-  if (r === "PORTEIRO") {
-    return {
-      ...base,
-      acesso: true,
-      encomendas: true,
-      incidentes: true,
-      anuncios: true,
-      documentos: true,
-      administradorGlobal: false,
-      cadastros: false,
-      configuracoes: false,
-      condominios: false,
-      reservas: false,
-      enquetes: false,
-      reunioes: false,
-    };
-  }
-
-  if (r === "SINDICO" || r === "ADMIN" || r === "ADMIN_CONDOMINIO") {
-    return {
-      dashboard: true,
-      condominios: true,
-      cadastros: true,
-      configuracoes: true,
-      anuncios: true,
-      documentos: true,
-      enquetes: true,
-      reservas: true,
-      encomendas: true,
-      incidentes: true,
-      reunioes: true,
-      acesso: true,
-      administradorGlobal: false,
-    };
-  }
-
-  return { ...base };
 }
 
 export async function POST(req: Request) {
@@ -94,12 +26,12 @@ export async function POST(req: Request) {
       senha?: string;
     };
 
-    const email = normalizeEmail(body.email);
-    const code = normalizeCode(body.code);
+    const email = normEmail(body.email);
+    const code = normalizeInviteCode(body.code);
     const senha = String(body.senha ?? "");
 
     if (!email) return jsonError("Email é obrigatório", 400);
-    if (!code || !/^TC-[A-Z0-9]{8}$/.test(code)) {
+    if (!code || !isValidInviteCode(code)) {
       return jsonError("Código inválido. Use o formato: TC-XXXXXXXX", 400);
     }
     if (senha.length < 6) return jsonError("A senha precisa ter pelo menos 6 caracteres.", 400);
@@ -115,7 +47,7 @@ export async function POST(req: Request) {
     const conviteDoc = q.docs[0];
     const convite = conviteDoc.data() as any;
 
-    const conviteEmail = normalizeEmail(convite.email);
+    const conviteEmail = normEmail(convite.email);
     if (conviteEmail !== email) return jsonError("Este código não pertence a este e-mail.", 403);
 
     const status = String(convite.status || "PENDENTE").toUpperCase();
@@ -156,6 +88,16 @@ export async function POST(req: Request) {
     const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
     const userCondominioRootRef = db.collection("userCondominios").doc(uid);
 
+    const conviteBlocoId = convite.bloco ?? convite.blocoId ?? null;
+    const conviteUnidadeId = convite.apartamento ?? convite.unidadeId ?? null;
+    const conviteUnitDocId = convite.unitDocId ?? null;
+    const unidadeIdNormVal = convite.unidadeIdNorm || (conviteUnidadeId ? normUnidade(conviteUnidadeId) : null);
+    const blocoIdNormVal = convite.blocoIdNorm || (conviteBlocoId ? normBloco(conviteBlocoId) : null);
+
+    const isFuncionario = role === "FUNCIONARIO";
+    const membroRole = isFuncionario ? "ZELADOR" : role;
+    const membroTipo = isFuncionario ? "FUNCIONARIO" : null;
+
     console.warn(`[API/finalizar-acesso] Preparando transação para uid: ${uid}, condId: ${condominioId}`);
 
     // 2) transação: vinculo + membro ativo + convite concluído
@@ -174,9 +116,12 @@ export async function POST(req: Request) {
       const vinculoPayload = {
         condominioId,
         condominioNome: String(convite.condominioNome || ""),
-        role: (role as any) || "MORADOR",
-        blocoId: convite.bloco ?? convite.blocoId ?? null,
-        unidadeId: convite.apartamento ?? convite.unidadeId ?? null,
+        role: membroRole,
+        blocoId: conviteBlocoId,
+        unidadeId: conviteUnidadeId,
+        unitDocId: conviteUnitDocId,
+        blocoIdNorm: blocoIdNormVal,
+        unidadeIdNorm: unidadeIdNormVal,
         status: "ATIVO",
         source: "finalizar-primeiro-acesso",
         createdAt: FieldValue.serverTimestamp(),
@@ -192,11 +137,15 @@ export async function POST(req: Request) {
         {
           nome: String(convite.nome || ""),
           email,
-          role: (role as any) || "MORADOR",
-          blocoId: convite.bloco ?? convite.blocoId ?? null,
-          unidadeId: convite.apartamento ?? convite.unidadeId ?? null,
+          role: membroRole,
+          tipo: membroTipo,
+          blocoId: conviteBlocoId,
+          unidadeId: conviteUnidadeId,
+          unitDocId: conviteUnitDocId,
+          blocoIdNorm: blocoIdNormVal,
+          unidadeIdNorm: unidadeIdNormVal,
           status: "ATIVO",
-          menuPermissions: buildMenuPermissions(role),
+          menuPermissions: buildMenuPermissions(membroRole),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }

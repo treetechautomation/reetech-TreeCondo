@@ -13,7 +13,7 @@ type TreeCondoBrandProps = {
 
 export function TreeCondoBrand({ variant = "sidebar", className }: TreeCondoBrandProps) {
   const branding = useBranding();
-  const logoSrc = branding.menuLogoUrl || "/branding-fallback/logo-menu.jpeg";
+  const logoSrc = "/logo.png?v=2";
 
   if (branding.isLoading) {
     if (variant === "login") {

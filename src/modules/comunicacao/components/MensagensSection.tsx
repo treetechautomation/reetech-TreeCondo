@@ -167,27 +167,44 @@ export function MensagensSection() {
       });
     }, [moradores, blocoId, unidade]);
 
-  // Threads (lista lateral)
-  const threadsQuery = useMemoFirebase(() => {
-    if (!firestore || !condominioAtivoId) return null;
+  // Threads Query para Administradores (vê todos os threads)
+  const threadsAdminQuery = useMemoFirebase(() => {
+    if (!firestore || !condominioAtivoId || !canManage) return null;
     return query(collection(firestore, "condominios", condominioAtivoId, "threads"), orderBy("updatedAt", "desc"));
-  }, [firestore, condominioAtivoId]);
-  const { data: threads, isLoading: loadingThreads } = useCollection<Thread>(threadsQuery);
+  }, [firestore, condominioAtivoId, canManage]);
+  const { data: threadsAdmin, isLoading: loadingAdmin } = useCollection<Thread>(threadsAdminQuery);
 
-  
+  // Threads Query para Moradores - 1. Comunicados Globais
+  const threadsGlobalQuery = useMemoFirebase(() => {
+    if (!firestore || !condominioAtivoId || canManage) return null;
+    return query(collection(firestore, "condominios", condominioAtivoId, "threads"), where("tipo", "==", "CONDOMINIO"));
+  }, [firestore, condominioAtivoId, canManage]);
+  const { data: threadsGlobal, isLoading: loadingGlobal } = useCollection<Thread>(threadsGlobalQuery);
 
-  // Threads visíveis (admin vê todas; morador vê as próprias + comunicados gerais)
-  const visibleThreads = React.useMemo(() => {
-    const list = (threads ?? []) as any[];
-    if (canManage) return list;
-    const uid = String(myUid ?? "");
-    return list.filter((t) => {
-      if (!t) return false;
-      if (t.tipo === "CONDOMINIO") return true;
-      const toUids = Array.isArray(t.toUids) ? t.toUids : [];
-      return !!uid && toUids.includes(uid);
+  // Threads Query para Moradores - 2. Conversas direcionadas ao morador
+  const threadsTargetedQuery = useMemoFirebase(() => {
+    if (!firestore || !condominioAtivoId || canManage || !myUid) return null;
+    return query(collection(firestore, "condominios", condominioAtivoId, "threads"), where("toUids", "array-contains", myUid));
+  }, [firestore, condominioAtivoId, canManage, myUid]);
+  const { data: threadsTargeted, isLoading: loadingTargeted } = useCollection<Thread>(threadsTargetedQuery);
+
+  const threads = React.useMemo(() => {
+    if (canManage) {
+      return threadsAdmin ?? [];
+    }
+    const combined = [...(threadsGlobal ?? []), ...(threadsTargeted ?? [])];
+    const unique = new Map<string, Thread>();
+    combined.forEach((t) => {
+      if (t?.id) unique.set(t.id, t);
     });
-  }, [threads, canManage, myUid]);
+    return Array.from(unique.values()).sort((a, b) => {
+      const da = a.updatedAt?.toMillis?.() ?? (a.updatedAt?.seconds ? a.updatedAt.seconds * 1000 : 0);
+      const db = b.updatedAt?.toMillis?.() ?? (b.updatedAt?.seconds ? b.updatedAt.seconds * 1000 : 0);
+      return db - da;
+    });
+  }, [canManage, threadsAdmin, threadsGlobal, threadsTargeted]);
+
+  const loadingThreads = canManage ? loadingAdmin : (loadingGlobal || loadingTargeted);
 // Mensagens do thread atual
   const msgsQuery = useMemoFirebase(() => {
     if (!firestore || !condominioAtivoId || !threadAtual?.id) return null;

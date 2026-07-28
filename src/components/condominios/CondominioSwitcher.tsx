@@ -19,19 +19,13 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useCondominio } from "@/contexts/CondominioContext";
+import { normNFD } from "@/lib/normalization/text";
 
 type Option = {
   condominioId: string;
   condominioNome: string;
 };
 
-function norm(s: string) {
-  return (s || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
 
 export function CondominioSwitcher() {
   const { session } = useSessionCtx();
@@ -105,7 +99,7 @@ export function CondominioSwitcher() {
 
   if (!isSuper && options.length <= 1) {
     return (
-      <Button variant="outline" role="combobox" className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4" disabled>
+      <Button variant="outline" role="combobox" className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4 bg-slate-900/5 border-slate-900/10 text-slate-800 hover:bg-slate-900/10 hover:text-slate-900" disabled>
         <span className="truncate">{active ? active.condominioNome : "Nenhum condomínio"}</span>
       </Button>
     );
@@ -113,7 +107,7 @@ export function CondominioSwitcher() {
 
   if (options.length === 0) {
     return (
-      <Button variant="outline" role="combobox" className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4" disabled>
+      <Button variant="outline" role="combobox" className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4 bg-slate-900/5 border-slate-900/10 text-slate-800 hover:bg-slate-900/10 hover:text-slate-900" disabled>
         <span className="truncate">{isDisabled ? "Carregando..." : "Nenhum condomínio"}</span>
       </Button>
     );
@@ -126,18 +120,18 @@ export function CondominioSwitcher() {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4"
+          className="w-full min-w-0 h-11 sm:h-10 justify-between rounded-2xl overflow-hidden px-3 sm:px-4 bg-slate-900/5 border-slate-900/10 text-slate-800 hover:bg-slate-900/10 hover:text-slate-900"
           disabled={isDisabled}
         >
           <span className="truncate">
             {active ? active.condominioNome : isDisabled ? "Carregando..." : "Selecione um condomínio"}
           </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60 text-slate-800" />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent className="w-[min(260px,calc(100vw-24px))] p-0 z-[9999]" align="start" side="bottom" sideOffset={8}>
-        <Command filter={(value, search) => (norm(value).includes(norm(search)) ? 1 : 0)}>
+        <Command filter={(value, search) => (normNFD(value).includes(normNFD(search)) ? 1 : 0)}>
           <CommandInput placeholder="Procurar condomínio..." />
           <CommandList>
             <CommandEmpty>Nenhum condomínio encontrado.</CommandEmpty>

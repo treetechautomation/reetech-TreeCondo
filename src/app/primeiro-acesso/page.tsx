@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { initializeFirebase } from "@/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { normalizeInviteCode, isValidInviteCode } from "@/lib/normalization/code";
 
 type RespOk = {
   ok: true;
@@ -19,24 +20,11 @@ type RespOk = {
 
 type RespErr = { ok: false; error: string };
 
-function normalizeCode(v: string) {
-  return (v || "")
-    .trim()
-    .toUpperCase()
-    .replace(/[\s\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[‐-‒–—−]/g, "-")
-    .replace(/^TC[‐-‒–—−]/, "TC-");
-}
-
-function isValidCode(v: string) {
-  return /^TC-[A-Z0-9]{8}$/.test(v);
-}
-
 function PrimeiroAcessoInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const initialCode = useMemo(() => normalizeCode(sp?.get("code") ?? ""), [sp]);
+  const initialCode = useMemo(() => normalizeInviteCode(sp?.get("code") ?? ""), [sp]);
 
   const [code, setCode] = useState(initialCode);
   const [email, setEmail] = useState("");
@@ -47,11 +35,11 @@ function PrimeiroAcessoInner() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleFinish() {
-    const v = normalizeCode(code);
+    const v = normalizeInviteCode(code);
     setCode(v);
     setError(null);
 
-    if (!isValidCode(v)) return setError("Código inválido. Use o formato TC-XXXXXXXX (8 caracteres).");
+    if (!isValidInviteCode(v)) return setError("Código inválido. Use o formato TC-XXXXXXXX (8 caracteres).");
     if (!email.trim()) return setError("Informe seu e-mail.");
     if (senha.length < 6) return setError("A senha precisa ter pelo menos 6 caracteres.");
     if (senha !== senha2) return setError("As senhas não conferem.");
@@ -100,7 +88,7 @@ function PrimeiroAcessoInner() {
             <Input
               placeholder="TC-9F3K2P1A"
               value={code}
-              onChange={(e) => setCode(normalizeCode(e.target.value))}
+              onChange={(e) => setCode(normalizeInviteCode(e.target.value))}
               maxLength={11}
             />
 

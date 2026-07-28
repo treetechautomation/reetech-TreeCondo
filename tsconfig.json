@@ -41,7 +41,9 @@
     ".next",
     "_backup",
     "**/_backup/**",
+    "backup_*/**",
     "**/*.bak*",
+    "backups/**",
     "**/*.backup*",
     "**/*.backup_*"
   ]

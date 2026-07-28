@@ -13,7 +13,7 @@ type BrandingData = {
 };
 
 // ✅ Fallback local do menu da TreeCondo (também serve de fallback do painel quando condomínio não tem logo)
-const FALLBACK_MENU_LOGO = "/branding-fallback/logo-menu.jpeg";
+const FALLBACK_MENU_LOGO = "/logo.png";
 const TTL_MS = 1000 * 60 * 30; // 30 minutos
 
 type CacheEntry = {

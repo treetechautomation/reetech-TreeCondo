@@ -5,6 +5,10 @@ export const runtime = "nodejs";
 import { createHash } from "crypto";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { createWithdrawEvent } from "@/lib/encomendas/withdrawal";
+import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
+import { normUnidade, normBloco } from "@/lib/normalization/location";
+import { notifyUnidade } from "@/lib/notifications/notifyUnidade";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -14,23 +18,14 @@ function sha256(v: string) {
   return createHash("sha256").update(v, "utf8").digest("hex");
 }
 
-function normUnidade(v: any) {
-  return String(v || "")
-    .toLowerCase()
-    .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
-    .replace(/[^0-9a-z]/gi, "")
-    .trim();
-}
 
-function normBloco(v: any) {
-  return String(v || "").toLowerCase().trim();
-}
 
 async function getActorInfo(db: any, params: { condominioId: string; uid: string; decoded: any }) {
   const { condominioId, uid, decoded } = params;
   const email = String(decoded?.email || "").toLowerCase();
   let nome = String(decoded?.name || decoded?.email || "Operador").trim();
   let role: string | null = null;
+  let status: string | null = null;
 
   try {
     const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
@@ -39,81 +34,21 @@ async function getActorInfo(db: any, params: { condominioId: string; uid: string
       const md = msnap.data() || {};
       if (md?.nome) nome = String(md.nome).trim();
       if (md?.role) role = String(md.role).trim();
+      if (md?.status) status = String(md.status).trim();
     }
   } catch (e: any) {
     console.warn("[encomendas/retirar] getActorInfo falhou:", e?.message || String(e));
   }
 
-  return { uid, email, nome, role };
+  return { uid, email, nome, role, status };
 }
 
-async function notifyUnidade(db: any, params: {
-  condominioId: string;
-  unidadeId: string;
-  blocoId?: string | null;
-  tipo: string;
-  title: string;
-  message: string;
-  encomendaId: string;
-}) {
-  const condId = params.condominioId;
-  const unidadeId = String(params.unidadeId || "").trim();
-  if (!condId || !unidadeId) return;
-
-  const alvoUn = normUnidade(unidadeId);
-  const alvoBl = (params.blocoId ?? null) ? normBloco(params.blocoId) : null;
-  
-  const membrosRef = db.collection("condominios").doc(condId).collection("membros");
-  
-  let q = membrosRef.where("unidadeIdNorm", "==", alvoUn);
-  if (alvoBl) {
-    q = q.where("blocoIdNorm", "==", alvoBl);
-  }
-
-  const snap = await q.get();
-
-  const membros = snap.docs
-    .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
-    .filter((m: any) => {
-      const st = String(m.status || "").toUpperCase();
-      return st === "ATIVO" || st === "PENDENTE";
-    });
-
-  if (membros.length === 0) {
-    console.log("[encomendas/retirar] Nenhum morador (ATIVO/PENDENTE) para unidade:", unidadeId, "bloco:", (params.blocoId ?? null));
-    return;
-  }
-
-  const batch = db.batch();
-  membros.forEach((m: any) => {
-    const uid = m.id;
-    const ref = db.collection("condominios").doc(condId).collection("notificacoes").doc();
-
-    batch.set(ref, {
-      tipo: params.tipo,
-      title: params.title,
-      message: params.message,
-      titulo: params.title,
-      mensagem: params.message,
-      targetUid: uid,
-      condominioId: condId,
-      encomendaId: params.encomendaId,
-      unidadeId: params.unidadeId,
-      blocoId: params.blocoId ?? null,
-      lida: false,
-      arquivada: false,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
-
-  await batch.commit();
-  console.log("[encomendas/retirar] Notificações criadas para", membros.length, "moradores da unidade", unidadeId);
-}
+// [UN.6F] notifyUnidade movido para lib/notifications/notifyUnidade.ts
 
 export async function POST(req: Request) {
   const db = adminDb();
   const aauth = adminAuth();
+  const correlationId = extractCorrelationId(req);
 
   try {
     const authHeader = req.headers.get("authorization") || "";
@@ -139,13 +74,40 @@ export async function POST(req: Request) {
 
       const actor = await getActorInfo(db, { condominioId, uid: decoded.uid, decoded });
     
+    // ACL: retirada concluída EXCLUSIVAMENTE por operador ATIVO da portaria.
+    // Fonte da verdade: condominios/{condominioId}/membros/{uid}. Nunca confiar no frontend.
+    const actorRoleUpper = String(actor.role || "").toUpperCase();
+    const isSuperAdmin =
+      (decoded as any)?.super_admin === true ||
+      (decoded as any)?.superAdmin === true ||
+      actorRoleUpper === "SUPER_ADMIN";
+    const PAPEIS_OPERADOR = ["PORTEIRO", "ZELADOR", "SINDICO", "ADMIN", "ADMIN_CONDOMINIO"];
+
+    if (actorRoleUpper === "MORADOR") {
+      return jsonError("A retirada deve ser confirmada por um operador da portaria.", 403);
+    }
+    if (!isSuperAdmin) {
+      if (String(actor.status || "").toUpperCase() !== "ATIVO") {
+        return jsonError("Seu vínculo com o condomínio não está ativo.", 403);
+      }
+      if (!PAPEIS_OPERADOR.includes(actorRoleUpper)) {
+        return jsonError("Apenas operadores autorizados podem registrar retiradas.", 403);
+      }
+    }
+
     const ref = db.collection("condominios").doc(condominioId).collection("encomendas").doc(encomendaId);
     const snap = await ref.get();
     if (!snap.exists) return jsonError("Encomenda não encontrada.", 404);
 
     const data = snap.data() as any;
-    if (String(data?.status || "") === "RETIRADA") {
-      return jsonError("Essa encomenda já foi retirada.", 400);
+
+    // Isolamento multi-tenant: a encomenda tem de pertencer ao condomínio informado.
+    if (data?.condominioId && String(data.condominioId) !== condominioId) {
+      return jsonError("Encomenda não pertence a este condomínio.", 403);
+    }
+
+    if (String(data?.status || "").toUpperCase() === "RETIRADA") {
+      return jsonError("Essa encomenda já foi retirada.", 409);
     }
     
     // Modo SEM Celular (PIN)
@@ -166,7 +128,11 @@ export async function POST(req: Request) {
         }
 
         const pinHash = sha256(pinDigits);
-        if (pinHash !== membroData.encomendaPinHash) {
+        const storedPinHash = membroData.encomendaPinHash || membroData.pinEncomendasHash;
+        if (!storedPinHash) {
+            return jsonError("PIN de retirada não configurado para este morador.", 400);
+        }
+        if (pinHash !== storedPinHash) {
             const newAttempts = failedAttempts + 1;
             await membroRef.update({ encomendaPinFailedAttempts: newAttempts });
             const attemptsLeft = 6 - newAttempts;
@@ -176,17 +142,46 @@ export async function POST(req: Request) {
             return jsonError(errorMsg, 403);
         }
 
-        // PIN correto, prossegue
+        // Isolamento por apartamento: o morador do PIN precisa ser o destinatário
+        // da encomenda. Fonte da verdade = membro (Firestore) x dados da encomenda.
+        // condominioId já validado acima (mesmo path do membro e da encomenda).
+        const membroUnNorm = String(
+          membroData.unidadeIdNorm || normUnidade(membroData.unidadeId || membroData.apartamento) || ""
+        ).trim();
+        const membroBlNorm =
+          membroData.blocoIdNorm != null && String(membroData.blocoIdNorm).trim() !== ""
+            ? String(membroData.blocoIdNorm).trim()
+            : (membroData.blocoId || membroData.bloco ? normBloco(membroData.blocoId || membroData.bloco) : "");
+
+        const encUnNorm = String(data?.unidadeIdNorm || normUnidade(data?.unidadeId) || "").trim();
+        const encBlNorm =
+          data?.blocoIdNorm != null && String(data.blocoIdNorm).trim() !== ""
+            ? String(data.blocoIdNorm).trim()
+            : (data?.blocoId ? normBloco(data.blocoId) : "");
+
+        if (!membroUnNorm || encUnNorm !== membroUnNorm || encBlNorm !== membroBlNorm) {
+          return jsonError("O PIN informado não pertence ao destinatário desta encomenda.", 403);
+        }
+
+        // PIN correto: transação atômica com revalidação de status (anti-corrida / dupla retirada)
         await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(ref);
+            if (!fresh.exists) {
+              throw Object.assign(new Error("Encomenda não encontrada."), { status: 404 });
+            }
+            if (String((fresh.data() as any)?.status || "").toUpperCase() !== "AGUARDANDO") {
+              throw Object.assign(new Error("Essa encomenda já foi retirada."), { status: 409 });
+            }
             if (failedAttempts > 0) {
                 tx.update(membroRef, { encomendaPinFailedAttempts: 0 });
             }
             tx.update(ref, {
                 status: "RETIRADA",
                 retiradaEm: FieldValue.serverTimestamp(),
+                retiradoEm: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp(),
                 registradoPorUid: decoded.uid,
-                  registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+                  registradoPorNome: (decoded.name || decoded.email || "Operador").toString(),
 
                   // quem confirmou a retirada (porteiro/operador)
                   retiradoPorUid: actor.uid,
@@ -197,27 +192,63 @@ export async function POST(req: Request) {
                 retiradaRecebedorCpfHash: recebedorCpf ? sha256(recebedorCpf.replace(/\D/g, "")) : null,
                 retiradaRecebedorCpfLast4: recebedorCpf ? recebedorCpf.replace(/\D/g, "").slice(-4) : null,
                 retiradaRecebedorParentesco: recebedorParentesco || "Não informado",
+                withdrawMethod: "PIN",
             });
+            // E.3.3: Registrar evento WITHDRAWN na subcoleção events
+            const eventRef = ref.collection("events").doc();
+            tx.set(eventRef, createWithdrawEvent(
+              "WITHDRAWN",
+              actor.uid,
+              actor.role,
+              actor.nome,
+              { method: "PIN", encomendaId, condominioId },
+            ));
         });
 
     // Modo COM Celular (Código/QR)
     } else if (codigo) {
+        // (6) valida usando o hash armazenado; nunca confiar apenas no código recebido
         if (sha256(codigo) !== String(data?.codigoRetiradaHash || "")) {
             return jsonError("Código de retirada inválido.", 403);
         }
-        await ref.update({
-            status: "RETIRADA",
-            retiradaEm: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-            registradoPorUid: decoded.uid,
-                  registradoPorNome: (decoded.name || decoded.email || "Porteiro").toString(),
+        // Transação atômica com revalidação de status e do hash (anti-corrida / dupla retirada)
+        await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(ref);
+            if (!fresh.exists) {
+              throw Object.assign(new Error("Encomenda não encontrada."), { status: 404 });
+            }
+            const freshData = fresh.data() as any;
+            if (String(freshData?.status || "").toUpperCase() !== "AGUARDANDO") {
+              throw Object.assign(new Error("Essa encomenda já foi retirada."), { status: 409 });
+            }
+            if (sha256(codigo) !== String(freshData?.codigoRetiradaHash || "")) {
+              throw Object.assign(new Error("Código de retirada inválido."), { status: 403 });
+            }
+            tx.update(ref, {
+                status: "RETIRADA",
+                retiradaEm: FieldValue.serverTimestamp(),
+                retiradoEm: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+                registradoPorUid: decoded.uid,
+                  registradoPorNome: (decoded.name || decoded.email || "Operador").toString(),
 
                   // quem confirmou a retirada (porteiro/operador)
                   retiradoPorUid: actor.uid,
                   retiradoPorNome: actor.nome,
                   retiradoPorEmail: actor.email,
                   retiradoPorRole: actor.role,
-            retiradaRecebedorNome: recebedorNome || "Próprio morador",
+                retiradaRecebedorNome: recebedorNome || "Próprio morador",
+                withdrawMethod: "PORTEIRO",
+            });
+            // E.3.3: Registrar evento WITHDRAWN na subcoleção events
+            const eventRef2 = ref.collection("events").doc();
+            tx.set(eventRef2, createWithdrawEvent(
+              "WITHDRAWN",
+              actor.uid,
+              actor.role,
+              actor.nome,
+              { method: "PORTEIRO", encomendaId, condominioId },
+            ));
         });
     } else {
         return jsonError("Informe o código da encomenda (PKG-...) ou use o modo 'Sem Celular' com PIN do morador.", 400);
@@ -229,19 +260,41 @@ export async function POST(req: Request) {
         condominioId,
         unidadeId: String(data?.unidadeId || ""),
         blocoId: data?.blocoId ?? null,
-        tipo: "ENCOMENDA_RETIRADA",
-        title: "✅ Encomenda retirada",
-        message: `Sua encomenda da ${data?.transportadora || "transportadora"} foi retirada por ${recebedorNome || "você"}.`,
         encomendaId,
       });
     } catch (e: any) {
       console.error("[encomendas/retirar] falha ao notificar:", e?.message || e);
     }
-    
+
+    logEncomendaEvent({
+      event: moradorUid && pinMorador ? "PACKAGE_WITHDRAW_PIN_SUCCESS" : "PACKAGE_WITHDRAW_MANUAL_SUCCESS",
+      timestamp: new Date().toISOString(),
+      operation: "retirar",
+      result: "success",
+      condominioId,
+      encomendaId,
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      method: moradorUid && pinMorador ? "PIN" : "PORTEIRO",
+      correlationId,
+    });
+
     return NextResponse.json({ ok: true });
 
   } catch (err: any) {
-    console.error("[API encomendas/retirar] erro:", err);
-    return jsonError(err?.message || "Erro inesperado", 500);
+    const status = Number(err?.status || 0) || 500;
+    logEncomendaEvent({
+      event: "PACKAGE_PIN_FAILED",
+      timestamp: new Date().toISOString(),
+      operation: "retirar",
+      result: "error",
+      condominioId: null,
+      encomendaId: null,
+      actorUid: null,
+      errorCode: String(status),
+      errorMessage: err?.message || "Erro inesperado",
+      correlationId,
+    });
+    return jsonError(err?.message || "Erro inesperado", status);
   }
 }

@@ -15,10 +15,12 @@ import {
 import { errorEmitter } from "../error-emitter";
 import { createFirestorePermissionError } from "../errors";
 import { getUnidadeDocRef, getUnidadesRef } from "./paths";
+import { normUnidade } from "@/lib/normalization/location";
 
 export type Unidade = {
   id: string;
   numero: string;
+  numeroNorm: string;
   andar?: number;
   tipo: "APARTAMENTO" | "CASA";
   ocupacao: "VAGO" | "PROPRIETARIO" | "ALUGADO";
@@ -36,6 +38,10 @@ export type NewUnidadePayload = {
 };
 
 export type UpdateUnidadePayload = Partial<Omit<Unidade, "id" | "createdAt" | "updatedAt">>;
+
+function computeNumeroNorm(numero: string): string {
+  return normUnidade(numero);
+}
 
 export type SetOcupacaoUnidadePayload = {
   ocupacao: 'VAGO' | 'PROPRIETARIO' | 'ALUGADO';
@@ -60,6 +66,7 @@ export async function criarUnidade(
   const unidadesRef = getUnidadesRef(firestore, condominioId, blocoId);
   const data = {
     ...payload,
+    numeroNorm: computeNumeroNorm(payload.numero),
     tipo: "APARTAMENTO",
     ocupacao: "VAGO",
     proprietarioUid: null,
@@ -98,6 +105,7 @@ export async function upsertUnidadeEspecial(
 
   const data = {
     numero: payload.numero,
+    numeroNorm: computeNumeroNorm(payload.numero),
     andar: payload.andar ?? 0,
     tipo: "APARTAMENTO",
     ocupacao: "VAGO",
@@ -139,7 +147,10 @@ export async function atualizarUnidade(
   patch: UpdateUnidadePayload
 ): Promise<void> {
   const docRef = getUnidadeDocRef(firestore, condominioId, blocoId, unidadeId);
-  const data = { ...patch, updatedAt: serverTimestamp() };
+  const data: Record<string, unknown> = { ...patch, updatedAt: serverTimestamp() };
+  if (patch.numero) {
+    data.numeroNorm = computeNumeroNorm(patch.numero);
+  }
   try {
     return await updateDoc(docRef, data);
   } catch(error) {

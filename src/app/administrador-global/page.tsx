@@ -14,6 +14,8 @@ import {
   MenuKey,
   MenuPermissions,
   RoleKey,
+  VALID_ROLES,
+  isPlainObject,
   fetchMenuPermissions,
   saveMenuPermissions,
 } from "@/lib/menuPermissions";
@@ -38,8 +40,13 @@ const MENU_KEYS: MenuKey[] = [
 function deepMerge(base: MenuPermissions, incoming: MenuPermissions | null): MenuPermissions {
   if (!incoming) return base;
   const out: MenuPermissions = { ...base };
-  for (const role of Object.keys(incoming) as RoleKey[]) {
-    out[role] = { ...(out[role] ?? {}), ...(incoming[role] ?? {}) };
+  // Itera apenas papéis válidos e aceita apenas objetos simples.
+  // Ignora `source`, `updatedAt` e quaisquer campos escalares.
+  // Preserva booleanos false e true.
+  for (const role of VALID_ROLES) {
+    const inc = (incoming as Record<string, unknown>)[role];
+    if (!isPlainObject(inc)) continue;
+    out[role] = { ...(out[role] ?? {}), ...(inc as Partial<Record<MenuKey, boolean>>) };
   }
   return out;
 }

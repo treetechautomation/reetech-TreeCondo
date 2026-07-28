@@ -4,6 +4,8 @@ import * as React from "react";
 import { PlusCircle, FileDown, CalendarDays } from "lucide-react";
 
 import AppLayout from "@/components/layout/AppLayout";
+import { SectionCard } from "@/components/layout/SectionCard";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,8 +42,12 @@ import {
   serverTimestamp,
   Timestamp,
   type Firestore,
-  doc, updateDoc
+  doc, updateDoc,
+  runTransaction,
+  increment,
+  where
 } from "firebase/firestore";
+import { Progress } from "@/components/ui/progress";
 
 import { CalendarMonthReunioes } from "@/components/reunioes/CalendarMonthReunioes";
 
@@ -60,6 +66,7 @@ type Reuniao = {
   updatedAt?: any;
   createdByUid?: string;
   createdByNome?: string;
+  enqueteId?: string | null;
 };
 
 function toISODateLocal(d: Date) {
@@ -90,9 +97,164 @@ function buildDateFromDayAndTime(day: Date, hhmm: string) {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
 }
 
-function ReuniaoCard({ reuniao, canManage, onEdit, onCancel }: { reuniao: Reuniao; canManage: boolean; onEdit: (r: Reuniao) => void; onCancel: (id: string) => void; }) {
+function ReuniaoEnqueteSection({
+  firestore,
+  condominioId,
+  uid,
+  enqueteId,
+}: {
+  firestore: any;
+  condominioId: string | null;
+  uid: string | null;
+  enqueteId?: string | null;
+}) {
+  const [enquete, setEnquete] = React.useState<any | null>(null);
+  const [opcoes, setOpcoes] = React.useState<any[]>([]);
+  const [myVote, setMyVote] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (!firestore || !condominioId || !enqueteId) {
+      setEnquete(null);
+      setOpcoes([]);
+      setMyVote(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const eRef = doc(firestore, `condominios/${condominioId}/enquetes/${enqueteId}`);
+    const unsubE = onSnapshot(eRef, (snap) => {
+      if (snap.exists()) {
+        setEnquete({ id: snap.id, ...snap.data() });
+      } else {
+        setEnquete(null);
+      }
+    });
+
+    const opRef = collection(firestore, `condominios/${condominioId}/enquetes/${enqueteId}/opcoes`);
+    const opQ = query(opRef, orderBy("order", "asc"));
+    const unsubOp = onSnapshot(opQ, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setOpcoes(list);
+      setLoading(false);
+    });
+
+    let unsubV = () => {};
+    if (uid) {
+      const vRef = doc(firestore, `condominios/${condominioId}/enquetes/${enqueteId}/votos/${uid}`);
+      unsubV = onSnapshot(vRef, (snap) => {
+        setMyVote(snap.exists() ? snap.data()?.opcaoId : null);
+      });
+    }
+
+    return () => {
+      unsubE();
+      unsubOp();
+      unsubV();
+    };
+  }, [firestore, condominioId, enqueteId, uid]);
+
+  async function votar(opcaoId: string) {
+    if (!firestore || !condominioId || !uid || !enqueteId) return;
+
+    try {
+      await runTransaction(firestore, async (tx) => {
+        const votoRef = doc(firestore, `condominios/${condominioId}/enquetes/${enqueteId}/votos/${uid}`);
+        const enqueteRef = doc(firestore, `condominios/${condominioId}/enquetes/${enqueteId}`);
+        const opcaoRef = doc(firestore, `condominios/${condominioId}/enquetes/${enqueteId}/opcoes/${opcaoId}`);
+
+        const votoSnap = await tx.get(votoRef);
+        if (votoSnap.exists()) {
+          throw new Error("Você já votou nesta enquete.");
+        }
+
+        const enqueteSnap = await tx.get(enqueteRef);
+        if (!enqueteSnap.exists()) throw new Error("Enquete não encontrada.");
+        const eq = enqueteSnap.data() as any;
+        if (String(eq?.status || "").toUpperCase() !== "ABERTA") {
+          throw new Error("Esta enquete está encerrada.");
+        }
+
+        const opcaoSnap = await tx.get(opcaoRef);
+        if (!opcaoSnap.exists()) throw new Error("Opção inválida.");
+
+        tx.set(votoRef, { opcaoId, createdAt: serverTimestamp() });
+        tx.update(opcaoRef, { votes: increment(1) });
+        tx.update(enqueteRef, { totalVotes: increment(1), updatedAt: serverTimestamp() });
+      });
+
+      toast({ title: "Voto registrado com sucesso!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao votar", description: e?.message || String(e) });
+    }
+  }
+
+  if (!enqueteId) return null;
+  if (loading) return <p className="text-xs text-white/50">Carregando votação...</p>;
+  if (!enquete) return null;
+
+  const totalVotes = Number(enquete.totalVotes || 0);
+  const aberta = enquete.status === "ABERTA";
+
+  return (
+    <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h5 className="text-xs font-semibold text-white/90 uppercase tracking-wider">Votação: {enquete.titulo}</h5>
+        <span className="text-[10px] text-white/60 bg-muted/30 px-2 py-0.5 rounded-full">{totalVotes} voto(s)</span>
+      </div>
+      {enquete.descricao && <p className="text-xs text-muted-foreground italic">{enquete.descricao}</p>}
+      <div className="space-y-2">
+        {opcoes.map((op) => {
+          const votes = Number(op.votes || 0);
+          const pct = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
+          const votedThis = myVote === op.id;
+
+          return (
+            <div key={op.id} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-xs font-medium text-white break-all flex items-center gap-1">
+                  {op.texto} {votedThis && "✅"}
+                </span>
+                {aberta && !myVote && (
+                  <Button variant="secondary" className="h-6 px-2 py-0 text-[10px] font-semibold" onClick={() => votar(op.id)}>
+                    Votar
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Progress value={pct} className="h-1.5 flex-1 bg-muted/30" />
+                <span className="text-[10px] text-white/60 w-12 text-right">{Math.round(pct)}% ({votes})</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ReuniaoCard({
+  reuniao,
+  canManage,
+  onEdit,
+  onCancel,
+  firestore,
+  condominioId,
+  uid,
+}: {
+  reuniao: Reuniao;
+  canManage: boolean;
+  onEdit: (r: Reuniao) => void;
+  onCancel: (id: string) => void;
+  firestore: any;
+  condominioId: string | null;
+  uid: string | null;
+}) {
     return (
-        <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+        <Card className="border bg-card">
             <CardHeader>
                 <div className="flex justify-between items-start">
                     <div>
@@ -113,6 +275,14 @@ function ReuniaoCard({ reuniao, canManage, onEdit, onCancel }: { reuniao: Reunia
                             {reuniao.pautas.map((p, i) => <li key={i}>{p}</li>)}
                         </ul>
                     </div>
+                )}
+                {reuniao.enqueteId && (
+                  <ReuniaoEnqueteSection
+                    firestore={firestore}
+                    condominioId={condominioId}
+                    uid={uid}
+                    enqueteId={reuniao.enqueteId}
+                  />
                 )}
             </CardContent>
             {canManage && (
@@ -163,6 +333,25 @@ export default function ReunioesPage() {
   const [pautasText, setPautasText] = React.useState("");
   
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [availableEnquetes, setAvailableEnquetes] = React.useState<any[]>([]);
+  const [enqueteIdSelected, setEnqueteIdSelected] = React.useState<string>("__NONE__");
+
+  React.useEffect(() => {
+    if (!firestore || !condominioId || !canManage) {
+      setAvailableEnquetes([]);
+      return;
+    }
+    const eRef = collection(firestore, `condominios/${condominioId}/enquetes`);
+    const eQ = query(eRef, where("status", "==", "ABERTA"));
+    const unsub = onSnapshot(eQ, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, titulo: d.data()?.titulo || d.id }));
+      setAvailableEnquetes(list);
+    }, (err) => {
+      console.warn("[reunioes] erro enquetes list:", err);
+      setAvailableEnquetes([]);
+    });
+    return () => unsub();
+  }, [firestore, condominioId, canManage]);
   
   React.useEffect(() => {
     if (!firestore || !condominioId) {
@@ -241,6 +430,7 @@ export default function ReunioesPage() {
     }
 
     try {
+      const enqueteIdVal = enqueteIdSelected === "__NONE__" ? null : enqueteIdSelected;
       const payload = {
         titulo: tituloOk,
         tipo,
@@ -249,6 +439,7 @@ export default function ReunioesPage() {
         pautas,
         status: "AGENDADA",
         updatedAt: serverTimestamp(),
+        enqueteId: enqueteIdVal,
       };
 
       if (editingId) {
@@ -296,6 +487,7 @@ export default function ReunioesPage() {
 
     const pautas = Array.isArray(r.pautas) ? r.pautas : [];
     setPautasText(pautas.join("\n"));
+    setEnqueteIdSelected(r.enqueteId ? String(r.enqueteId) : "__NONE__");
 
     setOpenDialog(true);
   }
@@ -319,7 +511,7 @@ export default function ReunioesPage() {
       pageTitle="Reuniões"
       headerActions={
           canManage ? (
-            <Dialog open={openDialog} onOpenChange={(v) => { if(!v) setEditingId(null); setOpenDialog(v); }}>
+            <Dialog open={openDialog} onOpenChange={(v: boolean) => { if(!v) setEditingId(null); setOpenDialog(v); }}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
@@ -332,14 +524,15 @@ export default function ReunioesPage() {
                     setDay(new Date());
                     setStartTime('19:00');
                     setPautasText('');
+                    setEnqueteIdSelected('__NONE__');
                     setOpenDialog(true);
                   }}
                 >
-                  <PlusCircle className="mr-2" />
+                  <PlusCircle className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline-block">Nova Reunião</span>
                 </Button>
               </DialogTrigger>
-
+ 
               <DialogContent className="sm:max-w-[520px] tc-dialog-center">
                 <DialogHeader>
                   <DialogTitle>{editingId ? "Editar Reunião" : "Agendar Nova Reunião"}</DialogTitle>
@@ -347,7 +540,7 @@ export default function ReunioesPage() {
                     {editingId ? "Atualize os detalhes da reunião." : "Preencha os detalhes para agendar e notificar os moradores."}
                   </DialogDescription>
                 </DialogHeader>
-
+ 
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="reuniao-titulo" className="text-right">Título</Label>
@@ -391,6 +584,24 @@ export default function ReunioesPage() {
                           <Input id="reuniao-local-outro" ref={localOutroRef} value={localOutro} onChange={(e) => setLocalOutro(e.target.value)} className="col-span-3" />
                       </div>
                   )}
+                  {tipo === "ASSEMBLEIA" && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="reuniao-enquete" className="text-right font-medium">Votação</Label>
+                      <Select value={enqueteIdSelected} onValueChange={setEnqueteIdSelected}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Selecione uma enquete (opcional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__NONE__">Nenhuma</SelectItem>
+                          {availableEnquetes.map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.titulo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-4 items-start gap-4">
                       <Label htmlFor="reuniao-pautas" className="text-right pt-2">Pautas</Label>
                       <Textarea id="reuniao-pautas" value={pautasText} onChange={(e) => setPautasText(e.target.value)} placeholder="1. Assunto 1\n2. Assunto 2" className="col-span-3 min-h-[100px]" />
@@ -417,7 +628,7 @@ export default function ReunioesPage() {
                 />
             </div>
             <div className="space-y-4">
-                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+                <Card className="border bg-card">
                     <CardHeader>
                         <CardTitle>Próximas Reuniões</CardTitle>
                         <CardDescription className="text-white/75">Eventos agendados a partir de hoje.</CardDescription>
@@ -425,20 +636,20 @@ export default function ReunioesPage() {
                     <CardContent>
                         {loading ? <p>Carregando...</p> : proximas.length === 0 ? <p>Nenhuma reunião futura.</p> : (
                             <div className="space-y-3">
-                                {proximas.map(r => <ReuniaoCard key={r.id} reuniao={r} canManage={canManage} onEdit={startEdit} onCancel={cancelReuniao} />)}
+                                {proximas.map(r => <ReuniaoCard key={r.id} reuniao={r} canManage={canManage} onEdit={startEdit} onCancel={cancelReuniao} firestore={firestore} condominioId={condominioId} uid={uid} />)}
                             </div>
                         )}
                     </CardContent>
                 </Card>
 
-                <Card className="border-white/20 bg-white/28 backdrop-blur-2xl shadow-[0_18px_55px_rgba(2,6,23,0.12)]">
+                <Card className="border bg-card">
                     <CardHeader>
                         <CardTitle>Reuniões do dia {selectedDateStr}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {loading ? <p>Carregando...</p> : reunioesDoDia.length === 0 ? <p>Nenhuma reunião para este dia.</p> : (
                             <div className="space-y-3">
-                                {reunioesDoDia.map(r => <ReuniaoCard key={r.id} reuniao={r} canManage={canManage} onEdit={startEdit} onCancel={cancelReuniao} />)}
+                                {reunioesDoDia.map(r => <ReuniaoCard key={r.id} reuniao={r} canManage={canManage} onEdit={startEdit} onCancel={cancelReuniao} firestore={firestore} condominioId={condominioId} uid={uid} />)}
                             </div>
                         )}
                     </CardContent>

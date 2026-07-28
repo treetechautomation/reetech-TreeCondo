@@ -39,6 +39,11 @@ export async function POST(req: Request) {
 
     await membroRef.set(
       {
+        encomendaPinHash: pinHash,
+        encomendaPinLast4: pinLast4,
+        encomendaPinUpdatedAt: FieldValue.serverTimestamp(),
+        encomendaPinFailedAttempts: 0,
+        // Legado / Fallback
         pinEncomendasHash: pinHash,
         pinEncomendasLast4: pinLast4,
         pinEncomendasUpdatedAt: FieldValue.serverTimestamp(),

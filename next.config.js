@@ -5,14 +5,17 @@ const withPWA = require("next-pwa")({
   disable: process.env.DISABLE_PWA === "1" || !!process.env.GCLOUD_PROJECT || !!process.env.FIREBASE_CONFIG,
   register: true,
   skipWaiting: true,
-    importScripts: ["/firebase-messaging-sw.js"],
-
-  // ✅ garante que o SW principal carregue o Firebase Messaging SW
+  importScripts: ["/firebase-messaging-sw.js"],
+  buildExcludes: [/app-build-manifest\.json$/],
 });
 
 const nextConfig = {
+  // ✅ Corrige warning de múltiplos lockfiles — aponta a raiz correta do workspace
+  outputFileTracingRoot: "/var/www/treecondo",
+
   experimental: {
-    // Next 15 mostra warning, mas ele entende e habilita o experimento.
+    // Next 15: serverExternalPackages para libs Node-only (Genkit, firebase-admin)
+    serverExternalPackages: ["genkit", "@genkit-ai/google-genai", "firebase-admin"],
   },
 
   // ✅ App Hosting: injeta a config no bundle do client em build-time

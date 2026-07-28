@@ -7,26 +7,33 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Ajuste conforme seu padrão real de claim:
+    // Super admin: múltiplos formatos de claim suportados
     function isSuper() {
       return signedIn() && (
         request.auth.token.super_admin == true ||
-        request.auth.token.superAdmin == true
+        request.auth.token.superAdmin == true ||
+        request.auth.token.role == "SUPER_ADMIN" ||
+        (
+          request.auth.token.roles is list &&
+          request.auth.token.roles.hasAny(["SUPER_ADMIN"])
+        )
       );
     }
 
-    // ✅ Storage Rules NÃO tem variável "database".
-    // Use (default) no path do firestore.get
+    // ✅ Storage Rules NÃO tem variável "database". Usa (default).
+    // FIX: Usa get() com fallback seguro — se o doc não existir, o campo retorna ""
     function membroDoc(condId) {
       return firestore.get(/databases/(default)/documents/condominios/$(condId)/membros/$(request.auth.uid));
     }
 
+    // FIX: Usa .get() com fallback para evitar erro quando status é null ou doc não existe
     function isMembroAtivo(condId) {
-      return signedIn() && membroDoc(condId).data.status.upper() == "ATIVO";
+      return signedIn() &&
+        membroDoc(condId).data.get('status', '').upper() == "ATIVO";
     }
 
     function isOperador(condId) {
-      let role = membroDoc(condId).data.role.upper();
+      let role = membroDoc(condId).data.get('role', '').upper();
       return isMembroAtivo(condId) && (
         role == "ADMIN" ||
         role == "SINDICO" ||
@@ -35,42 +42,86 @@ service firebase.storage {
     }
 
     // ------------------------------------------------------------
-    // BRANDING (paths oficiais que você está usando no app)
-    // branding/global/logo-menu.jpeg
+    // BRANDING GLOBAL
+    // Nota: leitura pública intencional (logos do app são assets públicos)
+    // para carregamento antes da autenticação (splash screen / login).
+    // ------------------------------------------------------------
     match /branding/global/{fileName} {
-      // Menu do app: qualquer usuário logado pode ler
+      // Público — necessário para exibir logo antes do login
       allow read: if true;
-      // Escrita: só super (ou se quiser, operador global)
+      // Escrita: apenas super admin
       allow write: if isSuper();
     }
 
-    // branding/{condId}/logo-painel.jpeg
+    // Branding por condomínio
     match /branding/{condId}/{fileName} {
       allow read: if isSuper() || isMembroAtivo(condId);
       allow write: if isSuper() || isOperador(condId);
     }
 
     // ------------------------------------------------------------
-    // DOCUMENTOS (mantendo seu padrão)
-          // ------------------------------------------------------------
-      // ÁREAS (imagens das áreas comuns)
-      match /condominios/{condId}/areas/{fileName} {
-        allow read: if isSuper() || isMembroAtivo(condId);
-        allow write: if isSuper() || isOperador(condId);
-      }
-
-      // INCIDENTES (fotos das ocorrências)
-      match /condominios/{condId}/incidentes/{fileName} {
-        allow read: if isSuper() || isMembroAtivo(condId);
-        allow write: if isSuper() || isMembroAtivo(condId);
-      }
-
-match /condominios/{condId}/documentos/{docId}/{fileName} {
+    // ÁREAS COMUNS (imagens das áreas reserváveis)
+    // ------------------------------------------------------------
+    match /condominios/{condId}/areas/{fileName} {
       allow read: if isSuper() || isMembroAtivo(condId);
       allow write: if isSuper() || isOperador(condId);
     }
 
-    // Default deny
+    // ------------------------------------------------------------
+    // INCIDENTES (fotos das ocorrências)
+    // ------------------------------------------------------------
+    match /condominios/{condId}/incidentes/{fileName} {
+      // UN.6D.1: Restrito a operadores + super admin. API server-side para moradores.
+      allow read: if isSuper() || canManageCondo(condId);
+      allow write: if isSuper() || isMembroAtivo(condId);
+    }
+
+    // ------------------------------------------------------------
+    // ENCOMENDAS (fotos de pacotes e entregas)
+    // ------------------------------------------------------------
+    match /condominios/{condId}/encomendas/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
+      allow write: if isSuper() || isMembroAtivo(condId);
+    }
+
+    // ------------------------------------------------------------
+    // PETS & VEICULOS (fotos de animais e carros)
+    // ------------------------------------------------------------
+    match /condominios/{condId}/pets/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
+      allow write: if isSuper() || isMembroAtivo(condId);
+    }
+    match /condominios/{condId}/veiculos/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
+      allow write: if isSuper() || isMembroAtivo(condId);
+    }
+
+    // ------------------------------------------------------------
+    // DOCUMENTOS
+    // ------------------------------------------------------------
+    match /condominios/{condId}/documentos/{docId}/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
+      allow write: if isSuper() || isOperador(condId);
+    }
+
+    // ------------------------------------------------------------
+    // TREEMIDIA — Campanhas (multi-tenant)
+    // ------------------------------------------------------------
+    match /condominios/{condId}/treemidia/campanhas/{campanhaId}/{fileName} {
+      // Leitura pública — necessária para exibição nas telas digitais (kiosk)
+      allow read: if true;
+      allow write: if isSuper() || isOperador(condId);
+    }
+
+    // TREEMIDIA — Path legado (somente leitura, sem escrita)
+    match /treemidia/campanhas/{campanhaId}/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------
+    // Default deny — bloqueia qualquer outro path não declarado
+    // ------------------------------------------------------------
     match /{path=**} {
       allow read, write: if false;
     }

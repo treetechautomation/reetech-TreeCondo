@@ -3,6 +3,14 @@ export const runtime = "nodejs";
 
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { executeAceitarOfertaTx } from "@/lib/reservasAceitarOferta";
+
+// ── FASE D.5 — SHADOW MODE / FASE D.6-D.7 — DECISION DISPATCHER ──────────
+import {
+  motorDecision,
+} from "@/lib/reservas/policy-engine/shadow/shadowRunner";
+import { dispatchReservaDecision } from "@/lib/reservas/policy-engine/dispatcher";
+import { normBloco } from "@/lib/normalization/location";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -11,6 +19,7 @@ function jsonError(message: string, status = 400) {
 function upper(v: any) {
   return String(v || "").toUpperCase().trim();
 }
+
 
 function toDateSafe(v: any): Date | null {
   try {
@@ -35,6 +44,7 @@ async function getActorInfo(db: any, params: { condominioId: string; uid: string
   const { condominioId, uid, decoded } = params;
   let nome = String(decoded?.name || decoded?.email || "Usuário").trim();
   let role: string | null = null;
+  let status: string | null = null;
 
   try {
     const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
@@ -43,12 +53,13 @@ async function getActorInfo(db: any, params: { condominioId: string; uid: string
       const md = msnap.data() || {};
       if (md?.nome) nome = String(md.nome).trim();
       if (md?.role) role = String(md.role).trim();
+      if (md?.status) status = String(md.status).trim();
     }
   } catch (e: any) {
     console.warn("[reservas/fila-assumir] getActorInfo falhou:", e?.message || String(e));
   }
 
-  return { uid, nome, role };
+  return { uid, nome, role, status };
 }
 
 async function notifyOperadores(db: any, params: {
@@ -64,7 +75,7 @@ async function notifyOperadores(db: any, params: {
   if (!condId) return;
 
   const membrosRef = db.collection("condominios").doc(condId).collection("membros");
-  const snap = await membrosRef.where("status", "in", ["ATIVO", "PENDENTE"]).get();
+  const snap = await membrosRef.where("status", "in", ["ATIVO"]).get();
 
   const ops = snap.docs
     .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
@@ -151,6 +162,60 @@ export async function POST(req: Request) {
     const uid = String(decoded.uid);
     const actor = await getActorInfo(db, { condominioId, uid, decoded });
 
+    if (!(decoded as any)?.super_admin && !(decoded as any)?.superAdmin) {
+      if (upper(actor.status) !== "ATIVO") {
+        // D.7: dispatcher (auditoria); bloco operacional garantido.
+        await dispatchReservaDecision(db, motorDecision({
+          action: "OFFER_ACCEPT", allowed: false,
+          blockRule: "MEMBRO_INATIVO", blockPriority: "BLOCKER",
+          blockMessage: "Membro inativo.",
+          blockOrigin: "CONDOMINIO",
+        }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: actor.role || "", priceCentavos: 0, isOperatorAction: false });
+        return jsonError("Membro inativo.", 403);
+      }
+    }
+
+    const areaSnap = await db.collection("condominios").doc(condominioId).collection("areasReservaveis").doc(areaId).get();
+    const area = areaSnap.exists ? (areaSnap.data() || {}) : null;
+    if (!area || !area.ativo) {
+      // D.7: dispatcher (auditoria + decisão); bloco operacional garantido.
+      await dispatchReservaDecision(db, motorDecision({
+        action: "OFFER_ACCEPT", allowed: false,
+        blockRule: "AREA_INATIVA", blockPriority: "BLOCKER",
+        blockMessage: "Área não encontrada ou desativada.",
+        blockOrigin: "AREA",
+      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: actor.role || "", priceCentavos: 0, isOperatorAction: false });
+      return jsonError("Área não encontrada ou desativada.", 404);
+    }
+
+    if (area.escopoReserva === "BLOCO" && Array.isArray(area.blocosPermitidos) && area.blocosPermitidos.length > 0) {
+      const membroCheck = await db.collection("condominios").doc(condominioId).collection("membros").doc(uid).get();
+      const md = membroCheck.exists ? (membroCheck.data() || {}) : {};
+      const membroBlocoNorm = md.blocoIdNorm || normBloco(md.blocoId || md.bloco);
+      if (!membroBlocoNorm || !area.blocosPermitidos.includes(membroBlocoNorm)) {
+        // D.7: dispatcher (auditoria + decisão); bloco operacional garantido.
+        const outcome = await dispatchReservaDecision(db, motorDecision({
+          action: "OFFER_ACCEPT", allowed: false,
+          blockRule: "BLOCO_NAO_PERMITIDO", blockPriority: "BLOCKER",
+          blockMessage: "Esta área é exclusiva para moradores de outro bloco.",
+          blockOrigin: "AREA",
+        }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: actor.role || "", priceCentavos: 0, isOperatorAction: false, memberFactsOverride: { blocoIdNorm: membroBlocoNorm } });
+        if (!outcome.allowed) return jsonError("Esta área é exclusiva para moradores de outro bloco.", 403);
+      }
+    }
+
+    // ── FASE D.7 — DISPATCHER: Policy Engine decide antes do write ──
+    {
+      const outcome = await dispatchReservaDecision(db, motorDecision({
+        action: "OFFER_ACCEPT", allowed: true,
+      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: actor.role || "", priceCentavos: 0, isOperatorAction: false });
+      if (!outcome.allowed) {
+        return jsonError(
+          outcome.blockMessage || "Aceite bloqueado pelo regulamento.", 403,
+        );
+      }
+    }
+
     const slotId = `${areaId}__${dateStr}`;
     const slotRef = db.collection("condominios").doc(condominioId).collection("reservasSlots").doc(slotId);
     const filaDocRef = slotRef.collection("fila").doc(uid);
@@ -158,6 +223,7 @@ export async function POST(req: Request) {
     const reservasCol = db.collection("condominios").doc(condominioId).collection("reservas");
 
     let reservaNovaId = "";
+    let gerouFinanceiro = false;
 
     await db.runTransaction(async (tx: any) => {
       const slotSnap = await tx.get(slotRef);
@@ -181,7 +247,8 @@ export async function POST(req: Request) {
       }
 
       const fila = filaSnap.data() || {};
-      if (upper(fila.status) !== "OFERTADA") {
+      const filaStatusNorm = upper(fila.status || "");
+      if (filaStatusNorm !== "OFERTADA" && filaStatusNorm !== "OFERTA_PENDENTE") {
         throw Object.assign(new Error("Sua vaga ainda não está pronta para ser assumida."), { status: 409 });
       }
 
@@ -190,53 +257,29 @@ export async function POST(req: Request) {
         throw Object.assign(new Error("Seu lock da fila não foi encontrado."), { status: 409 });
       }
 
-      const reservaRef = reservasCol.doc();
-      reservaNovaId = reservaRef.id;
-      const dt = new Date(`${dateStr}T12:00:00.000Z`);
+      const membroSnap = await tx.get(
+        db.collection("condominios").doc(condominioId).collection("membros").doc(uid),
+      );
+      const membro = membroSnap.exists ? (membroSnap.data() || {}) : {};
 
-      tx.set(reservaRef, {
-        areaId,
+      const txResult = await executeAceitarOfertaTx(tx, {
+        db,
         condominioId,
-        uid,
-        criadoPorUid: uid,
-        reservaManualPorOperador: false,
-        status: "PENDENTE",
-        precisaAprovacao: true,
-        data: Timestamp.fromDate(dt),
+        areaId,
         dateStr,
-        valorCobrado: Number(fila.valorCobrado || 0) || 0,
-        opcaoId: String(fila.opcaoId || "base"),
-        opcaoNome: String(fila.opcaoNome || "Base"),
-        capacidadeMax: fila.capacidadeMax == null ? null : Number(fila.capacidadeMax),
-        criadoEm: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        origemFila: true,
-        assumidaDeOferta: true,
-        ofertadaEm: fila.ofertadaEm || null,
-        ofertaReservaOrigemId: fila.ofertaReservaOrigemId || null,
+        uid,
+        area: area || {},
+        membro,
+        fila,
+        slotRef,
+        filaDocRef,
+        lockRef,
+        reservasCol,
+        modo: "OFERTADA",
       });
 
-      tx.set(slotRef, {
-        occupied: true,
-        reservaId: reservaRef.id,
-        pendingOfferUid: null,
-        pendingOfferAt: null,
-        pendingOfferExpiresAt: null,
-        pendingOfferReservaOrigemId: null,
-        filaCount: FieldValue.increment(-1),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-
-      tx.delete(filaDocRef);
-
-      tx.set(lockRef, {
-        uid,
-        tipo: "RESERVA",
-        areaId,
-        dateStr,
-        reservaId: reservaRef.id,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      reservaNovaId = txResult.reservaId;
+      gerouFinanceiro = txResult.gerouFinanceiro;
     });
 
     try {

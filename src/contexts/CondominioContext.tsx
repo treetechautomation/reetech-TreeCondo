@@ -1,6 +1,5 @@
 "use client";
 
-import { hasRole } from "@/lib/acl";
 import React, {
   createContext,
   useContext,
@@ -12,6 +11,10 @@ import React, {
 } from "react";
 import { useSessionCtx } from "./SessionContext";
 import { useFirestore } from "@/firebase";
+import type { VinculoRole, Vinculo } from "@/lib/pessoas/types";
+
+export type { VinculoRole, Vinculo };
+
 import {
   collection,
   query,
@@ -23,23 +26,6 @@ import {
 
 const LS_BLOCO = (condominioId: string) => `tc_bloco_${condominioId}_bloco`;
 const LS_UNIDADE = (condominioId: string) => `tc_bloco_${condominioId}_unidade`;
-
-export type VinculoRole =
-  | "SINDICO"
-  | "MORADOR"
-  | "PORTEIRO"
-  | "ZELADOR"
-  | "ADMIN"
-  | "ADMIN_CONDOMINIO";
-
-export type Vinculo = {
-  condominioId: string;
-  role: VinculoRole;
-  blocoId?: string | null;
-  unidadeId?: string | null;
-  status: "ATIVO" | "INATIVO";
-  condominioNome?: string;
-};
 
 export type Bloco = {
   id: string;
@@ -82,14 +68,7 @@ export function CondominioProvider({ children }: { children: ReactNode }) {
 
   // ✅ SUPER ADMIN robusto (emails + flags + role + hasRole)
   const isSuperAdmin = useMemo(() => {
-    const email = (session?.user?.email || "").toLowerCase();
-    return (
-      email === "treecommunity@treetechautomation.com" ||
-      email === "treetechautomation@treetechautomation.com" ||
-      !!(session as any)?.superAdmin ||
-      String((session as any)?.role || "") === "SUPER_ADMIN" ||
-      hasRole(session, ["SUPER_ADMIN"])
-    );
+    return !!(session as any)?.superAdmin;
   }, [session]);
 
   const condominioAtivoId = session?.activeCondominioId ?? null;

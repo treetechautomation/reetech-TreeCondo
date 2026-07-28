@@ -3,9 +3,11 @@
 
 import * as React from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Settings } from "lucide-react";
 
 import AppLayout from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { SectionCard } from "@/components/layout/SectionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSessionCtx } from "@/contexts/SessionContext";
@@ -152,8 +154,8 @@ export default function ConfiguracoesPage() {
     if (pinLast4) {
       return (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-[#F7F2EB] text-[#EDE7DE] text-[#F7F2EB] font-semibold text-[#CFC7BD]">
-            Seu PIN está definido. Final: <span className="font-mono font-semibold text-[#F7F2EB]">****{pinLast4}</span>
+          <p className="text-sm text-foreground">
+            Seu PIN está definido. Final: <span className="font-mono font-semibold">****{pinLast4}</span>
           </p>
           <Button variant="secondary" onClick={() => setIsEditing(true)}>Alterar PIN</Button>
         </div>
@@ -162,7 +164,7 @@ export default function ConfiguracoesPage() {
 
     return (
         <div className="flex items-center justify-between">
-            <p className="text-sm text-[#F7F2EB]"><span className="text-[#CFC7BD]">Você ainda não tem um PIN de retirada.</span></p>
+            <p className="text-sm text-muted-foreground">Você ainda não tem um PIN de retirada.</p>
             <Button onClick={() => setIsEditing(true)}>Definir PIN</Button>
         </div>
     );
@@ -171,34 +173,31 @@ export default function ConfiguracoesPage() {
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-[#F7F2EB] tracking-tight">Configurações</h1>
-          <p className="text-sm text-[#F7F2EB] mt-1">
-            Aqui você pode configurar seu PIN pessoal para retirar encomendas quando esquecer o celular.
-          </p>
-        </div>
-        
-        {!condominioAtivoId ? (
-           <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
-            <div className="font-medium text-[#F7F2EB]"> <span className="text-[#F79307]">PIN de Encomendas</span> </div>
-             <p className="text-sm text-[#F7F2EB]">Selecione um condomínio para poder definir seu PIN.</p>
-           </div>
-        ) : (
-           <div className="rounded-2xl border-black/5 bg-white/26 backdrop-blur-2xl p-6 shadow-sm space-y-4">
-            <div>
-              <div className="font-medium text-[#F7F2EB]"> <span className="text-[#F79307]">PIN de Encomendas</span> </div>
-              <div className="text-sm text-[#F7F2EB]">
-                <span className="text-[#DDD6CC]">O porteiro pode validar sua retirada usando este PIN (sem QR/celular).
-              </span></div>
-            </div>
+        <PageHeader
+          title="Configurações"
+          description="Gerencie suas preferências e PIN de retirada de encomendas."
+          icon={<Settings className="h-6 w-6" />}
+        />
 
+        {!condominioAtivoId ? (
+          <SectionCard
+            title="PIN de Encomendas"
+            description="Selecione um condomínio para poder definir seu PIN."
+          >
+            <p className="text-sm text-muted-foreground">Nenhum condomínio ativo no momento.</p>
+          </SectionCard>
+        ) : (
+          <SectionCard
+            title="PIN de Encomendas"
+            description="O porteiro pode validar sua retirada usando este PIN (sem QR/celular)."
+          >
             <div className="pt-2">
               {renderPinStatus()}
             </div>
 
             {err && <div className="text-sm text-red-600 mt-2">{err}</div>}
             {msg && <div className="text-sm text-emerald-700 mt-2">{msg}</div>}
-          </div>
+          </SectionCard>
         )}
       </div>
     </AppLayout>

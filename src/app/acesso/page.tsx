@@ -6,6 +6,9 @@ import { Plus, Eye, Check, X, LogIn, LogOut, Trash2, Ban
 } from "lucide-react";
 
 import AppLayout from "@/components/layout/AppLayout";
+import { SectionCard } from "@/components/layout/SectionCard";
+import { EmptyState } from "@/components/layout/EmptyState";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -186,6 +189,35 @@ export default function AcessoPage() {
   const [observacao, setObservacao] = React.useState("");
   const [blocoTxt, setBlocoTxt] = React.useState(() => String(((session as any)?.blocoAtivoId || (session as any)?.blocoId || "") ?? ""));
   const [unidadeTxt, setUnidadeTxt] = React.useState(() => String(((session as any)?.unidadeAtivaId || (session as any)?.unidadeId || "") ?? ""));
+
+  // UN.6B: Catalog selects
+  const [blocosList, setBlocosList] = React.useState<any[]>([]);
+  const [unidadesListAcesso, setUnidadesListAcesso] = React.useState<any[]>([]);
+  const [unitDocIdAcesso, setUnitDocIdAcesso] = React.useState("");
+
+  async function loadBlocosForAcesso() {
+    if (!condominioId) return;
+    try {
+      const token = await session?.user?.getIdToken();
+      const res = await fetch(`/api/blocos?condominioId=${encodeURIComponent(condominioId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) setBlocosList(data.blocos || []);
+    } catch { /* ignore */ }
+  }
+  async function loadUnidadesForAcesso(bid: string) {
+    if (!condominioId || !bid) { setUnidadesListAcesso([]); return; }
+    try {
+      const token = await session?.user?.getIdToken();
+      const res = await fetch(`/api/unidades?condominioId=${encodeURIComponent(condominioId)}&blocoId=${encodeURIComponent(bid)}&apenasAtivas=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.ok) setUnidadesListAcesso(data.unidades || []);
+    } catch { /* ignore */ }
+  }
+  React.useEffect(() => { if (openNew) loadBlocosForAcesso(); }, [openNew, condominioId]);
   const [janelaInicio, setJanelaInicio] = React.useState(() => dtLocalNowPlus(0));
   const [janelaFim, setJanelaFim] = React.useState(() => dtLocalNowPlus(4));
   const [saving, setSaving] = React.useState(false);
@@ -394,6 +426,7 @@ const ini = parseDatetimeLocal(janelaInicio);
 
           blocoId: destinoBloco,
           unidadeId: destinoUnidade,
+          unitDocId: formDestinoUnidade || null, // UN.6B: canonical unit ID
 
             destinoBlocoTexto: destinoBloco || formDestinoBloco.trim() || null,
             destinoUnidadeTexto: destinoUnidade || formDestinoUnidade.trim() || null,
@@ -573,39 +606,57 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
     </div>
   );
   return (
-    <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid}><Plus className="mr-2 h-4 w-4" />Novo Acesso</Button></DialogTrigger><DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto max-h-[85dvh] overflow-y-auto tc-dialog-center"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
+    <AppLayout pageTitle="Acesso" headerActions={<Dialog open={openNew} onOpenChange={setOpenNew}><DialogTrigger asChild><Button size="sm" disabled={!condominioId || !uid || isPortaria} title={isPortaria ? "Apenas gestores e moradores podem criar autorizações" : "Novo Acesso"}><Plus className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Novo Acesso</span></Button></DialogTrigger><DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto max-h-[85dvh] overflow-y-auto tc-dialog-center"><DialogHeader><DialogTitle>Novo Acesso</DialogTitle><DialogDescription>Pré-autorização para <b>Visitante</b> ou <b>Prestador</b>.</DialogDescription></DialogHeader><div className="grid gap-4 py-2">
       <div className="grid gap-1"><Label>Tipo</Label><select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value as TipoAcesso)}><option value="VISITANTE">Visitante</option><option value="PRESTADOR">Prestador</option></select></div>
       
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="grid gap-1">
-                <Label htmlFor="form-bloco">Bloco de Destino</Label>
-                <Input
-                  id="form-bloco"
-                  value={formDestinoBloco}
-                  onChange={(e) => setFormDestinoBloco(e.target.value)}
-                  placeholder="Ex: Bloco A"
-                />
-              </div>
+       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+               <div className="grid gap-1">
+                 <Label htmlFor="form-bloco">Bloco de Destino</Label>
+                 {role && String(role).toUpperCase() !== "MORADOR" ? (
+                   <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" 
+                     value={formDestinoBloco} 
+                     onChange={(e) => { setFormDestinoBloco(e.target.value); loadUnidadesForAcesso(e.target.value); }}>
+                     <option value="">Selecione o bloco</option>
+                     {(blocosList || []).filter((b: any) => b.ativo && (!b.isSistema || (blocosList||[]).length > 1)).map((b: any) => (
+                       <option key={b.id} value={b.id}>{b.nome}</option>
+                     ))}
+                   </select>
+                 ) : String(role || "").toUpperCase() === "MORADOR" ? (
+                   <div className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                     {vincBlocoId || blocoId || "-"}
+                   </div>
+                 ) : (
+                   <Input id="form-bloco" value={formDestinoBloco} onChange={(e) => setFormDestinoBloco(e.target.value)} placeholder="Ex: Bloco A" />
+                 )}
+               </div>
 
-              {String(role || "").toUpperCase() === "MORADOR" ? (
-                <div className="grid gap-1">
-                  <Label>Unidade de Destino</Label>
-                  <div className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
-                    {vincUnidadeId || unidadeId || formDestinoUnidade || "-"}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-1">
+               {String(role || "").toUpperCase() === "MORADOR" ? (
+                 <div className="grid gap-1">
+                   <Label>Unidade de Destino</Label>
+                   <div className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                     {vincUnidadeId || unidadeId || formDestinoUnidade || "-"}
+                   </div>
+                 </div>
+                ) : role && String(role).toUpperCase() !== "MORADOR" ? (
+                 <div className="grid gap-1">
+                   <Label htmlFor="form-unidade">Unidade de Destino</Label>
+                   <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+                     value={formDestinoUnidade}
+                     onChange={(e) => setFormDestinoUnidade(e.target.value)}
+                     disabled={!formDestinoBloco}>
+                     <option value="">{!formDestinoBloco ? "Selecione o bloco primeiro" : "Selecione a unidade"}</option>
+                     {(unidadesListAcesso || []).map((u: any) => (
+                       <option key={u.id} value={u.id}>{u.numero}</option>
+                     ))}
+                   </select>
+                 </div>
+               ) : (
+                 <div className="grid gap-1">
                   <Label htmlFor="form-unidade">Unidade de Destino</Label>
-                  <Input
-                    id="form-unidade"
-                    value={formDestinoUnidade}
-                    onChange={(e) => setFormDestinoUnidade(e.target.value)}
-                    placeholder="Ex: 101"
-                  />
+                  <Input id="form-unidade" value={formDestinoUnidade} onChange={(e) => setFormDestinoUnidade(e.target.value)} placeholder="Ex: 101" />
                 </div>
-              )}
-            </div>
+                )}
+             </div>
 
       <div className="grid gap-1"><Label>Nome do Visitante/Prestador</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João da Silva" /></div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Telefone (opcional)</Label><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(00) 00000-0000" /></div><div className="grid gap-1"><Label>Documento (opcional)</Label><Input value={documento} onChange={(e) => setDocumento(e.target.value)} placeholder="CPF/RG" /></div></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Placa (opcional)</Label><Input value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-1234" /></div><div className="grid gap-1"><Label>Empresa (prestador) (opcional)</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Ex: Manutenção Elétrica" disabled={tipo !== "PRESTADOR"} /></div></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="grid gap-1"><Label>Janela - Início</Label><Input type="datetime-local" value={janelaInicio} onChange={(e) => setJanelaInicio(e.target.value)} /></div><div className="grid gap-1"><Label>Janela - Fim</Label><Input type="datetime-local" value={janelaFim} onChange={(e) => setJanelaFim(e.target.value)} /></div></div><div className="grid gap-1"><Label>Observação (opcional)</Label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: vai entregar material / vai instalar internet / etc." /></div></div><DialogFooter><Button onClick={criarAcesso} disabled={saving}>{saving ? "Salvando..." : "Criar"}</Button></DialogFooter></DialogContent></Dialog>}>
@@ -631,7 +682,7 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                       type="button"
                       variant={tipoBusca === "todos" ? "default" : "outline"}
                       size="sm"
-                      className={tipoBusca === "todos" ? "text-white" : "text-black hover:text-black"}
+                      className={tipoBusca === "todos" ? "text-white" : "text-foreground hover:text-foreground"}
                       onClick={() => setTipoBusca("todos")}
                     >
                       Todos
@@ -640,7 +691,7 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                       type="button"
                       variant={tipoBusca === "nome" ? "default" : "outline"}
                       size="sm"
-                      className={tipoBusca === "nome" ? "text-white" : "text-black hover:text-black"}
+                      className={tipoBusca === "nome" ? "text-white" : "text-foreground hover:text-foreground"}
                       onClick={() => setTipoBusca("nome")}
                     >
                       Nome
@@ -649,7 +700,7 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                       type="button"
                       variant={tipoBusca === "placa" ? "default" : "outline"}
                       size="sm"
-                      className={tipoBusca === "placa" ? "text-white" : "text-black hover:text-black"}
+                      className={tipoBusca === "placa" ? "" : "text-foreground hover:text-foreground"}
                       onClick={() => setTipoBusca("placa")}
                     >
                       Placa
@@ -658,7 +709,7 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                       type="button"
                       variant={tipoBusca === "documento" ? "default" : "outline"}
                       size="sm"
-                      className={tipoBusca === "documento" ? "text-white" : "text-black hover:text-black"}
+                      className={tipoBusca === "documento" ? "text-white" : "text-foreground hover:text-foreground"}
                       onClick={() => setTipoBusca("documento")}
                     >
                       Documento
@@ -667,7 +718,7 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                       type="button"
                       variant={tipoBusca === "unidade" ? "default" : "outline"}
                       size="sm"
-                      className={tipoBusca === "unidade" ? "text-white" : "text-black hover:text-black"}
+                      className={tipoBusca === "unidade" ? "text-white" : "text-foreground hover:text-foreground"}
                       onClick={() => setTipoBusca("unidade")}
                     >
                       Unidade
@@ -683,15 +734,15 @@ className="text-slate-900 border-white/40 bg-white/90 hover:bg-white"
                   { key: "ENTROU", title: "Dentro do Condomínio", items: insideFiltered },
                   { key: "HISTORICO", title: "Histórico", items: historyFiltered },
                 ].map((sec) => (
-                  <div key={sec.key} className="rounded-2xl border border-black/5 bg-white/30 backdrop-blur-xl shadow-sm">
-                    <div className="px-4 py-3 border-b border-black/5">
-                      <div className="text-sm font-semibold text-slate-900">{sec.title}</div>
+                  <div key={sec.key} className="rounded-2xl border bg-card shadow-sm">
+                    <div className="px-4 py-3 border-b">
+                      <div className="text-sm font-semibold">{sec.title}</div>
                       <div className="text-xs text-muted-foreground">{sec.items.length} item(ns)</div>
                     </div>
 
                     <div className="p-3 space-y-2">
                       {sec.items.length === 0 ? (
-                        <div className="rounded-xl border border-black/5 bg-white/40 p-4 text-sm text-muted-foreground">
+                        <div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
                           Nada aqui ainda.
                         </div>
                       ) : (

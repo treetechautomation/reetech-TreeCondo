@@ -87,6 +87,67 @@ html, body { min-height: 100%; overflow-x: hidden; }
   @apply bg-card text-card-foreground rounded-2xl border border-border shadow-sm p-6;
 }
 
+/* UI.G2 — Design System Foundation Classes */
+
+/* Card variants */
+.tc-card-signature {
+  @apply bg-card text-card-foreground rounded-2xl border border-border shadow-sm p-6;
+}
+.tc-card-depth {
+  @apply bg-card text-card-foreground rounded-2xl border border-border shadow-md p-6;
+}
+
+/* Glass card internal structure */
+.tc-glass-card__header {
+  @apply flex items-center justify-between gap-2;
+}
+.tc-glass-card__title {
+  @apply text-lg font-semibold text-foreground;
+}
+
+/* Dialog centering (already centered by shadcn DialogContent, kept for compat) */
+.tc-dialog-center {
+  /* no-op: DialogContent already handles centering via left-1/2 top-1/2 translate */
+}
+
+/* Button variants */
+.tc-btn-primary {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold
+         bg-primary text-primary-foreground shadow hover:bg-primary/90
+         h-11 px-6 py-4 disabled:opacity-50 disabled:pointer-events-none;
+}
+.tc-btn-soft {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold
+         border border-input bg-background text-foreground shadow-sm hover:bg-accent
+         h-11 px-6 py-4 disabled:opacity-50 disabled:pointer-events-none;
+}
+.tc-btn-neon {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold
+         bg-[linear-gradient(90deg,#00BEEA_0%,#0284C7_100%)] text-white border border-white/25
+         shadow-md hover:shadow-lg active:scale-[0.99]
+         h-11 px-6 py-4 disabled:opacity-50 disabled:pointer-events-none;
+}
+
+/* Table legacy wrappers */
+.tc-table-wrap {
+  @apply relative w-full overflow-auto rounded-2xl border border-border;
+}
+.tc-table {
+  @apply w-full caption-bottom text-sm;
+}
+.tc-thead {
+  @apply border-b;
+}
+.tc-th {
+  @apply h-12 px-4 text-left align-middle font-semibold text-muted-foreground;
+}
+.tc-td {
+  @apply p-4 align-middle;
+}
+.tc-tr {
+  @apply border-b transition-colors hover:bg-muted/50;
+}
+
 
 /* --- TreeCondo Splash (premium) --- */
 @keyframes tc-splash {
@@ -237,4 +298,23 @@ animation: tc_loader_bar 1.1s ease-in-out infinite;
 /* header/label do shadcn dentro do menu (se precisar) */
 [role="menu"] [data-radix-menu-content]{
   opacity: 1 !important;
+}
+
+/* === UI.G7 — MOBILE / PWA SAFE AREA UTILITIES === */
+.pb-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.min-h-mobile {
+  min-height: 100dvh;
+}
+
+/* Touch-friendly minimum target size */
+@media (max-width: 767px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }

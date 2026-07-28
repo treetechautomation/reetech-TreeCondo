@@ -52,6 +52,10 @@ export async function POST(req: Request) {
         encomendaPinLast4: pinLast4,
         encomendaPinUpdatedAt: FieldValue.serverTimestamp(),
         encomendaPinFailedAttempts: 0, // Zera as tentativas ao definir um novo PIN
+        // Legado / Fallback
+        pinEncomendasHash: pinHash,
+        pinEncomendasLast4: pinLast4,
+        pinEncomendasUpdatedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     });

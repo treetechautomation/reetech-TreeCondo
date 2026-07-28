@@ -35,7 +35,11 @@ export async function registerFcmToken(params: {
     error: null,
   };
 
+  const isDev = process.env.NODE_ENV !== "production";
+
   async function saveDiag(patch: Record<string, any>) {
+    // Em produção, só salva erros fatais para não gerar writes desnecessários
+    if (!isDev && !patch.error && patch.step !== "fatal") return;
     try {
       Object.assign(diag, patch);
       await setDoc(
@@ -44,7 +48,7 @@ export async function registerFcmToken(params: {
         { merge: true }
       );
     } catch (e) {
-      console.warn("[FCM] saveDiag failed", e);
+      if (isDev) console.warn("[FCM] saveDiag failed", e);
     }
   }
 
