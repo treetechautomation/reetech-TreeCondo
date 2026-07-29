@@ -218,7 +218,7 @@
     },
     {
       "collectionGroup": "accessLinks",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
           "fieldPath": "accessStatus",
@@ -226,16 +226,6 @@
         },
         {
           "fieldPath": "emailNorm",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "accessLinks",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
       ]
