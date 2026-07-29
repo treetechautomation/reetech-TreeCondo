@@ -166,7 +166,8 @@ async function main() {
         id: "com_campo",
         nome: "Churrasqueira 2 + Campo",
         precoCentavos: 28000,
-        resourceIds: ["churrasqueira_2", "quadra"],
+        resourceIds: ["churrasqueira_2"],
+        bloqueiaAreaId: null,
       },
     ];
     for (const op of targetOpcoes) {
