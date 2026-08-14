@@ -29,7 +29,7 @@ export function isUsoCampoEncerrado(u: { dateStr: string; fimMin: number; status
   const today = todaySaoPauloISO(now);
   if (u.dateStr < today) return true;
   if (u.dateStr === today) {
-    const cm = now.getHours() * 60 + now.getMinutes();
+    const cm = minutesSinceMidnightSaoPaulo(now);
     return cm >= u.fimMin;
   }
   return false;
@@ -37,6 +37,21 @@ export function isUsoCampoEncerrado(u: { dateStr: string; fimMin: number; status
 
 function todaySaoPauloISO(d: Date = new Date()): string {
   return d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
+// R1.0 — Etapa 0.1 (P1 #1): minutos desde meia-noite em America/Sao_Paulo,
+// independente do timezone do host/processo — nunca usar
+// Date.prototype.getHours()/getMinutes() para isso.
+function minutesSinceMidnightSaoPaulo(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
 }
 
 export async function getOrCreateLedgerTx(tx: any, db: Firestore, params: {

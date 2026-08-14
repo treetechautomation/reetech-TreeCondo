@@ -16,8 +16,13 @@ export const scheduleWindowRule: RuleEvaluator = (_policy, ctx) => {
   if (s.allDay || (s.startHour == null && s.endHour == null)) {
     return skip(CODE, PRIORITY, "Área dia inteiro — sem restrição horária.", null);
   }
-  const now = new Date(ctx.nowMs);
-  const currentHour = now.getHours();
+  // R1.0 — Etapa 0.1 (P1 #1): hora civil em America/Sao_Paulo, independente
+  // do timezone do host/processo — nunca usar Date.prototype.getHours().
+  const currentHour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "2-digit", hourCycle: "h23" }).format(
+      new Date(ctx.nowMs)
+    )
+  );
   if (s.startHour != null && currentHour < s.startHour) {
     return fail(CODE, PRIORITY, `Reservas permitidas apenas a partir das ${s.startHour}h.`, s, {
       currentHour,

@@ -9,6 +9,7 @@ import {
 import { dispatchReservaDecision } from "@/lib/reservas/policy-engine/dispatcher";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { normBloco } from "@/lib/normalization/location";
+import { getLegacyPolicyForCondominio } from "@/lib/reservas/policy-engine";
 
 function upper(v: any) {
   return String(v || "").toUpperCase().trim();
@@ -134,7 +135,11 @@ export async function promoverFilaAposCancelamento(
       }, { merge: true });
       continue;
     }
-    if (isSundayISO(dateStr)) {
+    // R1.0 — Etapa 0.1 (P1 #2): domingo/feriado são regras do regulamento
+    // legado da Chácara Itaguaí (LEGACY_POLICY_REGISTRY), NÃO uma regra
+    // universal do SaaS — condomínios fora do registry não podem herdar.
+    const temRegulamentoLegadoComRestricaoCalendario = getLegacyPolicyForCondominio(condominioId) != null;
+    if (temRegulamentoLegadoComRestricaoCalendario && isSundayISO(dateStr)) {
       // D.7: dispatcher (auditoria); bloco operacional garantido.
       await dispatchReservaDecision(db, motorDecision({
         action: "QUEUE_PROMOTE", allowed: false,
@@ -149,7 +154,7 @@ export async function promoverFilaAposCancelamento(
       }, { merge: true });
       continue;
     }
-    if (isHolidayISO(dateStr)) {
+    if (temRegulamentoLegadoComRestricaoCalendario && isHolidayISO(dateStr)) {
       // D.7: dispatcher (auditoria); bloco operacional garantido.
       await dispatchReservaDecision(db, motorDecision({
         action: "QUEUE_PROMOTE", allowed: false,

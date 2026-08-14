@@ -7,7 +7,7 @@ import { FinanceiroStatus } from "@/lib/financeiroStatus";
 import { notifyReservasUid } from "@/lib/reservasNotificacoes";
 
 // ── FASE D.4 — SHADOW MODE ─────────────────────────────────────────────────
-import { getCompiledPolicy, makeContext, todaySaoPauloISO } from "@/lib/reservas/policy-engine";
+import { getCompiledPolicy, makeContext, todaySaoPauloISO, getLegacyPolicyForCondominio } from "@/lib/reservas/policy-engine";
 import { createAdminPolicyRepository } from "@/lib/reservas/policy-engine/adapters/admin";
 import { createCachedPolicyRepository } from "@/lib/reservas/policy-engine/repository";
 import { validate } from "@/lib/reservas/policy-engine/validator";
@@ -74,6 +74,15 @@ function todayInSaoPaulo(): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+// R1.0 — Etapa 0.1 (P1 #1): hora civil em America/Sao_Paulo, independente do
+// timezone do host/processo. Nunca usar new Date().getHours() para regras
+// horárias do regulamento (essas são sempre pensadas em horário de Brasília).
+export function hourInSaoPaulo(now: Date = new Date()): number {
+  return Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "2-digit", hourCycle: "h23" }).format(now)
+  );
 }
 
 // ── SHADOW HELPER ─────────────────────────────────────────────────────────────
@@ -165,7 +174,12 @@ export async function POST(req: Request) {
     }
 
     // Bloqueios globais
-    if (isSundayISO(dateStr)) {
+    // R1.0 — Etapa 0.1 (P1 #2): domingo/feriado são regras do regulamento
+    // legado da Chácara Itaguaí (LEGACY_POLICY_REGISTRY), NÃO uma regra
+    // universal do SaaS. Condomínios fora do registry (DEFAULT_POLICY,
+    // permissiva) não podem herdar esse bloqueio por acidente.
+    const temRegulamentoLegadoComRestricaoCalendario = getLegacyPolicyForCondominio(condominioId) != null;
+    if (temRegulamentoLegadoComRestricaoCalendario && isSundayISO(dateStr)) {
       shadowEvaluate(db, motorDecision({
         action: "CREATE", allowed: false,
         blockRule: "DIA_SEMANA_BLOQUEADO", blockPriority: "VALIDATION",
@@ -174,7 +188,7 @@ export async function POST(req: Request) {
       }), { condominioId, areaId, opcaoId, dateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
       return jsonError("❌ Não é permitido fazer reservas aos domingos.", 403);
     }
-    if (isHolidayISO(dateStr)) {
+    if (temRegulamentoLegadoComRestricaoCalendario && isHolidayISO(dateStr)) {
       shadowEvaluate(db, motorDecision({
         action: "CREATE", allowed: false,
         blockRule: "FERIADO_BLOQUEADO", blockPriority: "VALIDATION",
@@ -709,7 +723,7 @@ export async function POST(req: Request) {
         // Não permitir após início da faixa no mesmo dia
         const today = todaySaoPauloISO();
         if (dateStr === today) {
-          const nowHr = new Date().getHours();
+          const nowHr = hourInSaoPaulo();
           if (nowHr >= exc.horaInicio) {
             throw Object.assign(new Error("Não é possível reservar a exclusividade do Campo após o início da faixa de exclusividade."), { status: 400 });
           }
