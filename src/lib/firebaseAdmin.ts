@@ -3,8 +3,6 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { credential } from "firebase-admin";
-import fs from "fs";
-import path from "path";
 
 // --- Singleton instances ---
 let _app: App | null = null;
@@ -13,8 +11,31 @@ let _auth: ReturnType<typeof getAuth> | null = null;
 let _msg: ReturnType<typeof getMessaging> | null = null;
 
 // --- Configuration ---
-// This is the correct Project ID for your application.
-const TARGET_PROJECT_ID = "studio-7559545170-41328";
+const PRODUCTION_PROJECT_ID = "studio-7559545170-41328";
+
+// Fail-closed: só sai de produção se TREECONDO_ENV=staging E o project id
+// de staging estiver explicitamente configurado. Nunca cai em produção
+// silenciosamente por variável ausente.
+export function resolveTargetProjectId(): string {
+  const env = process.env.TREECONDO_ENV;
+  if (env === "staging") {
+    const stagingProjectId = process.env.TREECONDO_STAGING_PROJECT_ID;
+    if (!stagingProjectId) {
+      throw new Error(
+        "[firebaseAdmin] TREECONDO_ENV=staging mas TREECONDO_STAGING_PROJECT_ID ausente. Abortando boot (fail-closed)."
+      );
+    }
+    if (stagingProjectId === PRODUCTION_PROJECT_ID) {
+      throw new Error(
+        "[firebaseAdmin] TREECONDO_STAGING_PROJECT_ID aponta para o projeto de produção. Abortando boot."
+      );
+    }
+    return stagingProjectId;
+  }
+  return PRODUCTION_PROJECT_ID;
+}
+
+const TARGET_PROJECT_ID = resolveTargetProjectId();
 
 /**
  * Initializes and/or returns the singleton Firebase Admin App instance.
@@ -46,19 +67,8 @@ function getAdminApp(): App {
         privateKey: privateKey.replace(/\\n/g, "\n"),
       });
     } else {
-      // 2. Check if a local serviceAccountKey.json file exists (gitignored)
-      const localKeyPath = path.join(process.cwd(), "serviceAccountKey.json");
-      if (fs.existsSync(localKeyPath)) {
-        console.log("[firebaseAdmin] Using credentials from local serviceAccountKey.json file");
-        try {
-          const serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, "utf8"));
-          config.credential = credential.cert(serviceAccount);
-        } catch (err) {
-          console.error("[firebaseAdmin] Error loading local serviceAccountKey.json:", err);
-        }
-      } else {
-        console.warn("[firebaseAdmin] No credentials found. Falling back to ADC.");
-      }
+      // Only ADC (Application Default Credentials) — e.g. Firebase App Hosting or GCP managed environments
+      console.log("[firebaseAdmin] No explicit credentials found. Using Application Default Credentials.");
     }
 
     initializeApp(config);
