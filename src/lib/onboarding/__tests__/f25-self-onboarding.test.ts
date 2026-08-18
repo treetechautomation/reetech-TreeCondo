@@ -118,6 +118,7 @@ test("F2505 não enumera email — resposta não revela existência de cadastro"
 test("F2506 retorna somente dados mínimos — sem PII nos links elegíveis", () => {
   const eligible: EligibleLink = {
     linkId: "link123",
+    condominioId: "condo1",
     condominioNome: "Chácara Itaguaí",
     blocoNome: "Rosas",
     unidadeNumero: "101",
@@ -125,6 +126,7 @@ test("F2506 retorna somente dados mínimos — sem PII nos links elegíveis", ()
   };
 
   assert.ok(eligible.linkId);
+  assert.ok(eligible.condominioId);
   assert.equal("email" in eligible, false);
   assert.equal("emailNorm" in eligible, false);
   assert.equal("personId" in eligible, false);

@@ -58,6 +58,7 @@ export async function GET(req: Request) {
 
     const links: {
       linkId: string;
+      condominioId: string;
       condominioNome: string;
       blocoNome: string;
       unidadeNumero: string;
@@ -69,8 +70,13 @@ export async function GET(req: Request) {
 
       if (data.claimedByUid) continue;
 
+      // condominioId é derivado do path real do documento (condominios/{id}/accessLinks/{linkId}),
+      // não do campo armazenado, para garantir que o tenant reflita a localização real do doc.
+      const condominioId = doc.ref.parent.parent?.id || String(data.condominioId || "");
+
       links.push({
         linkId: doc.id,
+        condominioId,
         condominioNome: String(data.condominioNome || ""),
         blocoNome: String(data.blocoNome || ""),
         unidadeNumero: String(data.unidadeNumero || ""),

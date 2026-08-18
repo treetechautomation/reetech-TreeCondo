@@ -50,6 +50,7 @@ export interface CreateAccessLinkPayload {
 
 export interface EligibleLink {
   linkId: string;
+  condominioId: string;
   condominioNome: string;
   blocoNome: string;
   unidadeNumero: string;

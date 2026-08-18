@@ -20,6 +20,10 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+function isValidFirestoreDocId(v: string): boolean {
+  return v.length > 0 && v.length <= 1500 && !v.includes("/") && v !== "." && v !== "..";
+}
+
 export async function POST(req: Request) {
   const db = adminDb();
   const aauth = adminAuth();
@@ -53,15 +57,24 @@ export async function POST(req: Request) {
 
     const body = (await req.json().catch(() => ({}))) as any;
     const linkId = String(body.linkId || "").trim();
+    const condominioId = String(body.condominioId || "").trim();
     if (!linkId) return jsonError("linkId é obrigatório.", 400);
+    if (!condominioId) return jsonError("condominioId é obrigatório.", 400);
+    if (!isValidFirestoreDocId(linkId) || !isValidFirestoreDocId(condominioId)) {
+      return jsonError("Vínculo não encontrado. Solicite à administração.", 404);
+    }
 
-    const accessLinksSnap = await db
-      .collectionGroup("accessLinks")
-      .where("__name__", "==", linkId)
-      .limit(1)
-      .get();
+    // Lookup tenant-scoped direto: condominios/{condominioId}/accessLinks/{linkId}.
+    // Evita FieldPath.documentId() em collectionGroup, que exige path completo e
+    // rejeita o ID simples devolvido por eligible-links (F.6.1 root cause).
+    const linkRef = db
+      .collection("condominios")
+      .doc(condominioId)
+      .collection("accessLinks")
+      .doc(linkId);
+    const linkSnap = await linkRef.get();
 
-    if (accessLinksSnap.empty) {
+    if (!linkSnap.exists) {
       console.log("[onboarding/claim-link]", JSON.stringify(sanitizeOnboardingLog({
         operation: "SELF_ONBOARDING_CLAIM_FAILED",
         reason: "LINK_NOT_FOUND",
@@ -70,8 +83,8 @@ export async function POST(req: Request) {
       return jsonError("Vínculo não encontrado. Solicite à administração.", 404);
     }
 
-    const linkDoc = accessLinksSnap.docs[0];
-    const linkData = linkDoc.data();
+    const linkDoc = linkSnap;
+    const linkData = linkDoc.data()!;
 
     if (normEmail(linkData.email) !== authEmail) {
       console.log("[onboarding/claim-link]", JSON.stringify(sanitizeOnboardingLog({
@@ -86,7 +99,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         ok: true,
         alreadyLinked: true,
-        condominioId: linkData.condominioId,
+        condominioId,
         personId: linkData.personId,
         uid,
         role: linkData.roleAcesso,
@@ -101,7 +114,6 @@ export async function POST(req: Request) {
       return jsonError("LINK_ALREADY_CLAIMED", 409);
     }
 
-    const condominioId = linkData.condominioId;
     const blocoId = linkData.blocoId;
     const unitDocId = linkData.unitDocId;
     const unidadeId = linkData.unidadeId;

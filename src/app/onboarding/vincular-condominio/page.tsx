@@ -15,6 +15,7 @@ import { useSessionCtx } from "@/contexts/SessionContext";
 
 type EligibleLink = {
   linkId: string;
+  condominioId: string;
   condominioNome: string;
   blocoNome: string;
   unidadeNumero: string;
@@ -64,7 +65,7 @@ export default function VincularCondominioPage() {
     }
   }
 
-  async function handleClaim(linkId: string) {
+  async function handleClaim(linkId: string, condominioId: string) {
     setClaiming(linkId);
     setError(null);
     try {
@@ -77,7 +78,7 @@ export default function VincularCondominioPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ linkId }),
+        body: JSON.stringify({ linkId, condominioId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -222,7 +223,7 @@ export default function VincularCondominioPage() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => handleClaim(link.linkId)}
+                        onClick={() => handleClaim(link.linkId, link.condominioId)}
                         disabled={claiming === link.linkId}
                         className="rounded-xl text-slate-900 font-bold bg-gradient-to-r from-[#00D0E6] to-[#D3EA00] border-none disabled:opacity-50 h-10"
                       >
