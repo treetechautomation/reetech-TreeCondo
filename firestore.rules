@@ -283,6 +283,16 @@ function isOperador(condominioId) {
                       );
       }
 
+      // REV.1 — Auditoria administrativa tenant-scoped (ex.: revogação de
+      // acesso de membro). Escrita é feita exclusivamente pelo Admin SDK
+      // (server-side), que bypassa estas regras — por isso não há allow
+      // create/update/delete aqui. Leitura restrita a quem já gerencia o
+      // condomínio (mesmo padrão de canManageCondo usado em todo o resto).
+      match /adminAuditLogs/{logId} {
+        allow read: if isSuper() || canManageCondo(condominioId);
+        allow write: if false;
+      }
+
       match /anuncios/{anuncioId} {
         // AN.2: API server-side gerencia leitura. Client SDK só para gestores.
         allow read: if canManageCondo(condominioId);

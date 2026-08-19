@@ -12,7 +12,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -155,6 +164,11 @@ export default function PessoasPage() {
     modoAcesso: "SELF_ONBOARDING",
   });
   const [abaConvite, setAbaConvite] = React.useState<"dados" | "local">("dados");
+
+  // REV.1 — Revogar acesso (desvincular membro de UM condomínio)
+  const [revokeTarget, setRevokeTarget] = React.useState<Membro | null>(null);
+  const [revokeReason, setRevokeReason] = React.useState("");
+  const [revokeLoading, setRevokeLoading] = React.useState(false);
 
   const [blocos, setBlocos] = React.useState<{ id: string; nome: string }[]>([]);
   const [loadingBlocos, setLoadingBlocos] = React.useState(false);
@@ -492,6 +506,50 @@ export default function PessoasPage() {
         title: "Erro ao tornar síndico",
         description: err?.message || "Verifique suas permissões.",
       });
+    }
+  };
+
+  const handleRevogarAcesso = async () => {
+    if (!condominioAtivoId || !session?.user || !revokeTarget) return;
+
+    const reason = revokeReason.trim();
+    if (!reason) {
+      toast({ variant: "destructive", title: "Informe o motivo da revogação." });
+      return;
+    }
+
+    setRevokeLoading(true);
+    try {
+      const idToken = await session.user.getIdToken(true);
+      const res = await fetch("/api/admin/membros/revoke", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          condominioId: condominioAtivoId,
+          targetUid: revokeTarget.id,
+          reason,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Falha ao desvincular acesso.");
+
+      toast({ title: "Acesso desvinculado com sucesso." });
+      setRevokeTarget(null);
+      setRevokeReason("");
+      // O snapshot em tempo real de `membros` já reflete o novo status INATIVO
+      // automaticamente (onSnapshot acima) — nenhuma remoção da lista ocorre.
+    } catch (err: any) {
+      console.error("[Pessoas] erro ao revogar acesso:", err);
+      toast({
+        variant: "destructive",
+        title: "Erro ao desvincular acesso",
+        description: err?.message || "Tente novamente.",
+      });
+    } finally {
+      setRevokeLoading(false);
     }
   };
 
@@ -1001,6 +1059,20 @@ export default function PessoasPage() {
                                   Tornar síndico
                                 </DropdownMenuItem>
                               )}
+                              {/* REV.1 — Só faz sentido para um membro já vinculado
+                                  (linha vem de condominios/{id}/membros, ou seja,
+                                  já é um claim ativo/inativo, nunca uma Pessoa solta) */}
+                              {m.status !== "INATIVO" && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => {
+                                    setRevokeReason("");
+                                    setRevokeTarget(m);
+                                  }}
+                                >
+                                  Desvincular acesso
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -1012,6 +1084,76 @@ export default function PessoasPage() {
             </div>
           </SectionCard>
         </div>
+
+        {/* REV.1 — Confirmação de desvinculação de acesso (tenant-scoped) */}
+        <Dialog
+          open={!!revokeTarget}
+          onOpenChange={(open) => {
+            if (!open && !revokeLoading) {
+              setRevokeTarget(null);
+              setRevokeReason("");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Desvincular acesso</DialogTitle>
+              <DialogDescription>
+                Esta ação remove o acesso desta pessoa a este condomínio. O cadastro
+                da pessoa e o histórico serão preservados.
+              </DialogDescription>
+            </DialogHeader>
+
+            {revokeTarget && (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
+                  <div className="font-medium text-foreground">{revokeTarget.nome}</div>
+                  <div className="text-muted-foreground">{revokeTarget.email}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {blocos.find((b) => b.id === revokeTarget.blocoId)?.nome || revokeTarget.blocoId || "—"}
+                    {" · "}
+                    {revokeTarget.unidadeId || "—"}
+                    {" · "}
+                    {revokeTarget.role}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="revoke-reason">Motivo (obrigatório)</Label>
+                  <Textarea
+                    id="revoke-reason"
+                    placeholder="Descreva o motivo da revogação de acesso..."
+                    value={revokeReason}
+                    maxLength={500}
+                    onChange={(e) => setRevokeReason(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={revokeLoading}
+                onClick={() => {
+                  setRevokeTarget(null);
+                  setRevokeReason("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={revokeLoading || !revokeReason.trim()}
+                onClick={handleRevogarAcesso}
+              >
+                {revokeLoading ? "Desvinculando..." : "Desvincular acesso"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </AppLayout>
   );
 }

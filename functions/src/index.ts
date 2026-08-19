@@ -1,5 +1,6 @@
 /* eslint-disable require-jsdoc */
 import * as admin from "firebase-admin";
+import * as logger from "firebase-functions/logger";
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 
 // Triggers
@@ -41,6 +42,37 @@ export const onConviteCreated = onDocumentCreated(
       status?: string;};
 
     if (convite.status === "PROCESSADO") return;
+
+    // REV.1 — Guarda de reativação: este trigger legado reprovisiona
+    // membros/vinculos com status "ATIVO" sempre que um novo doc é criado
+    // em `convites` para o email correspondente. Isso é um vetor de
+    // reativação silenciosa: se alguém criar um convite para o email de
+    // uma pessoa cujo acesso foi explicitamente revogado (ver
+    // POST /api/admin/membros/revoke), este trigger reativaria o acesso
+    // sem nenhuma ação administrativa explícita. Para evitar isso, quando
+    // já existe um membro INATIVO para este condominioId, o trigger não
+    // reprovisiona — reativação deve ser um ato admin explícito, não um
+    // efeito colateral implícito de um novo convite.
+    const existingMembrosSnap = await db
+      .collection("condominios")
+      .doc(convite.condominioId)
+      .collection("membros")
+      .where("email", "==", convite.email)
+      .where("status", "==", "INATIVO")
+      .limit(1)
+      .get();
+
+    if (!existingMembrosSnap.empty) {
+      logger.info(
+        `[onConviteCreated] Convite ignorado: membro já INATIVO (revogado) para email=${convite.email} ` +
+        `condominioId=${convite.condominioId}. Reativação requer ação administrativa explícita.`
+      );
+      await snap.ref.update({
+        status: "IGNORADO_MEMBRO_REVOGADO",
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return;
+    }
 
     const tempPassword = generateTempPassword();
 

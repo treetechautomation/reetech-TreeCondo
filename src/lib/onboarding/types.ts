@@ -30,6 +30,10 @@ export interface AccessLinkData {
   claimedAt: unknown | null;
   createdAt?: unknown;
   updatedAt?: unknown;
+  /** REV.1 — Revogação de acesso (admin tenant-scoped). Nunca reverte accessStatus/claimedByUid/claimedAt. */
+  revokedAt?: unknown | null;
+  revokedByUid?: string | null;
+  revocationReason?: string | null;
 }
 
 export interface CreateAccessLinkPayload {
