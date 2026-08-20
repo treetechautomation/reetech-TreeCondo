@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MoreVertical, ArrowRight, Building2, UserPlus } from "lucide-react";
+import { MoreVertical, ArrowRight, Building2, UserPlus, Search, X } from "lucide-react";
 
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -50,6 +50,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { upsertBlocoEspecial } from "@/firebase/firestore/blocos.service";
 import { upsertUnidadeEspecial } from "@/firebase/firestore/unidades.service";
+import { filterPessoasPorBusca } from "@/lib/cadastro-moradores/pessoas-search";
 
 type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "FUNCIONARIO" | "ADMIN_CONDOMINIO";
 type FuncionarioTipo = "SEGURANCA" | "LIMPEZA" | "MANUTENCAO";
@@ -118,7 +119,9 @@ export default function PessoasPage() {
     FUNCIONARIOS: "Funcionários",
   };
 
-  const membrosFiltrados = useMemo(() => {
+  const [buscaPessoas, setBuscaPessoas] = useState("");
+
+  const membrosPorAba = useMemo(() => {
     switch (abaLista) {
       case "MORADORES":
         return membros.filter((m) => m.role === "MORADOR");
@@ -137,6 +140,11 @@ export default function PessoasPage() {
         return membros;
     }
   }, [membros, abaLista]);
+
+  const membrosFiltrados = useMemo(
+    () => filterPessoasPorBusca(membrosPorAba, buscaPessoas),
+    [membrosPorAba, buscaPessoas]
+  );
 
   const [form, setForm] = useState<{
     nome: string;
@@ -915,24 +923,48 @@ export default function PessoasPage() {
           {/* Listagem de pessoas */}
           <SectionCard title="Pessoas cadastradas" description="Gerencie perfis, vínculos e fichas cadastrais.">
 
-            {/* Chips de filtro */}
-            <div className="-mx-1 mb-4 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {ABA_LISTA_ORDER.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setAbaLista(key)}
-                  className={cn(
-                    "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    abaLista === key
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                  aria-pressed={abaLista === key}
-                >
-                  {ABA_LISTA_LABEL[key]}
-                </button>
-              ))}
+            {/* Busca + chips de filtro */}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="-mx-1 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {ABA_LISTA_ORDER.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setAbaLista(key)}
+                    className={cn(
+                      "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      abaLista === key
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                    aria-pressed={abaLista === key}
+                  >
+                    {ABA_LISTA_LABEL[key]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-64 sm:shrink-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  value={buscaPessoas}
+                  onChange={(e) => setBuscaPessoas(e.target.value)}
+                  placeholder="Buscar por nome, e-mail, bloco ou unidade..."
+                  aria-label="Buscar pessoas por nome, e-mail, bloco ou unidade"
+                  className="h-9 pl-9 pr-8"
+                />
+                {buscaPessoas && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaPessoas("")}
+                    aria-label="Limpar busca"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Tabela */}
@@ -956,10 +988,17 @@ export default function PessoasPage() {
                         Carregando...
                       </TableCell>
                     </TableRow>
-                  ) : membrosFiltrados.length === 0 ? (
+                  ) : membros.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                         Nenhuma pessoa cadastrada.
+                      </TableCell>
+                    </TableRow>
+                  ) : membrosFiltrados.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        <p>Nenhuma pessoa encontrada.</p>
+                        <p className="mt-1 text-xs">Ajuste a busca ou os filtros.</p>
                       </TableCell>
                     </TableRow>
                   ) : (
