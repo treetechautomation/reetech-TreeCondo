@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { FinanceiroStatus } from "@/lib/financeiroStatus";
 import { notifyReservasUid } from "@/lib/reservasNotificacoes";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 // ── FASE D.4 — SHADOW MODE ─────────────────────────────────────────────────
 import { getCompiledPolicy, makeContext, todaySaoPauloISO, getLegacyPolicyForCondominio } from "@/lib/reservas/policy-engine";
@@ -24,10 +26,6 @@ import type { ReservaAction, ValidationResult } from "@/lib/reservas/policy-engi
 import { readQuotaTx, incrementQuotaTx } from "@/lib/reservas/policy-engine/reservas-quotas.helper";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
 import { checkReservaBlock, checkReservaBlockTx } from "@/lib/reservas/bloqueios-helper";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
 
 function upper(v: any) {
   return String(v || "").toUpperCase().trim();
@@ -135,15 +133,8 @@ async function shadowEvaluate(
 
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-
     const body = await req.json().catch(() => ({}));
 
     console.error("[API reservas/criar][debug] body bruto:", body);
@@ -153,7 +144,7 @@ export async function POST(req: Request) {
     const dateStr = String(body?.dateStr || "").trim();
 
     const opcaoId = body?.opcaoId != null ? String(body.opcaoId) : "base";
-      const targetUidBody = String(body?.targetUid || "").trim();
+    const targetUidBody = String(body?.targetUid || "").trim();
 
     if (!condominioId || !areaId || !dateStr) {
       return jsonError("condominioId, areaId e dateStr são obrigatórios.", 400);
@@ -162,6 +153,17 @@ export async function POST(req: Request) {
       return jsonError("dateStr inválido. Use YYYY-MM-DD.", 400);
     }
 
+    // SECURITY.P0.11R — auth/tenant lookup consolidated via apiGuard, replacing
+    // the previous inline verifyIdToken call. ctx.membroData reflects the
+    // CALLER's own membership only — it must never be used for the reserva's
+    // target member data below (membroPreSnap/membroSnap are re-read against
+    // `uid`, which may be reassigned to targetUidBody for operator-on-behalf-of
+    // bookings; using ctx.membroData there would silently attribute the wrong
+    // resident's bloco/unidade to the reservation).
+    const ctx = await apiGuard({ request: req, condominioId });
+    const actorUid = ctx.uid;
+    const actorIsSuperAdmin = ctx.isSuperAdmin;
+
     // Bloqueio de data passada (fuso oficial America/Sao_Paulo; o dia atual continua permitido)
     if (dateStr < todayInSaoPaulo()) {
       shadowEvaluate(db, motorDecision({
@@ -169,7 +171,7 @@ export async function POST(req: Request) {
         blockRule: "DATA_PASSADA", blockPriority: "BLOCKER",
         blockMessage: "Não é possível criar reserva para uma data passada.",
         blockOrigin: "DEFAULT",
-      }), { condominioId, areaId, opcaoId, dateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
+      }), { condominioId, areaId, opcaoId, dateStr, uid: actorUid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
       return jsonError("Não é possível criar reserva para uma data passada.", 403);
     }
 
@@ -185,7 +187,7 @@ export async function POST(req: Request) {
         blockRule: "DIA_SEMANA_BLOQUEADO", blockPriority: "VALIDATION",
         blockMessage: "Não é permitido fazer reservas aos domingos.",
         blockOrigin: "DEFAULT",
-      }), { condominioId, areaId, opcaoId, dateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
+      }), { condominioId, areaId, opcaoId, dateStr, uid: actorUid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
       return jsonError("❌ Não é permitido fazer reservas aos domingos.", 403);
     }
     if (temRegulamentoLegadoComRestricaoCalendario && isHolidayISO(dateStr)) {
@@ -194,7 +196,7 @@ export async function POST(req: Request) {
         blockRule: "FERIADO_BLOQUEADO", blockPriority: "VALIDATION",
         blockMessage: "Não é permitido fazer reservas nesta data (feriado).",
         blockOrigin: "DEFAULT",
-      }), { condominioId, areaId, opcaoId, dateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
+      }), { condominioId, areaId, opcaoId, dateStr, uid: actorUid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
       return jsonError("❌ Não é permitido fazer reservas nesta data (feriado).", 403);
     }
 
@@ -209,7 +211,7 @@ export async function POST(req: Request) {
         blockRule: "AREA_INATIVA", blockPriority: "BLOCKER",
         blockMessage: "Área desativada.",
         blockOrigin: "AREA",
-      }), { condominioId, areaId, opcaoId, dateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
+      }), { condominioId, areaId, opcaoId, dateStr, uid: actorUid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
       return jsonError("Área desativada.", 403);
     }
 
@@ -271,10 +273,10 @@ export async function POST(req: Request) {
     const statusFinal = hasFee ? "PENDENTE_PAGAMENTO" : (horas >= autoAprovarAposHoras ? "APROVADA" : "PENDENTE");
     const precisaAprovacao = !hasFee && horas < exigirAprovacaoQuandoMenosQueHoras;
 
-    let uid = String(decoded.uid);
+    let uid = actorUid;
 
       console.error("[API reservas/criar][debug] actor/target inicial:", {
-        actorUid: String(decoded.uid),
+        actorUid: actorUid,
         targetUidBody,
         condominioId,
         areaId,
@@ -284,7 +286,7 @@ export async function POST(req: Request) {
       if (targetUidBody && targetUidBody !== uid) {
         const actorVincRef = db
           .collection("userCondominios")
-          .doc(String(decoded.uid))
+          .doc(actorUid)
           .collection("vinculos")
           .doc(condominioId);
 
@@ -292,11 +294,10 @@ export async function POST(req: Request) {
         const actorRole = actorVincSnap.exists ? String(actorVincSnap.data()?.role || "") : "";
         const isOperador =
           isOperatorRole(actorRole) ||
-          (decoded && decoded.super_admin === true) ||
-          (decoded && decoded.superAdmin === true);
+          actorIsSuperAdmin;
 
         console.error("[API reservas/criar][debug] actor role check:", {
-          actorUid: String(decoded.uid),
+          actorUid: actorUid,
           actorRole,
           isOperador,
         });
@@ -333,7 +334,7 @@ export async function POST(req: Request) {
       }
 
       console.error("[API reservas/criar][debug] uid final:", {
-        actorUid: String(decoded.uid),
+        actorUid: actorUid,
         targetUidBody,
         uidFinal: uid,
       });
@@ -358,7 +359,7 @@ export async function POST(req: Request) {
     const membroPreSnap = await db.collection("condominios").doc(condominioId).collection("membros").doc(uid).get();
     const mdPre = membroPreSnap.exists ? (membroPreSnap.data() || {}) : {};
 
-    if (!(decoded as any)?.super_admin && !(decoded as any)?.superAdmin) {
+    if (!actorIsSuperAdmin) {
       const membroStatus = upper(mdPre.status || "");
       if (!membroPreSnap.exists || membroStatus !== "ATIVO") {
         shadowEvaluate(db, motorDecision({
@@ -366,7 +367,7 @@ export async function POST(req: Request) {
           blockRule: "MEMBRO_INATIVO", blockPriority: "BLOCKER",
           blockMessage: "Membro inativo.",
           blockOrigin: "CONDOMINIO",
-        }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: uid !== String(decoded.uid) }).catch(() => {});
+        }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: uid !== actorUid }).catch(() => {});
         return jsonError("Membro inativo.", 403);
       }
     }
@@ -444,7 +445,7 @@ export async function POST(req: Request) {
           blockRule: "BLOCO_NAO_PERMITIDO", blockPriority: "BLOCKER",
           blockMessage: "Esta área é exclusiva para moradores de outro bloco.",
           blockOrigin: "AREA",
-        }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: uid !== String(decoded.uid) }).catch(() => {});
+        }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: uid !== actorUid }).catch(() => {});
         return jsonError("Esta área é exclusiva para moradores de outro bloco.", 403);
       }
     }
@@ -593,8 +594,8 @@ export async function POST(req: Request) {
           areaId,
           condominioId,
           uid,
-          criadoPorUid: String(decoded.uid),
-          reservaManualPorOperador: uid !== String(decoded.uid),
+          criadoPorUid: actorUid,
+          reservaManualPorOperador: uid !== actorUid,
           status: statusFinal,
           precisaAprovacao,
           data: Timestamp.fromDate(dt),
@@ -771,8 +772,8 @@ export async function POST(req: Request) {
         const dt = isoNoonUTC(dateStr);
         const statusFinal = hasFee ? "PENDENTE_PAGAMENTO" : "APROVADA";
         tx.set(reservaRef, {
-          areaId, condominioId, uid, criadoPorUid: String(decoded.uid),
-          reservaManualPorOperador: uid !== String(decoded.uid),
+          areaId, condominioId, uid, criadoPorUid: actorUid,
+          reservaManualPorOperador: uid !== actorUid,
           status: statusFinal, precisaAprovacao: !hasFee,
           data: Timestamp.fromDate(dt), dateStr, valorCobrado, opcaoId, opcaoNome,
           capacidadeMax, criadoEm: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
@@ -837,8 +838,8 @@ export async function POST(req: Request) {
         tx.set(filaDocRef, {
           uid,
           status: "AGUARDANDO",
-          criadoPorUid: String(decoded.uid),
-          reservaManualPorOperador: uid !== String(decoded.uid),
+          criadoPorUid: actorUid,
+          reservaManualPorOperador: uid !== actorUid,
           opcaoId,
           opcaoNome,
           valorCobrado,
@@ -882,8 +883,8 @@ export async function POST(req: Request) {
         areaId,
         condominioId,
         uid,
-        criadoPorUid: String(decoded.uid),
-        reservaManualPorOperador: uid !== String(decoded.uid),
+        criadoPorUid: actorUid,
+        reservaManualPorOperador: uid !== actorUid,
         status: statusFinal,
         precisaAprovacao,
         data: Timestamp.fromDate(dt),
@@ -998,10 +999,10 @@ export async function POST(req: Request) {
       if (motorDecisionDataTx) {
         shadowEvaluate(db, motorDecision(motorDecisionDataTx), {
           condominioId, areaId, opcaoId, dateStr, uid,
-          actorUid: String(decoded.uid),
-          actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin,
+          actorUid: actorUid,
+          actorIsSuperAdmin: actorIsSuperAdmin,
           actorRole: "", priceCentavos: valorCobrado,
-          isOperatorAction: uid !== String(decoded.uid),
+          isOperatorAction: uid !== actorUid,
         }).catch(() => {});
       }
 
@@ -1028,18 +1029,19 @@ export async function POST(req: Request) {
         action: isFila ? "QUEUE_JOIN" : "CREATE",
         allowed: true,
         mode: isFila ? "FILA" : "RESERVA",
-      }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: !!(decoded as any)?.super_admin || !!(decoded as any)?.superAdmin, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: uid !== String(decoded.uid) }).catch(() => {});
+      }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: actorUid, actorIsSuperAdmin: actorIsSuperAdmin, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: uid !== actorUid }).catch(() => {});
     }
 
     // ── D.12.2.1: Dispatcher para QUEUE_JOIN (autoridade via Feature Flag) ──
     if ((result as any)?.mode === "FILA") {
       dispatchReservaDecision(db, motorDecision({
         action: "QUEUE_JOIN", allowed: true,
-      }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: false }).catch(() => {});
+      }), { condominioId, areaId, opcaoId, dateStr, uid, actorUid: actorUid, actorIsSuperAdmin: false, actorRole: "", priceCentavos: valorCobrado, isOperatorAction: false }).catch(() => {});
     }
 
     return NextResponse.json({ ok: true, ...result });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     const status = Number(err?.status || 0) || 500;
     const msg = String(err?.message || "Erro inesperado");
     console.error("[API reservas/criar] erro:", err);
