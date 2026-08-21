@@ -72,7 +72,11 @@ service firebase.storage {
     // ------------------------------------------------------------
     match /condominios/{condId}/incidentes/{fileName} {
       // UN.6D.1: Restrito a operadores + super admin. API server-side para moradores.
-      allow read: if isSuper() || canManageCondo(condId);
+      // SECURITY.P0.11: canManageCondo() não é definida neste arquivo (só
+      // isOperador() é) — era uma referência a função inexistente. Corrigido
+      // para isOperador(), a função realmente definida e semanticamente
+      // equivalente (ADMIN/SINDICO/ADMIN_CONDOMINIO ativos).
+      allow read: if isSuper() || isOperador(condId);
       allow write: if isSuper() || isMembroAtivo(condId);
     }
 

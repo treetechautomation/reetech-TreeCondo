@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { promoverFilaAposCancelamento } from "@/lib/reservasPromocaoFila";
 import { FinanceiroStatus } from "@/lib/financeiroStatus";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 // ── FASE D.5 — SHADOW MODE ─────────────────────────────────────────────────
 import {
@@ -14,10 +16,6 @@ import {
 } from "@/lib/reservas/policy-engine/shadow/shadowRunner";
 import { dispatchReservaDecision } from "@/lib/reservas/policy-engine/dispatcher";
 import { readQuotaTx, decrementQuotaTx, type QuotaDoc } from "@/lib/reservas/policy-engine/reservas-quotas.helper";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
 
 function upper(v: any) {
   return String(v || "").toUpperCase().trim();
@@ -42,29 +40,6 @@ function toDateSafe(v: any): Date | null {
   }
 }
 
-async function getActorInfo(db: any, params: { condominioId: string; uid: string; decoded: any }) {
-  const { condominioId, uid, decoded } = params;
-  const email = String(decoded?.email || "").toLowerCase();
-  let nome = String(decoded?.name || decoded?.email || "Usuário").trim();
-  let role: string | null = null;
-  let status: string | null = null;
-
-  try {
-    const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
-    const msnap = await mref.get();
-    if (msnap.exists) {
-      const md = msnap.data() || {};
-      if (md?.nome) nome = String(md.nome).trim();
-      if (md?.role) role = String(md.role).trim();
-      if (md?.status) status = String(md.status).trim();
-    }
-  } catch (e: any) {
-    console.warn("[reservas/cancelar] getActorInfo falhou:", e?.message || String(e));
-  }
-
-  return { uid, email, nome, role, status };
-}
-
 async function notifyOperadores(db: any, params: {
   condominioId: string;
   title: string;
@@ -79,7 +54,6 @@ async function notifyOperadores(db: any, params: {
 
   const membrosRef = db.collection("condominios").doc(condId).collection("membros");
 
-  // Não dá pra fazer "in" com muitos sem índice/limites, então buscamos "ATIVO" e filtramos em memória
   const snap = await membrosRef.where("status", "in", ["ATIVO"]).get();
 
   const ops = snap.docs
@@ -147,35 +121,18 @@ async function notifyUid(db: any, params: {
 
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-
     const body = await req.json().catch(() => ({}));
     const condominioId = String(body?.condominioId || "").trim();
     const reservaId = String(body?.reservaId || "").trim();
 
     if (!condominioId || !reservaId) return jsonError("condominioId e reservaId são obrigatórios.", 400);
 
-    const actor = await getActorInfo(db, { condominioId, uid: decoded.uid, decoded });
-    const isOperador = isOperatorRole(actor.role) || (decoded as any)?.super_admin === true || (decoded as any)?.superAdmin === true;
+    const ctx = await apiGuard({ request: req, condominioId });
 
-    if (!(decoded as any)?.super_admin && !(decoded as any)?.superAdmin) {
-      if (upper(actor.status) !== "ATIVO") {
-        shadowEvaluate(db, motorDecision({
-          action: "CANCEL", allowed: false,
-          blockRule: "MEMBRO_INATIVO", blockPriority: "BLOCKER",
-          blockMessage: "Membro inativo.",
-          blockOrigin: "CONDOMINIO",
-        }), { condominioId, areaId: "", opcaoId: "base", dateStr: "", uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: actor.role || "", priceCentavos: 0, isOperatorAction: false }).catch(() => {});
-        return jsonError("Membro inativo.", 403);
-      }
-    }
+    const isOperador = isOperatorRole(ctx.role) || ctx.isSuperAdmin;
+    const actorNome = ctx.membroData?.nome || ctx.decodedToken?.name || ctx.email || "Usuário";
 
     const ref = db.collection("condominios").doc(condominioId).collection("reservas").doc(reservaId);
     const snap = await ref.get();
@@ -187,7 +144,7 @@ export async function POST(req: Request) {
       (r.createdBy && r.createdBy.uid) ? r.createdBy.uid : null,
     ].filter(Boolean).map((v: any) => String(v));
 
-    const isOwner = ownerUids.includes(String(decoded.uid));
+    const isOwner = ownerUids.includes(String(ctx.uid));
 
     if (!isOperador && !isOwner) {
       return jsonError("Sem permissão para cancelar esta reserva.", 403);
@@ -214,14 +171,14 @@ export async function POST(req: Request) {
     const agora = new Date();
     const limite = new Date(dtReserva.getTime() - cancelamentoMinHoras * 60 * 60 * 1000);
 
-    // operador pode cancelar mesmo fora do prazo (se você quiser restringir, a gente muda)
+    // operador pode cancelar mesmo fora do prazo
     if (!isOperador && agora > limite) {
       shadowEvaluate(db, motorDecision({
         action: "CANCEL", allowed: false,
         blockRule: "CANCELAMENTO_TARDIO", blockPriority: "VALIDATION",
         blockMessage: `Cancelamento permitido somente até ${cancelamentoMinHoras}h antes da reserva.`,
         blockOrigin: "DEFAULT",
-      }), { condominioId, areaId: cancelAreaId, opcaoId: "base", dateStr: cancelDateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: isOperador, actorRole: actor.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: isOperador, reservaEventMs: dtReserva.getTime(), reservaStatus: String(r.status || ""), reservaValor: Number(r.valorCobrado || 0) }).catch(() => {});
+      }), { condominioId, areaId: cancelAreaId, opcaoId: "base", dateStr: cancelDateStr, uid: ctx.uid, actorUid: ctx.uid, actorIsSuperAdmin: isOperador, actorRole: ctx.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: isOperador, reservaEventMs: dtReserva.getTime(), reservaStatus: String(r.status || ""), reservaValor: Number(r.valorCobrado || 0) }).catch(() => {});
       return jsonError(`Cancelamento permitido somente até ${cancelamentoMinHoras}h antes da reserva.`, 403);
     }
 
@@ -331,9 +288,9 @@ export async function POST(req: Request) {
             {
               status: FinanceiroStatus.CANCELADO,
               dataCancelamento: FieldValue.serverTimestamp(),
-              canceladoPorUid: actor.uid,
-              canceladoPorNome: actor.nome,
-              canceladoPorRole: actor.role || "MORADOR",
+              canceladoPorUid: ctx.uid,
+              canceladoPorNome: actorNome,
+              canceladoPorRole: ctx.role || "MORADOR",
               motivoCancelamento: "Reserva cancelada",
               updatedAt: FieldValue.serverTimestamp(),
             },
@@ -351,8 +308,8 @@ export async function POST(req: Request) {
             {
               reservaCancelada: true,
               reservaCanceladaEm: FieldValue.serverTimestamp(),
-              reservaCanceladaPorUid: actor.uid,
-              reservaCanceladaPorNome: actor.nome,
+              reservaCanceladaPorUid: ctx.uid,
+              reservaCanceladaPorNome: actorNome,
               requerAcaoAdministrativa: true,
               motivoAcaoAdministrativa: "RESERVA_CANCELADA_APOS_ENVIO",
               updatedAt: FieldValue.serverTimestamp(),
@@ -372,8 +329,8 @@ export async function POST(req: Request) {
       const cancelData: Record<string, any> = {
         status: "CANCELADA",
         canceladaEm: FieldValue.serverTimestamp(),
-        canceladaPorUid: actor.uid,
-        canceladaPorNome: actor.nome,
+        canceladaPorUid: ctx.uid,
+        canceladaPorNome: actorNome,
         cancelamentoVersion: 2,
         updatedAt: FieldValue.serverTimestamp(),
       };
@@ -414,7 +371,7 @@ export async function POST(req: Request) {
         condominioId,
         tipo: "RESERVA_CANCELADA",
         title: "⚠️ Reserva cancelada",
-        message: `${actor.nome} cancelou a reserva${areaId ? " da área " + areaId : ""}${dateStr ? " em " + dateStr : ""}.`,
+        message: `${actorNome} cancelou a reserva${areaId ? " da área " + areaId : ""}${dateStr ? " em " + dateStr : ""}.`,
         reservaId,
         areaId: areaId || null,
         dateStr: dateStr || null,
@@ -441,15 +398,16 @@ export async function POST(req: Request) {
     // ── FASE D.5 — SHADOW: sucesso CANCEL ──
     shadowEvaluate(db, motorDecision({
       action: "CANCEL", allowed: true,
-    }), { condominioId, areaId: areaId || "", opcaoId: "base", dateStr: dateStr || "", uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: isOperador, actorRole: actor.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: isOperador, reservaEventMs: dtReserva.getTime(), reservaStatus: "CANCELADA", reservaValor: Number(r.valorCobrado || 0) }).catch(() => {});
+    }), { condominioId, areaId: areaId || "", opcaoId: "base", dateStr: dateStr || "", uid: ctx.uid, actorUid: ctx.uid, actorIsSuperAdmin: isOperador, actorRole: ctx.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: isOperador, reservaEventMs: dtReserva.getTime(), reservaStatus: "CANCELADA", reservaValor: Number(r.valorCobrado || 0) }).catch(() => {});
 
     // ── D.12.3: Dispatcher para CANCEL (autoridade via Feature Flag) ──
     dispatchReservaDecision(db, motorDecision({
       action: "CANCEL", allowed: true,
-    }), { condominioId, areaId: areaId || "", opcaoId: "base", dateStr: dateStr || "", uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: isOperador, actorRole: actor.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: isOperador, reservaEventMs: dtReserva.getTime(), reservaStatus: "CANCELADA", reservaValor: Number(r.valorCobrado || 0) }).catch(() => {});
+    }), { condominioId, areaId: areaId || "", opcaoId: "base", dateStr: dateStr || "", uid: ctx.uid, actorUid: ctx.uid, actorIsSuperAdmin: isOperador, actorRole: ctx.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: isOperador, reservaEventMs: dtReserva.getTime(), reservaStatus: "CANCELADA", reservaValor: Number(r.valorCobrado || 0) }).catch(() => {});
 
     return NextResponse.json({ ok: true, promotedUid: promotedUid || undefined });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[API reservas/cancelar] erro:", err);
     return jsonError(err?.message || "Erro inesperado", 500);
   }

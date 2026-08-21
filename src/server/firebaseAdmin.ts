@@ -1,8 +1,6 @@
 import { getApps, initializeApp, getApp, type App } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { credential } from "firebase-admin";
-import fs from "fs";
-import path from "path";
 
 let _app: App | null = null;
 let _db: ReturnType<typeof getFirestore> | null = null;
@@ -32,19 +30,7 @@ function getAdminApp(): App {
         privateKey: privateKey.replace(/\\n/g, "\n"),
       });
     } else {
-      // 2. Check if a local serviceAccountKey.json file exists (gitignored)
-      const localKeyPath = path.join(process.cwd(), "serviceAccountKey.json");
-      if (fs.existsSync(localKeyPath)) {
-        console.log("[server/firebaseAdmin] Using credentials from local serviceAccountKey.json file");
-        try {
-          const serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, "utf8"));
-          config.credential = credential.cert(serviceAccount);
-        } catch (err) {
-          console.error("[server/firebaseAdmin] Error loading local serviceAccountKey.json:", err);
-        }
-      } else {
-        console.warn("[server/firebaseAdmin] No credentials found. Falling back to ADC.");
-      }
+      console.log("[server/firebaseAdmin] No explicit credentials found. Using Application Default Credentials.");
     }
 
     initializeApp(config);

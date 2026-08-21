@@ -1,15 +1,8 @@
-/**
- * FASE E.3.3 — HEALTH CHECK DO MÓDULO DE ENCOMENDAS.
- *
- * GET /api/encomendas/health
- * Valida: Firestore acessível, auth config carregada.
- * Não expõe dados sensíveis.
- */
-
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { adminDb, adminAuth } from "@/lib/firebaseAdmin";
+import { jsonError } from "@/lib/jsonError";
 
 export async function GET() {
   const checks: Record<string, { ok: boolean; error?: string }> = {};

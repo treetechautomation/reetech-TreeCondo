@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 function upper(v: any) {
   return String(v || "").toUpperCase().trim();
@@ -17,66 +15,25 @@ function isOperatorRole(role: any) {
   return ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"].includes(r);
 }
 
-async function getActorInfo(db: any, condominioId: string, uid: string, decoded: any) {
-  let nome = String(decoded?.name || decoded?.email || "Usuário").trim();
-  let role: string | null = null;
-  let status: string | null = null;
-
-  try {
-    const msnap = await db
-      .collection("condominios")
-      .doc(condominioId)
-      .collection("membros")
-      .doc(uid)
-      .get();
-
-    if (msnap.exists) {
-      const md = msnap.data() || {};
-      if (md?.nome) nome = String(md.nome).trim();
-      if (md?.role) role = String(md.role).trim();
-      if (md?.status) status = String(md.status).trim();
-    }
-  } catch (e: any) {
-    console.warn("[reservas/fila-cancelar] getActorInfo falhou:", e?.message || String(e));
-  }
-
-  return { uid, nome, role, status };
-}
-
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-
     const body = await req.json().catch(() => ({}));
     const condominioId = String(body?.condominioId || "").trim();
     const areaId = String(body?.areaId || "").trim();
     const dateStr = String(body?.dateStr || "").trim();
-    const targetUid = String(body?.targetUid || decoded.uid).trim();
 
     if (!condominioId || !areaId || !dateStr) {
       return jsonError("condominioId, areaId e dateStr são obrigatórios.", 400);
     }
 
-    const actor = await getActorInfo(db, condominioId, decoded.uid, decoded);
-    const isOperador =
-      isOperatorRole(actor.role) ||
-      (decoded as any)?.super_admin === true ||
-      (decoded as any)?.superAdmin === true;
+    const ctx = await apiGuard({ request: req, condominioId });
 
-    if (!isOperador) {
-      if (upper(actor.status) !== "ATIVO") {
-        return jsonError("Membro inativo.", 403);
-      }
-    }
+    const targetUid = String(body?.targetUid || ctx.uid).trim();
+    const isOperador = isOperatorRole(ctx.role) || ctx.isSuperAdmin;
 
-    if (!isOperador && targetUid !== decoded.uid) {
+    if (!isOperador && targetUid !== ctx.uid) {
       return jsonError("Sem permissão para remover este usuário da fila.", 403);
     }
 
@@ -119,6 +76,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     const status = Number(err?.status || 0) || 500;
     console.error("[API reservas/fila-cancelar] erro:", err);
     return jsonError(String(err?.message || "Erro inesperado"), status);

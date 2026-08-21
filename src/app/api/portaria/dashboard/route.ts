@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
+import { adminDb } from "@/lib/firebaseAdmin";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 function serializeTimestamp(v: any): string | null {
   if (v === null || v === undefined) return null;
@@ -38,27 +36,20 @@ function safeStr(v: any): string {
   return "";
 }
 
-const PORTARIA_ROLES = new Set(["PORTEIRO", "SUPER_ADMIN"]);
-
 export async function GET(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente.", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-    const uid = decoded.uid;
-
-    const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true ||
-      String((decoded as any).role || "").toUpperCase() === "SUPER_ADMIN";
-
     const { searchParams } = new URL(req.url);
     const condominioId = searchParams.get("condominioId") || "";
 
     if (!condominioId) return jsonError("condominioId é obrigatório.", 400);
+
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["PORTEIRO", "SUPER_ADMIN"],
+    });
 
     // Validate condominio exists
     let condominioExists = false;
@@ -67,40 +58,6 @@ export async function GET(req: Request) {
       condominioExists = cSnap.exists;
     } catch (e) { /* ignore */ }
     if (!condominioExists) return jsonError("Condomínio não encontrado.", 404);
-
-    let role = "";
-    let membroStatus = "";
-
-    if (isSuper) {
-      role = "SUPER_ADMIN";
-      membroStatus = "ATIVO";
-    } else {
-      // Check canonical membro doc first
-      const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
-      const membroSnap = await membroRef.get();
-      if (membroSnap.exists) {
-        const membroData = membroSnap.data() || {};
-        role = String(membroData.role || "").toUpperCase();
-        membroStatus = String(membroData.status || "");
-      }
-
-      // Fallback: check userCondominios vinculo (membro doc may be missing after cleanup)
-      if (!role) {
-        const vinculoRef = db.collection("userCondominios").doc(uid).collection("vinculos").doc(condominioId);
-        const vinculoSnap = await vinculoRef.get();
-        if (vinculoSnap.exists) {
-          const vdata = vinculoSnap.data() || {};
-          role = String(vdata.role || "").toUpperCase();
-          membroStatus = String(vdata.status || "");
-        }
-      }
-    }
-
-    if (!role) return jsonError("Usuário não pertence a este condomínio.", 403);
-
-    if (!PORTARIA_ROLES.has(role)) return jsonError("Acesso restrito à portaria.", 403);
-
-    if (membroStatus !== "ATIVO") return jsonError("Usuário inativo.", 403);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -310,6 +267,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(result);
   } catch (e: any) {
+    if (e instanceof Response) return e;
     console.error("[portaria/dashboard] erro:", e?.message || String(e));
     return jsonError("Erro ao carregar dashboard.", 500);
   }

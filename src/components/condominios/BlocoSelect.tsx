@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useSessionCtx } from "@/contexts/SessionContext";
 
 type Bloco = { id: string; nome?: string };
 
@@ -20,6 +21,7 @@ export default function BlocoSelect({
 }) {
   const [blocos, setBlocos] = React.useState<Bloco[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const { session } = useSessionCtx();
 
   React.useEffect(() => {
     let alive = true;
@@ -33,9 +35,19 @@ export default function BlocoSelect({
 
         setLoading(true);
 
+        let token: string | undefined;
+        if (session?.user) {
+          token = await session.user.getIdToken(true);
+        }
+
         const r = await fetch(`/api/condominios/${condominioId}/blocos`, {
           cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
+
+        if (!r.ok) {
+          throw new Error(`Erro ${r.status} ao carregar blocos`);
+        }
 
         const j = await r.json();
         const list = (j?.blocos ?? j?.data ?? []) as any[];
@@ -56,7 +68,7 @@ export default function BlocoSelect({
     return () => {
       alive = false;
     };
-  }, [condominioId]);
+  }, [condominioId, session?.user]);
 
   const disabled = !condominioId || loading;
 

@@ -4,13 +4,19 @@
  * Fecha o bloqueador encontrado em ADMIN_CONDOMINIO.1D: o endpoint é
  * público (requireAuth=false por design) e protegido apenas por posse do
  * código de convite (8 caracteres). Sem limite de tentativas, fica exposto
- * a força bruta ilimitada. Homologado em staging via apiGuard; portado aqui
- * usando checkRateLimit já existente em @/lib/rateLimiter — sem dependência
- * nova.
+ * a força bruta ilimitada.
  *
- * Os testes A–G usam a função pura checkRateLimit diretamente (mesmo padrão
+ * SECURITY.P0.11 — UNIT A reconciliation: o rate limit é aplicado via
+ * apiGuard({rateLimit:{limit:5,windowSec:60}}), que delega para o mesmo
+ * checkRateLimit() de @/lib/rateLimiter internamente (ver src/lib/apiGuard.ts).
+ * Os testes E/G/J abaixo foram atualizados para verificar o padrão
+ * apiGuard(...) em vez da chamada direta a checkRateLimit(...), preservando
+ * a mesma força de proteção (mesmo limit/window, mesma ordenação antes da
+ * leitura do body, mesma ausência de dados sensíveis no bloco de guarda).
+ *
+ * Os testes A–C usam a função pura checkRateLimit diretamente (mesmo padrão
  * de teste de lógica pura já usado em todo o projeto — ver
- * identityResolver.test.ts). Os testes H/I/J são verificações estáticas do
+ * identityResolver.test.ts). Os testes D–J são verificações estáticas do
  * código-fonte real (mesmo padrão de first-access-link-flow.test.ts K/L),
  * já que o handler completo depende de Firestore/Auth via Admin SDK.
  */
@@ -77,7 +83,7 @@ test("D janela configurada no endpoint é 60s", async () => {
 
 test("E limite configurado no endpoint é 5", async () => {
   const src = await readSrc();
-  assert.match(src, /checkRateLimit\(\{[\s\S]{0,120}limit:\s*5,/);
+  assert.match(src, /apiGuard\(\{[\s\S]{0,160}rateLimit:\s*\{\s*limit:\s*5,/);
 });
 
 // F — endpoint continua requireAuth=false (nenhuma verificação de
@@ -94,10 +100,10 @@ test("F endpoint continua público (sem exigência de Authorization Bearer)", as
 
 test("G checagem de rate limit ocorre antes da leitura do body (não interfere no payload de sucesso)", async () => {
   const src = await readSrc();
-  const rlIndex = src.indexOf("checkRateLimit(");
+  const rlIndex = src.indexOf("apiGuard(");
   const bodyIndex = src.indexOf("await req.json()");
   assert.ok(rlIndex > 0 && bodyIndex > 0);
-  assert.ok(rlIndex < bodyIndex, "checkRateLimit deve ocorrer antes de ler o body");
+  assert.ok(rlIndex < bodyIndex, "apiGuard (rate limit) deve ocorrer antes de ler o body");
 });
 
 // H — rate limiting não altera a checagem de convite expirado (o guard de
@@ -119,8 +125,8 @@ test("I checagem de status BLOQUEADO permanece intacta", async () => {
 
 test("J resposta/erro do rate limiter não inclui senha nem código do convite", async () => {
   const src = await readSrc();
-  const rlBlock = src.match(/const rl = checkRateLimit\([\s\S]*?rateLimitResponse\(rl\);/);
-  assert.ok(rlBlock, "bloco de rate limit deve existir");
+  const rlBlock = src.match(/await apiGuard\(\{[\s\S]*?\}\);/);
+  assert.ok(rlBlock, "bloco de rate limit (apiGuard) deve existir");
   assert.equal(/senha|code:|codigoHash/.test(rlBlock![0]), false, "bloco de rate limit não deve referenciar senha/código");
 });
 

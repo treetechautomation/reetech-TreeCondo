@@ -8,45 +8,14 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { normBloco } from "@/lib/normalization/location";
 import type { BlocoTipo } from "@/lib/normalization/unit-types";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 const VALID_TIPOS: BlocoTipo[] = ["BLOCO", "TORRE", "QUADRA", "SETOR", "ALAMEDA", "OUTRO"];
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function checkAdminAuth(req: Request, condominioId: string) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return { ok: false, error: "Token ausente.", status: 401 };
-
-  let decoded: any;
-  try { decoded = await adminAuth().verifyIdToken(token); }
-  catch { return { ok: false, error: "Token inválido ou expirado.", status: 401 }; }
-
-  const uid = decoded.uid;
-  const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true;
-
-  if (isSuper) return { ok: true, uid };
-
-  const db = adminDb();
-  const vincSnap = await db.collection("userCondominios").doc(uid).collection("vinculos").doc(condominioId).get();
-  if (!vincSnap.exists) return { ok: false, error: "Sem vínculo com este condomínio.", status: 403 };
-
-  const vd = vincSnap.data() || {};
-  const role = String(vd.role || "").toUpperCase();
-  const status = String(vd.status || "").toUpperCase();
-  if (status !== "ATIVO") return { ok: false, error: "Vínculo não está ativo.", status: 403 };
-
-  const allowed = ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
-  if (!allowed.includes(role)) return { ok: false, error: "Sem permissão para gerenciar blocos.", status: 403 };
-
-  return { ok: true, uid };
-}
 
 export async function GET(req: Request) {
   try {
@@ -54,8 +23,11 @@ export async function GET(req: Request) {
     const condominioId = url.searchParams.get("condominioId") || "";
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
 
-    const auth = await checkAdminAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"],
+    });
 
     const db = adminDb();
     const snap = await db.collection("condominios").doc(condominioId).collection("blocos").get();
@@ -79,6 +51,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, blocos });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }
@@ -97,8 +70,11 @@ export async function POST(req: Request) {
     if (!VALID_TIPOS.includes(tipo)) return jsonError(`tipo inválido. Válidos: ${VALID_TIPOS.join(", ")}`, 400);
     if (tipo === "OUTRO" && !tipoCustom) return jsonError("tipoCustom é obrigatório quando tipo é OUTRO", 400);
 
-    const auth = await checkAdminAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"],
+    });
 
     const db = adminDb();
     const condoSnap = await db.collection("condominios").doc(condominioId).get();
@@ -125,6 +101,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, blocoId: blocoRef.id, nome, tipo });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth } from "@/lib/firebaseAdmin";
 import { ai } from "@/ai/genkit";
 import { z } from "zod";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 const RotuloOutput = z.object({
   unidadeId: z.string().nullable(),
@@ -15,22 +16,16 @@ const RotuloOutput = z.object({
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
-
-    const decoded = await adminAuth().verifyIdToken(token);
-    if (!decoded) {
-      return NextResponse.json({ ok: false, error: "Token inválido" }, { status: 401 });
-    }
+    const ctx = await apiGuard({
+      request: req,
+      rateLimit: { limit: 10, windowSec: 60 },
+    });
 
     const body = await req.json().catch(() => ({}));
-    const imageBase64 = body?.image; // data URL: data:image/jpeg;base64,...
+    const imageBase64 = body?.image;
 
     if (!imageBase64) {
-      return NextResponse.json({ ok: false, error: "Imagem é obrigatória" }, { status: 400 });
+      return jsonError("Imagem é obrigatória", 400);
     }
 
     const { output } = await ai.generate({
@@ -57,10 +52,8 @@ Retorne null para os campos não identificados com clareza.`,
 
     return NextResponse.json({ ok: true, data: output });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     console.error("[ler-rotulo] Erro ao processar rótulo com IA:", e);
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Erro interno ao processar imagem." },
-      { status: 500 }
-    );
+    return jsonError(e?.message || "Erro interno ao processar imagem.", 500);
   }
 }

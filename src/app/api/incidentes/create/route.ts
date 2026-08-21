@@ -1,56 +1,30 @@
-
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { checkRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rateLimiter";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 import { triarIncidente } from "@/ai/triagemIncidente";
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ ok: false, error: "Token ausente" }, { status: 401 });
-    }
-
-    const decodedToken = await adminAuth().verifyIdToken(token);
-    const uid = decodedToken.uid;
-
-    // Rate limiting: máx 10 incidentes por minuto por usuário
-    const rl = checkRateLimit({
-      key: rateLimitKey(uid, null, "incidentes:create"),
-      limit: 10,
-      windowSec: 60,
-    });
-    if (!rl.allowed) return rateLimitResponse(rl);
-
     const body = await req.json();
     const { condominioId, titulo, descricao, tipo, fotos = [] } = body;
 
     if (!condominioId || !titulo || !descricao || !tipo) {
-      return NextResponse.json({ ok: false, error: "Dados incompletos" }, { status: 400 });
+      return jsonError("Dados incompletos", 400);
     }
+
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO", "PORTEIRO", "ZELADOR", "MORADOR"],
+    });
 
     const db = adminDb();
-
-    // Buscar dados do morador para enriquecer o incidente
-    const membroRef = db.collection("condominios").doc(condominioId).collection("membros").doc(uid);
-    const membroSnap = await membroRef.get();
-    if (!membroSnap.exists) {
-      return NextResponse.json({ ok: false, error: "Usuário não é membro deste condomínio." }, { status: 403 });
-    }
-    const membroData = membroSnap.data();
-
-    const incidentesRef = db.collection("condominios").doc(condominioId).collection("incidentes");
-    const novoIncidenteRef = incidentesRef.doc();
-    const historicoRef = novoIncidenteRef.collection("historico").doc();
-
-    const batch = db.batch();
-
-    const now = FieldValue.serverTimestamp();
+    const membroData = ctx.membroData || {};
 
     // UN.6D.1: Resolve canonical unit from VinculoUnidade
-    const pessoaId = String(membroData?.pessoaId || "");
+    const pessoaId = String(membroData.pessoaId || "");
     let criadoPorUnitDocId: string | null = null;
     let criadoPorUnidadeSnapshot: any = null;
 
@@ -71,7 +45,6 @@ export async function POST(req: Request) {
 
           if (cBlocoId && cUnitDocId) {
             criadoPorUnitDocId = cUnitDocId;
-            // Build snapshot from catalog
             let blocoNome = cBlocoId;
             let unidadeNumero = "";
             try {
@@ -95,7 +68,6 @@ export async function POST(req: Request) {
 
     if (localUnitDocId) {
       try {
-        // Find the bloco that contains this unit
         const blocosSnap = await db.collection("condominios").doc(condominioId)
           .collection("blocos").where("ativo", "==", true).get();
         for (const bDoc of blocosSnap.docs) {
@@ -119,29 +91,34 @@ export async function POST(req: Request) {
     // Triagem por IA (não bloqueia em caso de falha)
     const triagem = await triarIncidente({ titulo, descricao });
 
+    const incidentesRef = db.collection("condominios").doc(condominioId).collection("incidentes");
+    const novoIncidenteRef = incidentesRef.doc();
+    const historicoRef = novoIncidenteRef.collection("historico").doc();
+
+    const batch = db.batch();
+
+    const now = FieldValue.serverTimestamp();
+
     batch.set(novoIncidenteRef, {
       titulo,
       descricao,
       tipo,
       status: "ABERTO",
-      criadoPorUid: uid,
-      criadoPorNome: membroData?.nome || decodedToken.name || decodedToken.email,
-      criadoPorEmail: decodedToken.email,
-      // UN.6D.1: Canonical fields
+      criadoPorUid: ctx.uid,
+      criadoPorNome: membroData?.nome || ctx.decodedToken?.name || ctx.email,
+      criadoPorEmail: ctx.email,
       criadoPorPessoaId: pessoaId || null,
       criadoPorUnitDocId: criadoPorUnitDocId || null,
       criadoPorUnidadeSnapshot: criadoPorUnidadeSnapshot || null,
       localUnitDocId: localUnitDocId || null,
       localTipo: localTipo || null,
       localUnidadeSnapshot: localUnidadeSnapshot || null,
-      // Legacy fields (derived from canonical or membro fallback)
       criadoPorUnidadeId: criadoPorUnidadeSnapshot?.unidadeNumero || membroData?.unidadeId || null,
       criadoPorBlocoId: criadoPorUnidadeSnapshot?.blocoId || membroData?.blocoId || null,
       createdAt: now,
       updatedAt: now,
       avaliacao: null,
       fotos: Array.isArray(fotos) ? fotos : [],
-      // IA Triagem
       ia_categoria: triagem?.categoria || null,
       ia_urgencia: triagem?.urgencia || null,
       ia_encaminhamento: triagem?.encaminhamento || null,
@@ -152,85 +129,85 @@ export async function POST(req: Request) {
     batch.set(historicoRef, {
       tipo: "SISTEMA",
       mensagem: "Chamado aberto.",
-      autorUid: uid,
+      autorUid: ctx.uid,
       autorNome: "Sistema",
       createdAt: now,
     });
 
     await batch.commit();
 
-      // ===== ALERTA_SINDICO_INCIDENTE =====
-      try {
-        const membrosRef = db.collection("condominios").doc(condominioId).collection("membros");
-        const snap = await membrosRef.where("status", "in", ["ATIVO", "PENDENTE"]).get();
+    // ===== ALERTA_SINDICO_INCIDENTE =====
+    try {
+      const membrosRef = db.collection("condominios").doc(condominioId).collection("membros");
+      const snap = await membrosRef.where("status", "in", ["ATIVO", "PENDENTE"]).get();
 
-        const operadores = snap.docs
-          .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
-          .filter((m: any) => {
-            const role = String(m.role || "").toUpperCase().trim();
-            return ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"].includes(role);
-          });
+      const operadores = snap.docs
+        .map((d: any) => ({ id: d.id, ...(d.data() || {}) }))
+        .filter((m: any) => {
+          const role = String(m.role || "").toUpperCase().trim();
+          return ["SINDICO", "ADMIN", "ADMIN_CONDOMINIO", "SUPER_ADMIN"].includes(role);
+        });
 
-        if (operadores.length) {
-          const notifBatch = db.batch();
-          const uids = [];
+      if (operadores.length) {
+        const notifBatch = db.batch();
+        const uids = [];
 
-          for (const op of operadores) {
-            const uidOp = op.id;
-            uids.push(uidOp);
+        for (const op of operadores) {
+          const uidOp = op.id;
+          uids.push(uidOp);
 
-            const ref = db
-              .collection("condominios")
-              .doc(condominioId)
-              .collection("notificacoes")
-              .doc();
+          const ref = db
+            .collection("condominios")
+            .doc(condominioId)
+            .collection("notificacoes")
+            .doc();
 
-            notifBatch.set(ref, {
-              tipo: "INCIDENTE_NOVO",
-              title: "Novo incidente aberto",
-              message: titulo,
-              titulo: "Novo incidente aberto",
-              mensagem: titulo,
-              targetUid: uidOp,
-              condominioId,
-              incidenteId: novoIncidenteRef.id,
-              lida: false,
-              arquivada: false,
-              createdAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            }, { merge: true });
-          }
-
-          await notifBatch.commit();
-
-          // PUSH
-          try {
-            const { sendPushToUids } = require("@/lib/serverPush");
-
-            await sendPushToUids({
-              db,
-              uids,
-              title: "Novo incidente",
-              body: titulo,
-              link: "/incidentes",
-              data: {
-                tipo: "INCIDENTE_NOVO",
-                incidenteId: String(novoIncidenteRef.id),
-              },
-            });
-          } catch (e: any) {
-            console.warn("Push incidente falhou:", e?.message || String(e));
-          }
+          notifBatch.set(ref, {
+            tipo: "INCIDENTE_NOVO",
+            title: "Novo incidente aberto",
+            message: titulo,
+            titulo: "Novo incidente aberto",
+            mensagem: titulo,
+            targetUid: uidOp,
+            condominioId,
+            incidenteId: novoIncidenteRef.id,
+            lida: false,
+            arquivada: false,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
         }
-      } catch (e: any) {
-        console.warn("Notificação incidente falhou:", e?.message || String(e));
-      }
-      // ===== /ALERTA_SINDICO_INCIDENTE =====
 
+        await notifBatch.commit();
+
+        // PUSH
+        try {
+          const { sendPushToUids } = require("@/lib/serverPush");
+
+          await sendPushToUids({
+            db,
+            uids,
+            title: "Novo incidente",
+            body: titulo,
+            link: "/incidentes",
+            data: {
+              tipo: "INCIDENTE_NOVO",
+              incidenteId: String(novoIncidenteRef.id),
+            },
+          });
+        } catch (e: any) {
+          console.warn("Push incidente falhou:", e?.message || String(e));
+        }
+      }
+    } catch (e: any) {
+      console.warn("Notificação incidente falhou:", e?.message || String(e));
+    }
+    // ===== /ALERTA_SINDICO_INCIDENTE =====
 
     return NextResponse.json({ ok: true, incidenteId: novoIncidenteRef.id });
   } catch (error: any) {
+    if (error instanceof Response) return error;
     console.error("Erro ao criar incidente:", error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return jsonError(error.message, 500);
   }
 }

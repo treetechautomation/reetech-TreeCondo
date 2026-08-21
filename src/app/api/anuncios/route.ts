@@ -8,35 +8,13 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function getAuth(req: Request, condominioId: string) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return { ok: false, error: "Token ausente.", status: 401 };
-  let decoded: any;
-  try { decoded = await adminAuth().verifyIdToken(token); }
-  catch { return { ok: false, error: "Token inválido.", status: 401 }; }
-  const uid = decoded.uid;
-  const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true;
-  if (isSuper) return { ok: true, uid, isSuper: true, role: "SUPER_ADMIN" as string, pessoaId: null as string | null };
-
-  const db = adminDb();
-  const membroSnap = await db.collection("condominios").doc(condominioId).collection("membros").doc(uid).get();
-  if (!membroSnap.exists) return { ok: false, error: "Usuário não é membro.", status: 403 };
-  const md = membroSnap.data() || {};
-  if (String(md.status || "").toUpperCase() !== "ATIVO") return { ok: false, error: "Membership inativo.", status: 403 };
-  const role = String(md.role || "").toUpperCase();
-  const pessoaId = String(md.pessoaId || "");
-  return { ok: true, uid, isSuper: false, role, pessoaId: pessoaId || null };
-}
-
-const MANAGERS = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
+import type { GuardRole } from "@/lib/apiGuard";
+const MANAGERS: GuardRole[] = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
 
 export async function GET(req: Request) {
   try {
@@ -44,32 +22,35 @@ export async function GET(req: Request) {
     const condominioId = url.searchParams.get("condominioId") || "";
     if (!condominioId) return jsonError("condominioId obrigatório", 400);
 
-    const auth = await getAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: [...MANAGERS, "PORTEIRO", "ZELADOR", "MORADOR"],
+    });
 
     const db = adminDb();
-    const isManager = auth.isSuper || MANAGERS.includes(auth.role || "");
+    const isManager = ctx.isSuperAdmin || MANAGERS.includes(ctx.role as GuardRole);
 
     const snap = await db.collection("condominios").doc(condominioId)
       .collection("anuncios").orderBy("createdAt", "desc").get();
 
     let anuncios = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
 
-    // For managers: return all
     if (isManager) {
-      return NextResponse.json({ ok: true, anuncios, isManager: true, role: auth.role });
+      return NextResponse.json({ ok: true, anuncios, isManager: true, role: ctx.role });
     }
 
-    // For residents: filter by scope and status
     const now = new Date();
+    const md = ctx.membroData || {};
+    const pessoaId = String(md.pessoaId || "");
 
     // Resolve resident's blocos via VinculoUnidade
     const residentBlocos = new Set<string>();
-    if (auth.pessoaId) {
+    if (pessoaId) {
       try {
         const vincSnap = await db.collection("condominios").doc(condominioId)
           .collection("vinculosUnidades")
-          .where("pessoaId", "==", auth.pessoaId)
+          .where("pessoaId", "==", pessoaId)
           .where("status", "==", "ATIVO")
           .where("resideNaUnidade", "==", true)
           .get();
@@ -81,22 +62,21 @@ export async function GET(req: Request) {
     }
 
     // Legacy fallback: if no VinculoUnidade, try membro.blocoId
-    if (residentBlocos.size === 0 && !auth.isSuper) {
+    if (residentBlocos.size === 0 && !ctx.isSuperAdmin) {
       try {
         const membroSnap = await db.collection("condominios").doc(condominioId)
-          .collection("membros").doc(auth.uid).get();
+          .collection("membros").doc(ctx.uid).get();
         if (membroSnap.exists) {
-          const md = membroSnap.data() || {};
-          if (md.blocoId) residentBlocos.add(String(md.blocoId));
+          const membroMd = membroSnap.data() || {};
+          if (membroMd.blocoId) residentBlocos.add(String(membroMd.blocoId));
         }
       } catch { /* ignore */ }
     }
 
     anuncios = anuncios.filter((a: any) => {
-      const status = a.status || "PUBLICADO"; // legacy fallback
+      const status = a.status || "PUBLICADO";
       if (status !== "PUBLICADO") return false;
 
-      // Expiration check
       if (a.expiresAt) {
         try {
           const exp = a.expiresAt.toDate ? a.expiresAt.toDate() : new Date(a.expiresAt._seconds * 1000);
@@ -104,7 +84,6 @@ export async function GET(req: Request) {
         } catch { /* ignore */ }
       }
 
-      // Publish check
       if (a.publishAt) {
         try {
           const pub = a.publishAt.toDate ? a.publishAt.toDate() : new Date(a.publishAt._seconds * 1000);
@@ -113,14 +92,15 @@ export async function GET(req: Request) {
       }
 
       const scope = String(a.targetScope || "CONDOMINIO").toUpperCase();
-      if (scope !== "BLOCO") return true; // CONDOMINIO shows to all
+      if (scope !== "BLOCO") return true;
 
       const blocoId = String(a.targetBlocoId || "");
       return blocoId ? residentBlocos.has(blocoId) : true;
     });
 
-    return NextResponse.json({ ok: true, anuncios, isManager: false, role: auth.role });
+    return NextResponse.json({ ok: true, anuncios, isManager: false, role: ctx.role });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }
@@ -146,9 +126,11 @@ export async function POST(req: Request) {
     if (expiresAt && publishAt && new Date(expiresAt) <= new Date(publishAt)) return jsonError("expiresAt deve ser posterior a publishAt", 400);
     if (status === "AGENDADO" && !publishAt) return jsonError("publishAt obrigatório para AGENDADO", 400);
 
-    const auth = await getAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
-    if (!auth.isSuper && !MANAGERS.includes(auth.role || "")) return jsonError("Sem permissão para criar anúncios.", 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: MANAGERS,
+    });
 
     const db = adminDb();
 
@@ -172,7 +154,7 @@ export async function POST(req: Request) {
       status, publishAt: publishAt || null, publishedAt,
       expiresAt: expiresAt || null,
       archivedAt: null,
-      createdByUid: auth.uid,
+      createdByUid: ctx.uid,
       updatedByUid: null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -196,6 +178,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, anuncioId: ref.id, status, titulo, notified, audienceCount });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

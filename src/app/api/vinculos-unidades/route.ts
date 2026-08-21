@@ -9,36 +9,16 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
+
+import type { GuardRole } from "@/lib/apiGuard";
+const ADMIN_ROLES: GuardRole[] = ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
 
 const VALID_TIPOS = ["PROPRIETARIO", "INQUILINO", "MORADOR", "DEPENDENTE", "RESPONSAVEL"] as const;
 type TipoVinculo = typeof VALID_TIPOS[number];
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function checkAdminAuth(req: Request, condominioId: string) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return { ok: false, error: "Token ausente.", status: 401 };
-  let decoded: any;
-  try { decoded = await adminAuth().verifyIdToken(token); }
-  catch { return { ok: false, error: "Token inválido.", status: 401 }; }
-  const uid = decoded.uid;
-  const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true;
-  if (isSuper) return { ok: true, uid, isSuper: true };
-  const db = adminDb();
-  const vincSnap = await db.collection("userCondominios").doc(uid).collection("vinculos").doc(condominioId).get();
-  if (!vincSnap.exists) return { ok: false, error: "Sem vínculo.", status: 403 };
-  const vd = vincSnap.data() || {};
-  if (String(vd.status || "").toUpperCase() !== "ATIVO") return { ok: false, error: "Vínculo inativo.", status: 403 };
-  const role = String(vd.role || "").toUpperCase();
-  if (!["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"].includes(role))
-    return { ok: false, error: "Sem permissão.", status: 403 };
-  return { ok: true, uid, isSuper: false };
-}
 
 export async function GET(req: Request) {
   try {
@@ -50,8 +30,11 @@ export async function GET(req: Request) {
 
     if (!condominioId) return jsonError("condominioId obrigatório", 400);
 
-    const auth = await checkAdminAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ADMIN_ROLES,
+    });
 
     const db = adminDb();
     let query: FirebaseFirestore.Query = db.collection("condominios").doc(condominioId).collection("vinculosUnidades");
@@ -64,6 +47,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, vinculos });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }
@@ -86,8 +70,11 @@ export async function POST(req: Request) {
     if (new Set(tiposVinculo).size !== tiposVinculo.length) return jsonError("tiposVinculo contém duplicatas", 400);
     if (principal && !resideNaUnidade) return jsonError("Unidade principal exige resideNaUnidade=true", 400);
 
-    const auth = await checkAdminAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ADMIN_ROLES,
+    });
 
     const db = adminDb();
 
@@ -106,13 +93,11 @@ export async function POST(req: Request) {
     if (!unidadeSnap.exists) return jsonError("Unidade não encontrada", 404);
     if ((unidadeSnap.data() || {}).ativo === false) return jsonError("Unidade desativada", 400);
 
-    // Check duplicate active vinculo
     const dupeSnap = await db.collection("condominios").doc(condominioId).collection("vinculosUnidades")
       .where("pessoaId", "==", pessoaId).where("unitDocId", "==", unitDocId).where("blocoId", "==", blocoId)
       .where("status", "==", "ATIVO").limit(1).get();
     if (!dupeSnap.empty) return jsonError("Já existe vínculo ativo desta pessoa nesta unidade.", 409);
 
-    // Transaction: create + handle principal
     const vinculoRef = db.collection("condominios").doc(condominioId).collection("vinculosUnidades").doc();
 
     await db.runTransaction(async (tx) => {
@@ -126,7 +111,6 @@ export async function POST(req: Request) {
         updatedAt: FieldValue.serverTimestamp(),
       };
 
-      // H1: exactly 1 principal per pessoa
       if (principal && resideNaUnidade) {
         const existingPrincipal = await tx.get(
           db.collection("condominios").doc(condominioId).collection("vinculosUnidades")
@@ -142,6 +126,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, vinculoId: vinculoRef.id, pessoaId, unitDocId, tiposVinculo, principal, resideNaUnidade });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

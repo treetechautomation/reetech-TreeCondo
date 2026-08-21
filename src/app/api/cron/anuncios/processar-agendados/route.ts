@@ -12,8 +12,25 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendAnnouncementNotifications, resolveAnnouncementRecipients } from "@/lib/notifications/anuncios";
 
-export async function POST(_req: Request) {
+export async function POST(req: Request) {
   try {
+    // ---- S0.4: Autenticação obrigatória via cron secret ----
+    const cronSecret = process.env.CRON_RESERVAS_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json(
+        { ok: false, error: "Serviço não configurado." },
+        { status: 503 },
+      );
+    }
+
+    const headerSecret = req.headers.get("x-cron-secret") || "";
+    if (headerSecret !== cronSecret) {
+      return NextResponse.json(
+        { ok: false, error: "Não autorizado." },
+        { status: 401 },
+      );
+    }
+
     const db = adminDb();
     const now = new Date();
     let processed = 0;

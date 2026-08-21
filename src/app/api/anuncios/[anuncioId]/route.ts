@@ -7,33 +7,10 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function getAuth(req: Request, condominioId: string) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return { ok: false, error: "Token ausente.", status: 401 };
-  let decoded: any;
-  try { decoded = await adminAuth().verifyIdToken(token); }
-  catch { return { ok: false, error: "Token inválido.", status: 401 }; }
-  const uid = decoded.uid;
-  const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true;
-  if (isSuper) return { ok: true, uid, isSuper: true, role: "SUPER_ADMIN" };
-  const db = adminDb();
-  const membroSnap = await db.collection("condominios").doc(condominioId).collection("membros").doc(uid).get();
-  if (!membroSnap.exists) return { ok: false, error: "Usuário não é membro.", status: 403 };
-  const md = membroSnap.data() || {};
-  if (String(md.status || "").toUpperCase() !== "ATIVO") return { ok: false, error: "Membership inativo.", status: 403 };
-  const role = String(md.role || "").toUpperCase();
-  return { ok: true, uid, isSuper: false, role };
-}
-
-const MANAGERS = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 export async function PUT(
   req: Request,
@@ -45,16 +22,18 @@ export async function PUT(
     const condominioId = String(body.condominioId || "").trim();
     if (!condominioId) return jsonError("condominioId obrigatório", 400);
 
-    const auth = await getAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
-    if (!auth.isSuper && !MANAGERS.includes(auth.role || "")) return jsonError("Sem permissão.", 403);
+    const authCtx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"],
+    });
 
     const db = adminDb();
     const ref = db.collection("condominios").doc(condominioId).collection("anuncios").doc(anuncioId);
     const snap = await ref.get();
     if (!snap.exists) return jsonError("Anúncio não encontrado.", 404);
 
-    const patch: Record<string, any> = { updatedAt: FieldValue.serverTimestamp(), updatedByUid: auth.uid };
+    const patch: Record<string, any> = { updatedAt: FieldValue.serverTimestamp(), updatedByUid: authCtx.uid };
 
     // Action: archive
     if (body.action === "archive") {
@@ -69,7 +48,6 @@ export async function PUT(
       const current = snap.data() || {};
       const now = new Date();
       let newStatus = "PUBLICADO";
-      // If it has a future publishAt, keep as AGENDADO
       if (current.publishAt) {
         try {
           const pub = current.publishAt.toDate ? current.publishAt.toDate() : new Date(current.publishAt._seconds * 1000);
@@ -142,6 +120,7 @@ export async function PUT(
 
     return NextResponse.json({ ok: true, anuncioId, notified });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

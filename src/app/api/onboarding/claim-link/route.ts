@@ -10,15 +10,12 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { checkRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rateLimiter";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 import { normEmail, sanitizeOnboardingLog } from "@/lib/onboarding/service";
 import { buildMenuPermissions } from "@/lib/pessoas/menuPermissions";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
 
 function isValidFirestoreDocId(v: string): boolean {
   return v.length > 0 && v.length <= 1500 && !v.includes("/") && v !== "." && v !== "..";
@@ -26,31 +23,20 @@ function isValidFirestoreDocId(v: string): boolean {
 
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente.", 401);
+    // UNIT A reconciliation — auth/email-verification/rate-limit consolidated
+    // via apiGuard (no condominioId here: tenant is determined below from the
+    // caller-supplied, validated linkId + condominioId pair, not from apiGuard).
+    const ctx = await apiGuard({
+      request: req,
+      requireAuth: true,
+      requireEmailVerified: true,
+      rateLimit: { limit: 5, windowSec: 60 },
+    });
 
-    let decoded: any;
-    try {
-      decoded = await aauth.verifyIdToken(token);
-    } catch {
-      return jsonError("Token inválido ou expirado.", 401);
-    }
-
-    const uid = decoded.uid as string;
-
-    const rate = checkRateLimit({ key: rateLimitKey(uid, null, "claim-link"), limit: 5, windowSec: 60 });
-    if (!rate.allowed) return rateLimitResponse(rate);
-
-    const authUser = await aauth.getUser(uid);
-    if (!authUser.emailVerified) {
-      return jsonError("EMAIL_NOT_VERIFIED. Verifique seu e-mail antes de vincular.", 403);
-    }
-
-    const authEmail = normEmail(authUser.email);
+    const uid = ctx.uid;
+    const authEmail = normEmail(ctx.email);
     if (!authEmail) {
       return jsonError("Conta sem e-mail associado.", 400);
     }
@@ -67,6 +53,12 @@ export async function POST(req: Request) {
     // Lookup tenant-scoped direto: condominios/{condominioId}/accessLinks/{linkId}.
     // Evita FieldPath.documentId() em collectionGroup, que exige path completo e
     // rejeita o ID simples devolvido por eligible-links (F.6.1 root cause).
+    //
+    // SECURITY.P0.11 note: do not replace this with a collectionGroup("accessLinks")
+    // lookup by document ID alone — that pattern cannot verify the link actually
+    // belongs to the condominioId the caller supplied, and was the exact bug this
+    // tenant-scoped form (2ba36de6) was written to fix. See
+    // src/lib/onboarding/__tests__/f62-claim-link-lookup.test.ts.
     const linkRef = db
       .collection("condominios")
       .doc(condominioId)
@@ -158,7 +150,7 @@ export async function POST(req: Request) {
       }
 
       tx.set(membroRef, {
-        nome: String(linkData.nome || authUser.displayName || ""),
+        nome: String(linkData.nome || ctx.decodedToken?.name || ""),
         email: authEmail,
         role: roleAcesso,
         blocoId,
@@ -210,6 +202,7 @@ export async function POST(req: Request) {
       role: roleAcesso,
     });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[onboarding/claim-link] Erro:", err?.message);
     return jsonError(err?.message || "Erro inesperado", 500);
   }

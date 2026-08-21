@@ -3,12 +3,10 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { createHash } from "crypto";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 function sha256(v: string) {
   return createHash("sha256").update(v, "utf8").digest("hex");
@@ -16,15 +14,8 @@ function sha256(v: string) {
 
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-
     const body = await req.json().catch(() => ({}));
     const condominioId = String(body?.condominioId || "").trim();
     const pin = String(body?.pin || "").trim();
@@ -37,7 +28,14 @@ export async function POST(req: Request) {
       return jsonError("PIN deve ter de 4 a 8 números.", 400);
     }
 
-    const uid = decoded.uid;
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO", "MORADOR"],
+      rateLimit: { limit: 10, windowSec: 60 },
+    });
+
+    const uid = ctx.uid;
     const pinHash = sha256(pinDigits);
     const pinLast4 = pinDigits.slice(-4);
 
@@ -51,8 +49,7 @@ export async function POST(req: Request) {
         encomendaPinHash: pinHash,
         encomendaPinLast4: pinLast4,
         encomendaPinUpdatedAt: FieldValue.serverTimestamp(),
-        encomendaPinFailedAttempts: 0, // Zera as tentativas ao definir um novo PIN
-        // Legado / Fallback
+        encomendaPinFailedAttempts: 0,
         pinEncomendasHash: pinHash,
         pinEncomendasLast4: pinLast4,
         pinEncomendasUpdatedAt: FieldValue.serverTimestamp(),
@@ -62,6 +59,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, pinLast4 });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[API/configuracoes/encomendas/pin] Erro:", err);
     return jsonError(err?.message || "Erro inesperado", 500);
   }

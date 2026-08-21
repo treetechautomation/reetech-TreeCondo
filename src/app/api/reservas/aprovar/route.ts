@@ -4,14 +4,12 @@ export const runtime = "nodejs";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { buildReservaConfirmadaEmail } from "@/lib/emailTemplates";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 // ── FASE D.5 — SHADOW MODE / FASE D.6 — DECISION DISPATCHER ────────────────
 import { motorDecision } from "@/lib/reservas/policy-engine/shadow/shadowRunner";
 import { dispatchReservaDecision } from "@/lib/reservas/policy-engine/dispatcher";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
 
 function upper(v: any) {
   return String(v || "").toUpperCase().trim();
@@ -68,13 +66,6 @@ export async function POST(req: Request) {
   const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-
-    // Verificar role do actor
     const body = await req.json().catch(() => ({}));
     const condominioId = String(body?.condominioId || "").trim();
     const reservaId = String(body?.reservaId || "").trim();
@@ -84,13 +75,9 @@ export async function POST(req: Request) {
     if (!condominioId || !reservaId) return jsonError("condominioId e reservaId são obrigatórios.", 400);
     if (!["APROVADA", "REJEITADA"].includes(novoStatus)) return jsonError("Status inválido. Use APROVADA ou REJEITADA.", 400);
 
-    // Verificar permissão (apenas operadores)
-    const vincRef = db.collection("userCondominios").doc(decoded.uid).collection("vinculos").doc(condominioId);
-    const vincSnap = await vincRef.get();
-    const role = vincSnap.exists ? String(vincSnap.data()?.role || "") : "";
-    const isSuper = (decoded as any)?.super_admin === true || (decoded as any)?.superAdmin === true;
+    const ctx = await apiGuard({ request: req, condominioId });
 
-    if (!isOperatorRole(role) && !isSuper) {
+    if (!isOperatorRole(ctx.role) && !ctx.isSuperAdmin) {
       return jsonError("Sem permissão para aprovar/rejeitar reservas.", 403);
     }
 
@@ -106,34 +93,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, already: true, status: statusAtual });
     }
 
-    if (!isSuper) {
-      const membroSnap = await db
-        .collection("condominios")
-        .doc(condominioId)
-        .collection("membros")
-        .doc(decoded.uid)
-        .get();
-      const membroStatus = String(
-        (membroSnap.data() || {}).status || "",
-      ).toUpperCase();
-      if (!membroSnap.exists || membroStatus !== "ATIVO") {
-        const approveBlockAreaId = String(r.areaId || "");
-        const approveBlockDateStr = String(r.dateStr || "");
-        const outcome = await dispatchReservaDecision(db, motorDecision({
-          action: "APPROVE", allowed: false,
-          blockRule: "MEMBRO_INATIVO", blockPriority: "BLOCKER",
-          blockMessage: "Membro inativo.",
-          blockOrigin: "CONDOMINIO",
-        }), { condominioId, areaId: approveBlockAreaId, opcaoId: String(r.opcaoId || "base"), dateStr: approveBlockDateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: role, priceCentavos: 0, isOperatorAction: true });
-        if (!outcome.allowed) return jsonError("Membro inativo.", 403);
-      }
-    }
-
     // Atualizar status
     const updateData: Record<string, any> = {
       status: novoStatus,
       [`${novoStatus.toLowerCase()}Em`]: FieldValue.serverTimestamp(),
-      [`${novoStatus.toLowerCase()}PorUid`]: decoded.uid,
+      [`${novoStatus.toLowerCase()}PorUid`]: ctx.uid,
       updatedAt: FieldValue.serverTimestamp(),
     };
 
@@ -147,7 +111,7 @@ export async function POST(req: Request) {
       const approveDateStr = String(r.dateStr || "");
       const outcome = await dispatchReservaDecision(db, motorDecision({
         action: "APPROVE", allowed: true,
-      }), { condominioId, areaId: approveAreaId, opcaoId: String(r.opcaoId || "base"), dateStr: approveDateStr, uid: String(decoded.uid), actorUid: String(decoded.uid), actorIsSuperAdmin: isSuper, actorRole: role, priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: true });
+      }), { condominioId, areaId: approveAreaId, opcaoId: String(r.opcaoId || "base"), dateStr: approveDateStr, uid: ctx.uid, actorUid: ctx.uid, actorIsSuperAdmin: ctx.isSuperAdmin, actorRole: ctx.role || "", priceCentavos: Number(r.valorCobrado || 0), isOperatorAction: true });
       if (!outcome.allowed) {
         return jsonError(
           outcome.blockMessage || "Reserva bloqueada pelo regulamento.", 403,
@@ -253,6 +217,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, status: novoStatus });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[API reservas/aprovar] erro:", err);
     return jsonError(err?.message || "Erro inesperado", 500);
   }

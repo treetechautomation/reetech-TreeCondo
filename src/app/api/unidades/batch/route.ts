@@ -7,37 +7,15 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { normUnidade } from "@/lib/normalization/location";
 import type { UnidadeTipo } from "@/lib/normalization/unit-types";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 const VALID_TIPOS: UnidadeTipo[] = ["APARTAMENTO", "CASA", "SALA", "LOJA", "LOTE", "CONJUNTO", "OUTRO"];
-const MAX_BATCH = 200; // Firestore batch write limit is 500; conservative limit for request size + memory
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-async function checkAdminAuth(req: Request, condominioId: string) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return { ok: false, error: "Token ausente.", status: 401 };
-  let decoded: any;
-  try { decoded = await adminAuth().verifyIdToken(token); }
-  catch { return { ok: false, error: "Token inválido ou expirado.", status: 401 }; }
-  const uid = decoded.uid;
-  const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true;
-  if (isSuper) return { ok: true, uid };
-  const db = adminDb();
-  const vincSnap = await db.collection("userCondominios").doc(uid).collection("vinculos").doc(condominioId).get();
-  if (!vincSnap.exists) return { ok: false, error: "Sem vínculo.", status: 403 };
-  const vd = vincSnap.data() || {};
-  if (String(vd.status || "").toUpperCase() !== "ATIVO") return { ok: false, error: "Vínculo inativo.", status: 403 };
-  if (!["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"].includes(String(vd.role || "").toUpperCase()))
-    return { ok: false, error: "Sem permissão.", status: 403 };
-  return { ok: true, uid };
-}
+const MAX_BATCH = 200;
 
 interface BatchUnidadeInput {
   numero: string;
@@ -65,8 +43,11 @@ export async function POST(req: Request) {
     if (tipo === "OUTRO" && !tipoCustom) return jsonError("tipoCustom obrigatório quando tipo é OUTRO", 400);
     if (!["VAGO", "OCUPADO", "EM_REFORMA", "INTERDITADO"].includes(ocupacao)) return jsonError("ocupacao inválida", 400);
 
-    const auth = await checkAdminAuth(req, condominioId);
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado", auth.status || 403);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"],
+    });
 
     const db = adminDb();
 
@@ -77,12 +58,10 @@ export async function POST(req: Request) {
     if (!blocoSnap.exists) return jsonError("Bloco não encontrado", 404);
     if ((blocoSnap.data() || {}).ativo === false) return jsonError("Bloco está desativado", 400);
 
-    // Build normalized unidades list + detect internal duplicates
     const normSet = new Set<string>();
     const existingNumeroNorms = new Set<string>();
     const results: { numero: string; unitDocId: string | null; status: string; error?: string }[] = [];
 
-    // Phase 1: check for internal duplicates and normalize
     const normalizedInput: { numero: string; numeroNorm: string; andar: number | null }[] = [];
     for (const u of unidadesInput) {
       const numero = String(u.numero || "").trim();
@@ -101,7 +80,6 @@ export async function POST(req: Request) {
       return jsonError("Existem unidades inválidas ou duplicadas no lote.", 400);
     }
 
-    // Phase 2: check conflicts with existing units
     const existingSnap = await db.collection("condominios").doc(condominioId)
       .collection("blocos").doc(blocoId).collection("unidades")
       .where("ativo", "==", true).get();
@@ -120,7 +98,6 @@ export async function POST(req: Request) {
       }, { status: 409 });
     }
 
-    // Phase 3: batch create
     const batch = db.batch();
     const created: { numero: string; unitDocId: string }[] = [];
 
@@ -157,6 +134,7 @@ export async function POST(req: Request) {
       condominioId,
     });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

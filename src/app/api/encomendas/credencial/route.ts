@@ -1,55 +1,35 @@
-/**
- * FASE E.3.2.3 — POST /api/encomendas/credencial
- *
- * Emissão autorizada de credencial (QR ou PIN) para o MORADOR.
- * Apenas o morador vinculado à unidade da encomenda pode obter credenciais.
- * O token/PIN bruto NUNCA é persistido.
- */
-
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import {
-  generatePin,
-  hashPin,
-  last4,
-  generateQRToken,
-  hashQRToken,
-} from "@/lib/encomendas/withdrawal";
+import { generatePin, hashPin, last4, generateQRToken, hashQRToken } from "@/lib/encomendas/withdrawal";
 import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
   const correlationId = extractCorrelationId(req);
 
   try {
-    // 1. Autenticar
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente.", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
-    const uid = String(decoded.uid);
-
     const body = await req.json().catch(() => ({}));
     const encomendaId = String(body?.encomendaId || "").trim();
-    const tipo = String(body?.tipo || "QR").toUpperCase(); // "QR" | "PIN"
+    const tipo = String(body?.tipo || "QR").toUpperCase();
+    const condominioId = String(body?.condominioId || "").trim();
 
     if (!encomendaId) return jsonError("encomendaId é obrigatório.", 400);
     if (tipo !== "QR" && tipo !== "PIN") return jsonError("tipo deve ser QR ou PIN.", 400);
-
-    // 2. Carregar encomenda
-    const encomendaSnap = await db.collection("grupo").doc("global").get().catch(() => null);
-    // Search all condominios — but we need condominioId. Let user provide it.
-    const condominioId = String(body?.condominioId || "").trim();
     if (!condominioId) return jsonError("condominioId é obrigatório.", 400);
+
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+    });
+
+    const uid = ctx.uid;
+    const md = ctx.membroData || {};
+    const membroUnidadeNorm = String(md.unidadeIdNorm || md.unidadeId || "");
 
     const encomendaRef = db.collection("condominios").doc(condominioId)
       .collection("encomendas").doc(encomendaId);
@@ -60,32 +40,15 @@ export async function POST(req: Request) {
     const ed = encomendaDoc.data() || {};
     const encomendaUnidadeNorm = String(ed.unidadeIdNorm || ed.unidadeId || "");
 
-    // 3. Verificar vínculo do morador com a unidade
-    const membroSnap = await db.collection("condominios").doc(condominioId)
-      .collection("membros").doc(uid).get();
-
-    if (!membroSnap.exists) return jsonError("Morador não encontrado neste condomínio.", 403);
-
-    const md = membroSnap.data() || {};
-    const membroUnidadeNorm = String(md.unidadeIdNorm || md.unidadeId || "");
-    const membroStatus = String(md.status || "").toUpperCase();
-
-    if (membroStatus !== "ATIVO" && membroStatus !== "PENDENTE") {
-      return jsonError("Morador inativo.", 403);
-    }
-
-    // 4. Isolamento: morador deve pertencer à unidade da encomenda
     if (!encomendaUnidadeNorm || membroUnidadeNorm !== encomendaUnidadeNorm) {
       return jsonError("Esta encomenda não pertence à sua unidade.", 403);
     }
 
-    // 5. Verificar status da encomenda
     const status = String(ed.status || "").toUpperCase();
     if (status === "RETIRADA" || status === "CANCELADA") {
       return jsonError(`Encomenda com status ${status} não pode gerar credencial.`, 409);
     }
 
-    // 6. Emitir credencial
     const now = new Date().toISOString();
 
     if (tipo === "QR") {
@@ -123,7 +86,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // PIN
     const pinRaw = generatePin(4);
     const pinHashVal = hashPin(pinRaw);
 
@@ -156,6 +118,7 @@ export async function POST(req: Request) {
       pinLast4: last4(pinRaw),
     });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     logEncomendaEvent({
       event: "PACKAGE_CREATE_FAILED",
       timestamp: new Date().toISOString(),

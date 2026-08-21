@@ -1,19 +1,13 @@
-
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
 import { buildMenuPermissions } from "@/lib/pessoas/menuPermissions";
 import { normEmail } from "@/lib/onboarding/service";
 import { normalizeInviteCode, isValidInviteCode } from "@/lib/normalization/code";
-import { checkRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rateLimiter";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-
 
 function sha256Hex(input: string) {
   return crypto.createHash("sha256").update(input, "utf8").digest("hex");
@@ -23,20 +17,14 @@ export async function POST(req: Request) {
   try {
     // ADMIN_CONDOMINIO.1E — endpoint público (requireAuth=false por design:
     // o usuário ainda não tem sessão no primeiro acesso), protegido apenas
-    // por posse do código do convite. Sem rate limit, o código de 8
-    // caracteres fica exposto a tentativas de força bruta ilimitadas.
-    // Homologado em staging via apiGuard({requireAuth:false, rateLimit:
-    // {limit:5, windowSec:60}}); portado aqui usando checkRateLimit já
-    // existente em @/lib/rateLimiter (mesma implementação, zero dependência
-    // nova), escopado ao IP + este endpoint especificamente (mais preciso
-    // que o bucket genérico ":public" de staging, mesmo efeito protetivo).
-    const ip = req.headers.get("x-forwarded-for") || "unknown";
-    const rl = checkRateLimit({
-      key: rateLimitKey(null, ip, "convites:finalizar-primeiro-acesso"),
-      limit: 5,
-      windowSec: 60,
+    // por posse do código do convite. UNIT A reconciliation: rate limit
+    // consolidated through apiGuard (same 5/60 window as the previous
+    // direct checkRateLimit call).
+    await apiGuard({
+      request: req,
+      requireAuth: false,
+      rateLimit: { limit: 5, windowSec: 60 },
     });
-    if (!rl.allowed) return rateLimitResponse(rl);
 
     const body = (await req.json().catch(() => ({}))) as {
       email?: string;
@@ -77,11 +65,10 @@ export async function POST(req: Request) {
       return jsonError("Este convite está bloqueado. Solicite um novo ao administrador.", 423);
     }
 
-    // ADMIN_CONDOMINIO.1C-R2 — verificação de expiração ausente até este
-    // gate (o campo expiresAt já era gravado em convites/create desde
-    // antes, mas nunca era lido aqui; validar-codigo já implementava esta
-    // checagem de forma correta, porém não é chamado pelo fluxo real de
-    // primeiro acesso — este é o caminho efetivamente usado).
+    // ADMIN_CONDOMINIO.1C-R2 — verificação de expiração (o campo expiresAt
+    // já é gravado em convites/create; validar-codigo já implementava esta
+    // checagem, porém não é chamado pelo fluxo real de primeiro acesso —
+    // este é o caminho efetivamente usado).
     const expiresAt: Timestamp | null = convite.expiresAt ?? null;
     if (expiresAt && expiresAt.toMillis() < Date.now()) {
       return jsonError("Este convite expirou. Solicite um novo ao administrador do condomínio.", 410);
@@ -142,7 +129,7 @@ export async function POST(req: Request) {
           createdAt: FieldValue.serverTimestamp(),
         });
       }
-      
+
       // 2.2 Cria/atualiza o vínculo do usuário com o condomínio
       const vinculoPayload = {
         condominioId,
@@ -158,7 +145,7 @@ export async function POST(req: Request) {
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       };
-      
+
       console.warn(`[API/finalizar-acesso] Payload do vínculo a ser salvo:`, vinculoPayload);
       tx.set(vinculoRef, vinculoPayload, { merge: true });
 
@@ -204,6 +191,7 @@ export async function POST(req: Request) {
       role,
     });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[API convites/finalizar-primeiro-acesso] erro:", err);
     return jsonError(err?.message || "Erro inesperado", 500);
   }

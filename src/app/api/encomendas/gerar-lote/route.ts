@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { randomBytes } from "crypto";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
 
 function randomCode(len = 6) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -21,45 +19,31 @@ function randomCode(len = 6) {
   return out;
 }
 
-
-
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
   const correlationId = extractCorrelationId(req);
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
     const body = (await req.json().catch(() => ({}))) as any;
 
     const condominioId = String(body?.condominioId || "").trim();
     if (!condominioId) return jsonError("condominioId é obrigatório", 400);
 
-    // Busca dados do morador para identificar a unidade
-    const mref = db.collection("condominios").doc(condominioId).collection("membros").doc(decoded.uid);
-    const msnap = await mref.get();
-    if (!msnap.exists) {
-      return jsonError("Vínculo de morador não encontrado neste condomínio.", 404);
-    }
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+    });
 
-    const md = msnap.data() || {};
-    const status = String(md.status || "").toUpperCase();
-    if (status !== "ATIVO") {
-      return jsonError("Seu cadastro de morador precisa estar ativo para gerar QR de retirada.", 403);
-    }
+    const uid = ctx.uid;
+    const md = ctx.membroData || {};
 
     let targetUnidadeNorm = normUnidade(md.unidadeId || md.apartamento);
     let targetBlocoNorm = (md.blocoId || md.bloco) ? normBloco(md.blocoId || md.bloco) : null;
-    
+
     if (!targetUnidadeNorm) {
       return jsonError("Unidade do morador não cadastrada.", 400);
     }
 
-    // Busca todas as encomendas da unidade que estão AGUARDANDO
     const encomendasRef = db.collection("condominios").doc(condominioId).collection("encomendas");
     let q = encomendasRef
       .where("unidadeIdNorm", "==", targetUnidadeNorm)
@@ -70,8 +54,7 @@ export async function POST(req: Request) {
     }
 
     const snap = await q.get();
-    
-    // Filtro adicional de segurança para bloco nulo/vazio
+
     const pendingDocs = snap.docs.filter((d: any) => {
       const pData = d.data() || {};
       if (targetBlocoNorm) {
@@ -81,26 +64,23 @@ export async function POST(req: Request) {
       }
     });
 
-    // Exige pelo menos 2 encomendas para gerar retirada em lote
     if (pendingDocs.length < 2) {
       return jsonError("É necessário ter pelo menos 2 encomendas aguardando para gerar retirada em lote.", 400);
     }
 
     const encomendaIds = pendingDocs.map((d: any) => d.id);
 
-    // Gera o token de lote (comprimento 6 como solicitado: LOTE-XXXXXX)
     const batchToken = `LOTE-${randomCode(6)}`;
-    
-    // Salva na subcoleção retiradas_lote
+
     const loteRef = db.collection("condominios").doc(condominioId).collection("retiradas_lote").doc(batchToken);
     const criadoEm = new Date();
-    const expiraEm = new Date(criadoEm.getTime() + 2 * 60 * 60 * 1000); // Validade de 2 horas
+    const expiraEm = new Date(criadoEm.getTime() + 2 * 60 * 60 * 1000);
 
     await loteRef.set({
       token: batchToken,
       unidadeId: md.unidadeId || md.apartamento || "",
       blocoId: md.blocoId || md.bloco || null,
-      moradorUid: decoded.uid,
+      moradorUid: uid,
       encomendaIds,
       status: "PENDENTE",
       criadoEm: FieldValue.serverTimestamp(),
@@ -125,7 +105,7 @@ export async function POST(req: Request) {
       operation: "gerar-lote",
       result: "success",
       condominioId,
-      actorUid: decoded.uid,
+      actorUid: uid,
       actorRole: "MORADOR",
       method: "LOTE",
       correlationId,
@@ -140,6 +120,7 @@ export async function POST(req: Request) {
     });
 
   } catch (err: any) {
+    if (err instanceof Response) return err;
     logEncomendaEvent({
       event: "PACKAGE_CREATE_FAILED",
       timestamp: new Date().toISOString(),

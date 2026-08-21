@@ -11,11 +11,9 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
+import { adminDb } from "@/lib/firebaseAdmin";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 export async function GET(req: Request) {
   try {
@@ -24,33 +22,19 @@ export async function GET(req: Request) {
 
     if (!condominioId) return jsonError("condominioId obrigatório", 400);
 
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente.", 401);
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO", "PORTEIRO", "ZELADOR", "MORADOR"],
+    });
 
-    let decoded: any;
-    try { decoded = await adminAuth().verifyIdToken(token); }
-    catch { return jsonError("Token inválido.", 401); }
-
-    const uid = decoded.uid;
-    const isSuper = decoded.super_admin === true || (decoded as any).superAdmin === true;
     const db = adminDb();
-
-    // Check Membership
-    const membroSnap = await db.collection("condominios").doc(condominioId)
-      .collection("membros").doc(uid).get();
-    if (!membroSnap.exists) return jsonError("Usuário não é membro deste condomínio.", 403);
-
-    const md = membroSnap.data() || {};
-    const role = String(md.role || "").toUpperCase();
-    const status = String(md.status || "").toUpperCase();
+    const md = ctx.membroData || {};
+    const role = ctx.role || "";
     const pessoaId = String(md.pessoaId || "");
 
-    // Super admin bypass (não precisa de status ATIVO)
-    if (!isSuper && status !== "ATIVO") return jsonError("Membership inativo.", 403);
-
     const OPERATORS = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO", "PORTEIRO", "ZELADOR"];
-    const isOperator = isSuper || OPERATORS.includes(role);
+    const isOperator = ctx.isSuperAdmin || OPERATORS.includes(role);
 
     // For operators: return all incidents
     if (isOperator) {
@@ -66,7 +50,7 @@ export async function GET(req: Request) {
       // Fallback legacy: only own incidents by criadoPorUid
       const snap = await db.collection("condominios").doc(condominioId)
         .collection("incidentes")
-        .where("criadoPorUid", "==", uid)
+        .where("criadoPorUid", "==", ctx.uid)
         .orderBy("updatedAt", "desc").get();
 
       const incidents = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
@@ -86,7 +70,7 @@ export async function GET(req: Request) {
       // No residences linked: fallback to own incidents only
       const snap = await db.collection("condominios").doc(condominioId)
         .collection("incidentes")
-        .where("criadoPorUid", "==", uid)
+        .where("criadoPorUid", "==", ctx.uid)
         .orderBy("updatedAt", "desc").get();
 
       const incidents = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
@@ -122,7 +106,7 @@ export async function GET(req: Request) {
     // 3. Fallback: own legacy incidents (sem criadoPorUnitDocId)
     const legacySnap = await db.collection("condominios").doc(condominioId)
       .collection("incidentes")
-      .where("criadoPorUid", "==", uid)
+      .where("criadoPorUid", "==", ctx.uid)
       .orderBy("updatedAt", "desc").get();
     legacySnap.docs.forEach(d => { if (!seen.has(d.id)) { seen.add(d.id); allIncidents.push({ id: d.id, ...(d.data() || {}) }); } });
 
@@ -134,6 +118,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, incidents: allIncidents, role, isOperator: false, residences: unitDocIds.length });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

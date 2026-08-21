@@ -1,33 +1,21 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { promoverFilaAposCancelamento } from "@/lib/reservasPromocaoFila";
 import { notifyReservasUid } from "@/lib/reservasNotificacoes";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 // ── FASE D.5 — SHADOW MODE / FASE D.6-D.7 — DECISION DISPATCHER ──────────
 import { motorDecision } from "@/lib/reservas/policy-engine/shadow/shadowRunner";
 import { dispatchReservaDecision } from "@/lib/reservas/policy-engine/dispatcher";
 
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ success: false, error: message }, { status });
-}
-
-function upper(v: any) {
-  return String(v || "").toUpperCase().trim();
-}
-
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
     const body = await req.json().catch(() => ({}));
 
     const condominioId = String(body?.condominioId || "").trim();
@@ -38,33 +26,14 @@ export async function POST(req: Request) {
       return jsonError("condominioId, areaId e dateStr são obrigatórios.", 400);
     }
 
-    const uid = String(decoded.uid);
-
-    if (!(decoded as any)?.super_admin && !(decoded as any)?.superAdmin) {
-      const membroCheck = await db
-        .collection("condominios")
-        .doc(condominioId)
-        .collection("membros")
-        .doc(uid)
-        .get();
-      const membroStatus = upper((membroCheck.data() || {}).status || "");
-      if (!membroCheck.exists || membroStatus !== "ATIVO") {
-        // D.7: dispatcher (auditoria); bloco operacional garantido.
-        await dispatchReservaDecision(db, motorDecision({
-          action: "OFFER_REJECT", allowed: false,
-          blockRule: "MEMBRO_INATIVO", blockPriority: "BLOCKER",
-          blockMessage: "Membro inativo.",
-          blockOrigin: "CONDOMINIO",
-        }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: 0, isOperatorAction: false });
-        return jsonError("Membro inativo.", 403);
-      }
-    }
+    const ctx = await apiGuard({ request: req, condominioId });
+    const uid = ctx.uid;
 
     // ── FASE D.7 — DISPATCHER: Policy Engine decide antes do write ──
     {
       const outcome = await dispatchReservaDecision(db, motorDecision({
         action: "OFFER_REJECT", allowed: true,
-      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: 0, isOperatorAction: false });
+      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: uid, actorIsSuperAdmin: ctx.isSuperAdmin, actorRole: ctx.role || "", priceCentavos: 0, isOperatorAction: false });
       if (!outcome.allowed) {
         return jsonError(
           outcome.blockMessage || "Rejeição bloqueada pelo regulamento.", 403,
@@ -106,7 +75,7 @@ export async function POST(req: Request) {
         throw Object.assign(new Error("Seu registro na fila não foi encontrado."), { status: 404 });
       }
 
-      const filaStatus = upper((filaSnap.data() || {}).status || "");
+      const filaStatus = String((filaSnap.data() || {}).status || "").toUpperCase().trim();
 
       // 4. Confirmar status == OFERTA_PENDENTE
       if (filaStatus !== "OFERTA_PENDENTE") {
@@ -174,11 +143,12 @@ export async function POST(req: Request) {
     }).catch(() => {});
 
     return NextResponse.json({
-      success: true,
+      ok: true,
       recusada: true,
       promotedUid: promotedUid || undefined,
     });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[API reservas/fila/rejeitar] erro:", err);
     return jsonError(
       err?.message || "Erro inesperado",

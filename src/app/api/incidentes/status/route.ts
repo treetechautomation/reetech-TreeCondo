@@ -1,62 +1,27 @@
-
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-
-async function checkPermissions(
-  db: FirebaseFirestore.Firestore,
-  condominioId: string,
-  uid: string
-) {
-  const membroRef = db
-    .collection("condominios")
-    .doc(condominioId)
-    .collection("membros")
-    .doc(uid);
-  const membroSnap = await membroRef.get();
-  if (!membroSnap.exists) {
-    throw new Error("Usuário não é membro deste condomínio.");
-  }
-  
-  const membroData = membroSnap.data();
-  const role = membroData?.role;
-
-  const isOperator = [
-    "SUPER_ADMIN",
-    "ADMIN_CONDOMINIO",
-    "ADMIN",
-    "SINDICO",
-    "PORTEIRO",
-    "ZELADOR",
-  ].includes(role);
-
-  if (!isOperator) {
-    throw new Error("Sem permissão para alterar o status do incidente.");
-  }
-  return { membroData };
-}
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ ok: false, error: "Token ausente" }, { status: 401 });
-    }
-
-    const decodedToken = await adminAuth().verifyIdToken(token);
-    const uid = decodedToken.uid;
-
     const body = await req.json();
     const { condominioId, incidenteId, status } = body;
 
     const validStatus = ["ABERTO", "EM_ANDAMENTO", "RESOLVIDO", "FINALIZADO"];
     if (!condominioId || !incidenteId || !status || !validStatus.includes(status)) {
-      return NextResponse.json({ ok: false, error: "Dados incompletos ou status inválido." }, { status: 400 });
+      return jsonError("Dados incompletos ou status inválido.", 400);
     }
 
+    const ctx = await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO", "PORTEIRO", "ZELADOR"],
+    });
+
     const db = adminDb();
-    const { membroData } = await checkPermissions(db, condominioId, uid);
+    const membroData = ctx.membroData || {};
 
     const incidenteRef = db
       .collection("condominios")
@@ -75,7 +40,7 @@ export async function POST(req: Request) {
     batch.set(historicoRef, {
       tipo: "SISTEMA",
       mensagem: `Status alterado para ${status}.`,
-      autorUid: uid,
+      autorUid: ctx.uid,
       autorNome: membroData?.nome || "Sistema",
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -84,7 +49,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
+    if (error instanceof Response) return error;
     console.error("Erro ao alterar status do incidente:", error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return jsonError(error.message, 500);
   }
 }

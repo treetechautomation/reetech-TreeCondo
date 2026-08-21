@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { executeAceitarOfertaTx } from "@/lib/reservasAceitarOferta";
 import { notifyReservasUid } from "@/lib/reservasNotificacoes";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 // ── FASE D.5 — SHADOW MODE / FASE D.6-D.7 — DECISION DISPATCHER ──────────
 import { motorDecision } from "@/lib/reservas/policy-engine/shadow/shadowRunner";
 import { dispatchReservaDecision } from "@/lib/reservas/policy-engine/dispatcher";
 import { normBloco } from "@/lib/normalization/location";
-
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ success: false, error: message }, { status });
-}
-
-function upper(v: any) {
-  return String(v || "").toUpperCase().trim();
-}
 
 
 function toDateSafe(v: any): Date | null {
@@ -35,14 +29,8 @@ function toDateSafe(v: any): Date | null {
 
 export async function POST(req: Request) {
   const db = adminDb();
-  const aauth = adminAuth();
 
   try {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return jsonError("Token ausente (Authorization: Bearer ...)", 401);
-
-    const decoded = await aauth.verifyIdToken(token);
     const body = await req.json().catch(() => ({}));
 
     const condominioId = String(body?.condominioId || "").trim();
@@ -53,27 +41,8 @@ export async function POST(req: Request) {
       return jsonError("condominioId, areaId e dateStr são obrigatórios.", 400);
     }
 
-    const uid = String(decoded.uid);
-
-    if (!(decoded as any)?.super_admin && !(decoded as any)?.superAdmin) {
-      const membroCheck = await db
-        .collection("condominios")
-        .doc(condominioId)
-        .collection("membros")
-        .doc(uid)
-        .get();
-      const membroStatus = upper((membroCheck.data() || {}).status || "");
-      if (!membroCheck.exists || membroStatus !== "ATIVO") {
-        // D.7: dispatcher (auditoria); bloco operacional garantido.
-        await dispatchReservaDecision(db, motorDecision({
-          action: "OFFER_ACCEPT", allowed: false,
-          blockRule: "MEMBRO_INATIVO", blockPriority: "BLOCKER",
-          blockMessage: "Membro inativo.",
-          blockOrigin: "CONDOMINIO",
-        }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: 0, isOperatorAction: false });
-        return jsonError("Membro inativo.", 403);
-      }
-    }
+    const ctx = await apiGuard({ request: req, condominioId });
+    const uid = ctx.uid;
 
     const areaSnap = await db
       .collection("condominios")
@@ -89,7 +58,7 @@ export async function POST(req: Request) {
         blockRule: "AREA_INATIVA", blockPriority: "BLOCKER",
         blockMessage: "Área não encontrada ou desativada.",
         blockOrigin: "AREA",
-      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: 0, isOperatorAction: false });
+      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: uid, actorIsSuperAdmin: ctx.isSuperAdmin, actorRole: ctx.role || "", priceCentavos: 0, isOperatorAction: false });
       return jsonError("Área não encontrada ou desativada.", 404);
     }
 
@@ -98,15 +67,9 @@ export async function POST(req: Request) {
       Array.isArray(area.blocosPermitidos) &&
       area.blocosPermitidos.length > 0
     ) {
-      const membroCheck = await db
-        .collection("condominios")
-        .doc(condominioId)
-        .collection("membros")
-        .doc(uid)
-        .get();
-      const md = membroCheck.exists ? (membroCheck.data() || {}) : {};
+      const md = ctx.membroData || {};
       const membroBlocoNorm =
-        md.blocoIdNorm || normBloco(md.blocoId || md.bloco);
+        String(md.blocoIdNorm || normBloco(md.blocoId || md.bloco) || "");
       if (!membroBlocoNorm || !area.blocosPermitidos.includes(membroBlocoNorm)) {
         // D.7: dispatcher (auditoria + decisão); bloco operacional garantido.
         const outcome = await dispatchReservaDecision(db, motorDecision({
@@ -114,7 +77,7 @@ export async function POST(req: Request) {
           blockRule: "BLOCO_NAO_PERMITIDO", blockPriority: "BLOCKER",
           blockMessage: "Esta área é exclusiva para moradores de outro bloco.",
           blockOrigin: "AREA",
-        }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: 0, isOperatorAction: false, memberFactsOverride: { blocoIdNorm: membroBlocoNorm } });
+        }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: uid, actorIsSuperAdmin: ctx.isSuperAdmin, actorRole: ctx.role || "", priceCentavos: 0, isOperatorAction: false, memberFactsOverride: { blocoIdNorm: membroBlocoNorm } });
         if (!outcome.allowed) return jsonError("Esta área é exclusiva para moradores de outro bloco.", 403);
       }
     }
@@ -123,7 +86,7 @@ export async function POST(req: Request) {
     {
       const outcome = await dispatchReservaDecision(db, motorDecision({
         action: "OFFER_ACCEPT", allowed: true,
-      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: String(decoded.uid), actorIsSuperAdmin: false, actorRole: "", priceCentavos: 0, isOperatorAction: false });
+      }), { condominioId, areaId, opcaoId: "base", dateStr, uid, actorUid: uid, actorIsSuperAdmin: ctx.isSuperAdmin, actorRole: ctx.role || "", priceCentavos: 0, isOperatorAction: false });
       if (!outcome.allowed) {
         return jsonError(
           outcome.blockMessage || "Aceite bloqueado pelo regulamento.", 403,
@@ -172,7 +135,7 @@ export async function POST(req: Request) {
       }
 
       const fila = filaSnap.data() || {};
-      if (upper(fila.status) !== "OFERTA_PENDENTE") {
+      if (String(fila.status || "").toUpperCase().trim() !== "OFERTA_PENDENTE") {
         throw Object.assign(
           new Error("Sua oferta não está mais disponível."),
           { status: 409 },
@@ -223,11 +186,12 @@ export async function POST(req: Request) {
     }).catch(() => {});
 
     return NextResponse.json({
-      success: true,
+      ok: true,
       reservaId: result!.reservaId,
       gerouFinanceiro: result!.gerouFinanceiro,
     });
   } catch (err: any) {
+    if (err instanceof Response) return err;
     console.error("[API reservas/fila/aceitar] erro:", err);
     return jsonError(
       err?.message || "Erro inesperado",

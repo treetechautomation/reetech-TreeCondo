@@ -1,17 +1,28 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export const dynamic = 'force-dynamic';
+import { adminDb } from "@/lib/firebaseAdmin";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: { condominioId: string } }
 ) {
   try {
     const { condominioId } = ctx.params;
     if (!condominioId) {
-      return NextResponse.json({ ok: false, error: "condominioId ausente" }, { status: 400 });
+      return jsonError("condominioId ausente", 400);
     }
+
+    // SECURITY.P0.11: canonical had zero auth on this route (confirmed
+    // read-only in P0.10) — porting apiGuard here is a genuine fix.
+    await apiGuard({
+      request: req,
+      condominioId,
+      allowedRoles: ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"],
+    });
 
     const db = adminDb();
     const snap = await db
@@ -36,7 +47,8 @@ export async function GET(
 
     return NextResponse.json({ ok: true, blocos });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     console.error("[GET blocos] erro:", e);
-    return NextResponse.json({ ok: false, error: e?.message || "Erro" }, { status: 500 });
+    return jsonError(e?.message || "Erro", 500);
   }
 }
