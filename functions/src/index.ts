@@ -9,8 +9,6 @@ export {onMembroCreated};
 
 // Callables
 export {acceptInvite} from "./callables/acceptInvite";
-export {adminCreateMorador} from "./callables/adminCreateMorador";
-export {adminCreateMembro} from "./callables/adminCreateMembro";
 
 admin.initializeApp();
 const db = admin.firestore();
