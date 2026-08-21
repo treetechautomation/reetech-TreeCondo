@@ -37,7 +37,6 @@
   "exclude": [
     "node_modules",
     "functions/**",
-    "functions-src/**",
     ".next",
     "_backup",
     "**/_backup/**",

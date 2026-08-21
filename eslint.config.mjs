@@ -18,7 +18,6 @@ export default [
       "tools/**",
       "scripts/**",
       "functions/lib/**",
-      "functions-src/**",
       "public/sw.js",
       "public/workbox-*.js",
     ],
