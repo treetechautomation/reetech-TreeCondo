@@ -1,12 +1,13 @@
 
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
 import { buildMenuPermissions } from "@/lib/pessoas/menuPermissions";
 import { normEmail } from "@/lib/onboarding/service";
 import { normalizeInviteCode, isValidInviteCode } from "@/lib/normalization/code";
+import { checkRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rateLimiter";
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
@@ -20,6 +21,23 @@ function sha256Hex(input: string) {
 
 export async function POST(req: Request) {
   try {
+    // ADMIN_CONDOMINIO.1E — endpoint público (requireAuth=false por design:
+    // o usuário ainda não tem sessão no primeiro acesso), protegido apenas
+    // por posse do código do convite. Sem rate limit, o código de 8
+    // caracteres fica exposto a tentativas de força bruta ilimitadas.
+    // Homologado em staging via apiGuard({requireAuth:false, rateLimit:
+    // {limit:5, windowSec:60}}); portado aqui usando checkRateLimit já
+    // existente em @/lib/rateLimiter (mesma implementação, zero dependência
+    // nova), escopado ao IP + este endpoint especificamente (mais preciso
+    // que o bucket genérico ":public" de staging, mesmo efeito protetivo).
+    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    const rl = checkRateLimit({
+      key: rateLimitKey(null, ip, "convites:finalizar-primeiro-acesso"),
+      limit: 5,
+      windowSec: 60,
+    });
+    if (!rl.allowed) return rateLimitResponse(rl);
+
     const body = (await req.json().catch(() => ({}))) as {
       email?: string;
       code?: string;
@@ -54,6 +72,19 @@ export async function POST(req: Request) {
     if (status === "CONCLUIDO" || status === "ACEITO") {
       // idempotente: se já concluiu, não quebra o usuário novo
       return NextResponse.json({ ok: true, alreadyDone: true });
+    }
+    if (status === "BLOQUEADO") {
+      return jsonError("Este convite está bloqueado. Solicite um novo ao administrador.", 423);
+    }
+
+    // ADMIN_CONDOMINIO.1C-R2 — verificação de expiração ausente até este
+    // gate (o campo expiresAt já era gravado em convites/create desde
+    // antes, mas nunca era lido aqui; validar-codigo já implementava esta
+    // checagem de forma correta, porém não é chamado pelo fluxo real de
+    // primeiro acesso — este é o caminho efetivamente usado).
+    const expiresAt: Timestamp | null = convite.expiresAt ?? null;
+    if (expiresAt && expiresAt.toMillis() < Date.now()) {
+      return jsonError("Este convite expirou. Solicite um novo ao administrador do condomínio.", 410);
     }
 
     const uid = String(convite.uidGerado || "").trim();

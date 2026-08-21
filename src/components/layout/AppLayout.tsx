@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSessionCtx } from "@/contexts/SessionContext";
 import { fetchMenuPermissions, DEFAULT_PERMS, type MenuKey, type MenuPermissions } from "@/lib/menuPermissions";
-import { signOut } from "firebase/auth";
+import { signOut, getIdToken } from "firebase/auth";
 import { initializeFirebase } from "@/firebase";
 import UserBadge from "./UserBadge";
 import { CondominioSwitcher } from "@/components/condominios/CondominioSwitcher";
@@ -110,7 +110,10 @@ React.useEffect(() => {
   }, [isSessionLoading, isAuthenticated, pathname, router]);
 /** /AUTO_REDIRECT_LOGIN_GUARD **/
 
-/** ONBOARDING_GATE: sem vínculo ATIVO -> /onboarding/vincular-condominio **/
+/** ONBOARDING_GATE: sem vínculo ATIVO -> primeiro acesso pendente ou
+ *  /onboarding/vincular-condominio (defesa em profundidade — ver
+ *  ADMIN_CONDOMINIO.1C. Usa o mesmo resolvedor canônico do LoginClient
+ *  para não duplicar a lógica de decisão em dois lugares.) **/
 React.useEffect(() => {
     if (isSessionLoading) return;
     if (!session) return;
@@ -133,9 +136,37 @@ React.useEffect(() => {
       (v: any) => v.status === "ATIVO"
     );
 
-    if (!hasActiveVinculo) {
-      router.replace("/onboarding/vincular-condominio");
-    }
+    if (hasActiveVinculo) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await getIdToken(session.user);
+        const res = await fetch("/api/auth/resolve-identity", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+
+        if (res.ok && data?.ok && data.state === "PENDING_INVITED_USER") {
+          // ADMIN_CONDOMINIO.1C-R2 — /primeiro-acesso lê `code`, não
+          // `conviteId` (que o resolvedor não possui em texto puro).
+          router.replace("/primeiro-acesso");
+          return;
+        }
+      } catch {
+        // Falha ao resolver não deve travar a navegação; cai no
+        // comportamento padrão abaixo (self-onboarding MORADOR, inalterado).
+      }
+      if (!cancelled) {
+        router.replace("/onboarding/vincular-condominio");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isSessionLoading, session, pathname, router]);
 /** /ONBOARDING_GATE **/
 

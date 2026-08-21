@@ -226,22 +226,48 @@ export async function POST(req: Request) {
     const unidadeIdNormVal = resolvedUnidadeId ? normUnidade(resolvedUnidadeId) : null;
 
     // 1) cria/obtém usuário Auth
+    //
+    // ADMIN_CONDOMINIO.1C-R2 — decisão arquitetural: para ADMIN_CONDOMINIO e
+    // SINDICO, o primeiro acesso acontece EXCLUSIVAMENTE pelo link/código de
+    // convite (finalizar-primeiro-acesso). Não há necessidade técnica de
+    // senha alguma no momento da criação — createUser aceita `password`
+    // como campo opcional (firebase-admin@12.7.0, CreateRequest extends
+    // UpdateRequest, `password?: string`). Para esses dois perfis, o Auth
+    // user é criado SEM senha: fica literalmente impossível autenticar via
+    // signInWithEmailAndPassword antes de concluir o primeiro acesso, o que
+    // fecha o bypass na origem (não apenas por interceptação pós-login).
+    // Para os demais perfis (MORADOR, PORTEIRO, ZELADOR, FUNCIONARIO, ADMIN)
+    // o comportamento permanece exatamente como no gate 1C.
+    const isLinkOnlyRole = targetRole === "ADMIN_CONDOMINIO" || targetRole === "SINDICO";
+
     let uid: string;
     let senhaTemporaria: string | null = null;
+    let existingAccountReused = false;
 
     try {
       const existing = await aauth.getUserByEmail(email);
       uid = existing.uid;
+      existingAccountReused = true;
     } catch {
-      senhaTemporaria = randomPassword(10);
-      const created = await aauth.createUser({
-        email,
-        password: senhaTemporaria,
-        displayName: nome,
-        emailVerified: false,
-        disabled: false,
-      });
-      uid = created.uid;
+      if (isLinkOnlyRole) {
+        const created = await aauth.createUser({
+          email,
+          displayName: nome,
+          emailVerified: false,
+          disabled: false,
+        });
+        uid = created.uid;
+      } else {
+        senhaTemporaria = randomPassword(10);
+        const created = await aauth.createUser({
+          email,
+          password: senhaTemporaria,
+          displayName: nome,
+          emailVerified: false,
+          disabled: false,
+        });
+        uid = created.uid;
+      }
     }
 
     // 2) cria convite
@@ -261,7 +287,14 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_BASE_URL ||
       "http://localhost:9002";
 
-    const primeiroAcessoUrl = `${baseUrl}/primeiro-acesso?conviteId=${conviteId}`;
+    // ADMIN_CONDOMINIO.1C-R2 — a página /primeiro-acesso lê o parâmetro
+    // `code` (pré-preenche o campo do código), não `conviteId`. O parâmetro
+    // anterior nunca era consumido pela página, tornando o link "opcional"
+    // do e-mail não-funcional na prática. `conviteId` não é usado na URL
+    // porque o código em texto puro (necessário para pré-preencher o
+    // formulário) só existe neste momento — nunca é persistido (apenas seu
+    // hash SHA-256, em codigoHash).
+    const primeiroAcessoUrl = `${baseUrl}/primeiro-acesso?code=${encodeURIComponent(inviteCode)}`;
 
     // 3) grava convites + membro PENDENTE (transação com anti-duplicidade atômica)
     const membroRef = db
@@ -374,15 +407,17 @@ export async function POST(req: Request) {
       <div style="font-family:Arial,sans-serif;line-height:1.5">
         <h2>Bem-vindo ao TreeCondo</h2>
         <p>Olá <b>${nome}</b>, seu acesso foi criado.</p>
-        <p><b>Seu código de primeiro acesso:</b></p>
+        <p><a href="${primeiroAcessoUrl}" target="_blank" style="display:inline-block;background:#00D0E6;color:#04222b;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Concluir meu primeiro acesso</a></p>
+        <p style="color:#666;font-size:12px">Ou, se preferir, abra o TreeCondo e informe o código abaixo em <b>Primeiro acesso</b>:</p>
         <p style="font-size:18px;letter-spacing:2px"><b>${inviteCode}</b></p>
-        <p>Abra o TreeCondo e vá em <b>Primeiro acesso</b> para informar o código.</p>
-        <p style="color:#666;font-size:12px">Opcional: se preferir link (pode não funcionar fora do ambiente local):</p>
-        <p><a href="${primeiroAcessoUrl}" target="_blank">${primeiroAcessoUrl}</a></p>
         ${
-          senhaTemporaria
-            ? `<p><b>Senha temporária (para login inicial):</b> <code>${senhaTemporaria}</code></p>`
-            : `<p>Seu e-mail já tinha conta. Use sua senha atual e depois conclua o primeiro acesso pelo link acima.</p>`
+          isLinkOnlyRole
+            ? `<p>Ao abrir o link ou informar o código, você define sua própria senha para concluir o cadastro${
+                existingAccountReused ? " neste condomínio" : ""
+              }.</p>`
+            : senhaTemporaria
+              ? `<p>Use o código acima na tela de <b>Primeiro acesso</b> para criar sua própria senha e concluir seu cadastro.</p>`
+              : `<p>Seu e-mail já tinha conta. Use o código acima na tela de <b>Primeiro acesso</b> para concluir seu cadastro neste condomínio.</p>`
         }
         <p style="color:#666;font-size:12px">Se você não solicitou isso, ignore este e-mail.</p>
       </div>

@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, getIdToken } from "firebase/auth";
 import { Eye, EyeOff, ArrowLeft, FileText, UserPlus, KeyRound } from "lucide-react";
 import { initializeFirebase } from "@/firebase";
 
@@ -26,6 +26,35 @@ function isStrongEnough(pw: string) {
   return pw.length >= 8;
 }
 
+/**
+ * ADMIN_CONDOMINIO.1C — resolve o destino pós-autenticação via o resolvedor
+ * canônico centralizado (ver /api/auth/resolve-identity). Evita que um
+ * usuário convidado (qualquer role) autentique antes de concluir o primeiro
+ * acesso e caia no onboarding exclusivo de MORADOR.
+ */
+async function resolvePostAuthDestination(user: {
+  getIdToken: () => Promise<string>;
+}): Promise<string> {
+  try {
+    const token = await getIdToken(user as any);
+    const res = await fetch("/api/auth/resolve-identity", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok && data.state === "PENDING_INVITED_USER") {
+      // ADMIN_CONDOMINIO.1C-R2 — a página /primeiro-acesso não lê
+      // `conviteId` (apenas `code`, que o resolvedor não possui — o código
+      // em texto puro nunca é persistido, só seu hash). O usuário informa
+      // o código manualmente a partir do e-mail recebido.
+      return "/primeiro-acesso";
+    }
+  } catch {
+    // Falha ao resolver identidade não deve travar o login; cai no
+    // comportamento padrão (AppLayout aplica a mesma proteção em profundidade).
+  }
+  return "/painel";
+}
+
 export default function LoginClient() {
   const router = useRouter();
   const { auth } = initializeFirebase();
@@ -35,7 +64,9 @@ export default function LoginClient() {
 
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) router.replace("/painel");
+      if (u) {
+        resolvePostAuthDestination(u).then((dest) => router.replace(dest));
+      }
     });
     return () => unsub();
   }, [auth, router]);
@@ -131,8 +162,9 @@ export default function LoginClient() {
     setErrorLogin(null);
     setLoadingLogin(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), senha.trim());
-      router.push("/painel");
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), senha.trim());
+      const dest = await resolvePostAuthDestination(cred.user);
+      router.push(dest);
     } catch (error: any) {
       setErrorLogin("E-mail ou senha inválidos. Verifique suas credenciais e tente novamente.");
     } finally {
