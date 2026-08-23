@@ -17,7 +17,8 @@
     "sync": "node scripts/sync-vinculos-chacara-itaguai.js",
     "fix": "node scripts/fix-chacara-itaguai-v2.js",
     "verify": "node scripts/verify-chacara-itaguai.js",
-    "postbuild": "node scripts/postbuild-all.cjs"
+    "postbuild": "node scripts/postbuild-all.cjs",
+    "bootstrap:staging": "node scripts/bootstrap-staging.mjs"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

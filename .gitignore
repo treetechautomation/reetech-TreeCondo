@@ -108,3 +108,14 @@ scripts/*.bak*
 src/**/*.bak*
 src/**/*.backup*
 src/**/*.DISABLED
+
+# staging pipeline hygiene (GATE DEVELOPMENT.PIPELINE.2)
+# Estes 2 arquivos variam por ambiente (produção vs staging) e não devem
+# ficar tracked com um valor fixo — cada checkout gera o seu:
+#  - .firebaserc: gerado por scripts/bootstrap-staging.mjs em staging.
+#    Produção usa o valor de .firebaserc.example (tracked) como referência.
+#  - public/firebase-messaging-sw.js: regenerado automaticamente pelo hook
+#    postbuild (scripts/postbuild-all.cjs -> gen-firebase-messaging-sw.js)
+#    a partir do .env.local de cada checkout, sempre que `npm run build` roda.
+/.firebaserc
+/public/firebase-messaging-sw.js
