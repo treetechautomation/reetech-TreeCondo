@@ -12,12 +12,17 @@ type RateEntry = { count: number; resetAt: number };
 const store = new Map<string, RateEntry>();
 
 if (typeof setInterval !== "undefined") {
-  setInterval(() => {
+  const cleanupTimer = setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of store) {
       if (entry.resetAt < now) store.delete(key);
     }
   }, 60_000);
+  // unref(): não impede o processo de encerrar naturalmente quando não há
+  // mais trabalho pendente (scripts, test runners). Sem efeito no servidor
+  // de longa duração — o timer continua disparando normalmente enquanto o
+  // processo está vivo.
+  cleanupTimer.unref?.();
 }
 
 // ── V1 (retrocompatível) ──────────────────────────────────────────────────────

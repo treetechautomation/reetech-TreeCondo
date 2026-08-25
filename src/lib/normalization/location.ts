@@ -10,7 +10,9 @@
  */
 
 export function normUnidade(v: unknown): string {
-  const base = String(v ?? "")
+  const raw = String(v ?? "");
+  if (raw.trim() === "") return "";
+  const base = raw
     .toLowerCase()
     .replace(/\b(apto|apt|apartamento|unidade)\b/gi, "")
     .replace(/[^0-9a-z]/gi, "")

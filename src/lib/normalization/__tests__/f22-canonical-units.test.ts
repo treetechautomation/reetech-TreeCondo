@@ -29,9 +29,47 @@ test("F2201 numeroNorm canônico — normUnidade retira prefixos e normaliza", (
   assert.equal(normUnidade("101"), "101");
   assert.equal(normUnidade("Casa 3"), "casa3");
   assert.equal(normUnidade("AP-303"), "ap303");
+});
+
+// ════════════ F2201b — normUnidade: entrada genuinamente vazia sempre retorna "" ════════════
+// Cada caso é um test() isolado para que uma falha não mascare os demais.
+
+test('F2201b normUnidade("") retorna ""', () => {
   assert.equal(normUnidade(""), "");
+});
+
+test('F2201c normUnidade("   ") (somente espaços) retorna ""', () => {
+  assert.equal(normUnidade("   "), "");
+});
+
+test("F2201d normUnidade(null) retorna \"\"", () => {
   assert.equal(normUnidade(null), "");
+});
+
+test("F2201e normUnidade(undefined) retorna \"\"", () => {
   assert.equal(normUnidade(undefined), "");
+});
+
+// ════════════ F2201f — normUnidade: valores reais que normalizam para "0" continuam "0" ════════════
+
+test('F2201f normUnidade("0") permanece "0" (unidade real numerada zero)', () => {
+  assert.equal(normUnidade("0"), "0");
+});
+
+test('F2201g normUnidade("00") permanece "0" (zeros à esquerda colapsam para zero canônico)', () => {
+  assert.equal(normUnidade("00"), "0");
+});
+
+test('F2201h normUnidade("001") remove zeros à esquerda preservando dígitos significativos', () => {
+  assert.equal(normUnidade("001"), "1");
+});
+
+test('F2201i normUnidade("Apto") (entrada não-vazia sem dígitos) permanece "0"', () => {
+  assert.equal(normUnidade("Apto"), "0");
+});
+
+test('F2201j normUnidade("Apto 0") permanece "0"', () => {
+  assert.equal(normUnidade("Apto 0"), "0");
 });
 
 // ════════════ F2202 — normBloco COMPARTILHADO ════════════

@@ -78,7 +78,54 @@ function brokenDb(): any {
 const COND = "RtJ7G92QwWvJ13Qq8Ntx";
 const AREA = "salao_festas";
 const OPERADOR = "uid-operador";
-const FUTURE = "2026-07-20";
+
+// ── Datas determinísticas relativas a "hoje" (evita fixtures hardcoded que
+// expiram com a passagem do tempo real — ver GATE DEVELOPMENT.FASTTRACK.3) ──
+//
+// Réplicas deliberadas das fórmulas de todaySaoPauloISO()/weekdayOfISO()
+// (../index.ts e ../rules/_shared.ts) — não importamos essas funções aqui
+// para manter o arquivo de teste desacoplado de internals do policy-engine.
+
+/** Data civil de hoje em America/Sao_Paulo, como YYYY-MM-DD. */
+function todayISO(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/** Epoch ms do meio-dia UTC de um ISODate (mesma âncora de noonUtcMs/weekdayOfISO). */
+function noonUtcMsOf(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return Date.UTC(y, m - 1, d, 12, 0, 0, 0);
+}
+
+/** `days` dias a partir de hoje (America/Sao_Paulo), como ISODate. */
+function futureDate(days: number): string {
+  const ms = noonUtcMsOf(todayISO()) + days * 86_400_000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** Dia da semana (0=domingo) de um ISODate. */
+function weekdayOf(dateStr: string): number {
+  return new Date(noonUtcMsOf(dateStr)).getUTCDay();
+}
+
+/** Próxima data estritamente futura cujo dia da semana seja `targetDow` (0=domingo). */
+function nextFutureWeekday(targetDow: number): string {
+  for (let days = 1; days <= 14; days++) {
+    const candidate = futureDate(days);
+    if (weekdayOf(candidate) === targetDow) return candidate;
+  }
+  throw new Error(`nextFutureWeekday: nenhuma data futura encontrada para dow=${targetDow} em 14 dias`);
+}
+
+/** Fixture "data futura válida" — comfortavelmente à frente de hoje (30 dias). */
+const FUTURE = futureDate(30);
+/** Fixture "próximo domingo futuro" — para DP22 (DIA_SEMANA_BLOQUEADO). */
+const FUTURE_SUNDAY = nextFutureWeekday(0);
 
 function baseDocs(memberStatus = "ATIVO"): Record<string, Record<string, unknown>> {
   return {
@@ -329,7 +376,7 @@ test("DP09 dispatcher — CREATE agora em POLICY por default (D.12.1)", async ()
       const NOW = new Date();
       const snap = legacySnapshot(TARGET, NOW);
       const compiled = compileSnapshot(snap, NOW);
-      const ctx = makeContext({ now: NOW, dateStr: "2026-07-20", target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null } });
+      const ctx = makeContext({ now: NOW, dateStr: FUTURE, target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null } });
       return validate("CREATE", compiled, ctx);
     },
   });
@@ -599,7 +646,7 @@ test("DP22 dispatcher — QUEUE_PROMOTE em POLICY: domingo ⇒ bloqueia (DIA_SEM
       blockRule: "DIA_SEMANA_BLOQUEADO", blockPriority: "VALIDATION",
       blockMessage: "Domingo.", blockOrigin: "DEFAULT",
     }),
-    approveCtx({ dateStr: "2026-07-19" }),
+    approveCtx({ dateStr: FUTURE_SUNDAY }),
   );
   assert.equal(outcome.engine, "POLICY");
   assert.equal(outcome.allowed, false);
@@ -644,7 +691,7 @@ test("DP25 critério de parada D.12.1 — CREATE migrou para POLICY", async () =
       const { compileSnapshot, legacySnapshot, makeContext } = await import("../index");
       const TARGET = { condominioId: "RtJ7G92QwWvJ13Qq8Ntx", areaId: "salao_festas" };
       const snap = legacySnapshot(TARGET, new Date());
-      return validate("CREATE", compileSnapshot(snap, new Date()), makeContext({ dateStr: "2026-07-20", target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null } }));
+      return validate("CREATE", compileSnapshot(snap, new Date()), makeContext({ dateStr: FUTURE, target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null } }));
     },
   });
   const outcome = await dispatchReservaDecision(
@@ -665,7 +712,7 @@ test("DP26 critério de parada D.12.3 — CANCEL migrou para POLICY", async () =
       const { compileSnapshot, legacySnapshot, makeContext } = await import("../index");
       const TARGET = { condominioId: "RtJ7G92QwWvJ13Qq8Ntx", areaId: "salao_festas" };
       const snap = legacySnapshot(TARGET, new Date());
-      return validate("CANCEL", compileSnapshot(snap, new Date()), makeContext({ dateStr: "2026-07-20", target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null }, reserva: { eventMs: Date.UTC(2026,6,20,12), status: "APROVADA", valorCobradoCentavos: 0 } }));
+      return validate("CANCEL", compileSnapshot(snap, new Date()), makeContext({ dateStr: FUTURE, target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null }, reserva: { eventMs: noonUtcMsOf(FUTURE), status: "APROVADA", valorCobradoCentavos: 0 } }));
     },
   });
   const outcome = await dispatchReservaDecision(
@@ -686,7 +733,7 @@ test("DP27 critério de parada D.12.2 — QUEUE_JOIN migrou para POLICY", async 
       const { compileSnapshot, legacySnapshot, makeContext } = await import("../index");
       const TARGET = { condominioId: "RtJ7G92QwWvJ13Qq8Ntx", areaId: "salao_festas" };
       const snap = legacySnapshot(TARGET, new Date());
-      return validate("QUEUE_JOIN", compileSnapshot(snap, new Date()), makeContext({ dateStr: "2026-07-20", target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null } }));
+      return validate("QUEUE_JOIN", compileSnapshot(snap, new Date()), makeContext({ dateStr: FUTURE, target: TARGET, actor: { uid:"u",exists:true,status:"ATIVO",role:"MORADOR",blocoIdNorm:null, unidadeIdNorm:null, isSuperAdmin:false,isPaidUp:null,recentNoShows:0,suspendedUntil:null } }));
     },
   });
   const outcome = await dispatchReservaDecision(
