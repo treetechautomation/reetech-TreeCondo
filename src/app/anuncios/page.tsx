@@ -13,7 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { PlusCircle, Megaphone, Pencil, Archive, RotateCcw } from "lucide-react";
+import { PlusCircle, Megaphone, Pencil, Archive, RotateCcw, Paperclip, X } from "lucide-react";
+
+const ATTACHMENT_ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf";
+const ATTACHMENT_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+type AnuncioAttachment = {
+  storagePath: string | null;
+  fileName: string;
+  contentType: string;
+  size: number;
+};
 
 type Anuncio = {
   id: string;
@@ -29,7 +40,14 @@ type Anuncio = {
   archivedAt?: any;
   createdAt?: any;
   updatedAt?: any;
+  attachment?: AnuncioAttachment | null;
 };
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const MANAGERS = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
 
@@ -85,6 +103,10 @@ export default function AnunciosPage() {
   const [publishAtDate, setPublishAtDate] = React.useState("");
   const [expiresAtDate, setExpiresAtDate] = React.useState("");
   const [blocosList, setBlocosList] = React.useState<{ id: string; nome: string }[]>([]);
+  const [attachmentFile, setAttachmentFile] = React.useState<File | null>(null);
+  const [existingAttachment, setExistingAttachment] = React.useState<AnuncioAttachment | null>(null);
+  const [removeExistingAttachment, setRemoveExistingAttachment] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null);
 
   async function getToken() { return await session?.user?.getIdToken(); }
 
@@ -135,11 +157,16 @@ export default function AnunciosPage() {
     setAnalyticsDialog(true);
   }
 
+  function resetAttachmentState() {
+    setAttachmentFile(null); setExistingAttachment(null); setRemoveExistingAttachment(false); setFormError(null);
+  }
+
   function openCreate() {
     setEditing(null);
     setTitulo(""); setMensagem("");
     setTargetScope("CONDOMINIO"); setTargetBlocoId("");
     setPublishMode("now"); setPublishAtDate(""); setExpiresAtDate("");
+    resetAttachmentState();
     setDialogOpen(true);
   }
 
@@ -149,11 +176,38 @@ export default function AnunciosPage() {
     setTargetScope(a.targetScope || "CONDOMINIO"); setTargetBlocoId(a.targetBlocoId || "");
     setPublishMode(a.status === "AGENDADO" ? "scheduled" : (a.status === "RASCUNHO" ? "draft" : "now"));
     setPublishAtDate(""); setExpiresAtDate("");
+    resetAttachmentState();
+    setExistingAttachment(a.attachment && a.attachment.storagePath ? a.attachment : null);
     setDialogOpen(true);
   }
 
+  function handleAttachmentPick(file: File | null) {
+    setFormError(null);
+    if (!file) { setAttachmentFile(null); return; }
+    if (!ATTACHMENT_ALLOWED_TYPES.includes(file.type)) {
+      setFormError("Tipo de arquivo não permitido. Aceitos: imagens (JPG/PNG/WEBP) ou PDF.");
+      return;
+    }
+    if (file.size > ATTACHMENT_MAX_BYTES) {
+      setFormError("Arquivo excede o tamanho máximo de 10MB.");
+      return;
+    }
+    setAttachmentFile(file);
+    setRemoveExistingAttachment(false);
+  }
+
   async function handleSave() {
+    setFormError(null);
     if (!titulo.trim() || !mensagem.trim()) return;
+
+    // FEATURE.ANUNCIOS.1: expiração é obrigatória para publicar/agendar.
+    // O backend é a autoridade final — esta checagem só evita um round-trip
+    // desnecessário quando o erro já é óbvio no cliente.
+    if (publishMode !== "draft" && !expiresAtDate) {
+      setFormError("Expiração é obrigatória para publicar ou agendar um anúncio.");
+      return;
+    }
+
     setSaving(true);
     const token = await getToken();
     const body: any = {
@@ -181,9 +235,29 @@ export default function AnunciosPage() {
       });
     }
     const data = await res.json();
-    if (data.ok) { setDialogOpen(false); load(); }
-    else alert(data.error || "Erro ao salvar.");
-    setSaving(false);
+    if (!data.ok) { setFormError(data.error || "Erro ao salvar."); setSaving(false); return; }
+
+    const anuncioId = editing ? editing.id : data.anuncioId;
+
+    if (attachmentFile) {
+      const fd = new FormData();
+      fd.append("condominioId", condominioId!);
+      fd.append("file", attachmentFile);
+      const upRes = await fetch(`/api/anuncios/${anuncioId}/attachment`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,
+      });
+      const upData = await upRes.json().catch(() => ({ ok: false }));
+      if (!upData.ok) {
+        setFormError(`Anúncio salvo, mas houve falha ao anexar o arquivo: ${upData.error || "erro desconhecido"}`);
+        load(); setSaving(false); return;
+      }
+    } else if (removeExistingAttachment && existingAttachment) {
+      await fetch(`/api/anuncios/${anuncioId}/attachment?condominioId=${encodeURIComponent(condominioId!)}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => { /* best-effort; anúncio já foi salvo */ });
+    }
+
+    setDialogOpen(false); load(); setSaving(false);
   }
 
   async function handleArchive(a: Anuncio) {
@@ -275,9 +349,10 @@ export default function AnunciosPage() {
                 className={cn(a.status === "RASCUNHO" && "border-dashed border-amber-300")}
                 actions={isManager ? <StatusBadge tone={statusTone(a.status || "PUBLICADO")}>{statusLabel(a)}</StatusBadge> : undefined}
               >
-                <p className="text-xs text-muted-foreground">
-                  {a.targetScope === "BLOCO" ? `Bloco ${a.targetBlocoNome || a.targetBlocoId}` : "Todo condomínio"}
-                  {a.expiresAt ? ` • Expira: ${new Date(a.expiresAt._seconds ? a.expiresAt._seconds * 1000 : a.expiresAt).toLocaleDateString()}` : ""}
+                <p className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                  <span>{a.targetScope === "BLOCO" ? `Bloco ${a.targetBlocoNome || a.targetBlocoId}` : "Todo condomínio"}</span>
+                  {a.expiresAt ? <span>• Expira: {new Date(a.expiresAt._seconds ? a.expiresAt._seconds * 1000 : a.expiresAt).toLocaleDateString()}</span> : null}
+                  {a.attachment?.storagePath ? <Paperclip className="h-3 w-3" aria-label="Possui anexo" /> : null}
                 </p>
                 <p className="text-sm whitespace-pre-wrap line-clamp-3 mt-2">{a.mensagem}</p>
                 {isManager && (a.status === "PUBLICADO" || !a.status) && (a as any).audienceCount > 0 && (
@@ -338,9 +413,52 @@ export default function AnunciosPage() {
               )}
             </div>
 
-            <div><Label>Expiração (opcional)</Label>
-              <Input type="datetime-local" value={expiresAtDate} onChange={e => setExpiresAtDate(e.target.value)} />
+            <div>
+              <Label>Anexo</Label>
+              {existingAttachment && !attachmentFile && !removeExistingAttachment ? (
+                <div className="mt-1 flex items-center justify-between rounded-xl border border-input bg-muted/40 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2 truncate">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{existingAttachment.fileName}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">({formatBytes(existingAttachment.size)})</span>
+                  </span>
+                  <button type="button" className="text-muted-foreground hover:text-foreground shrink-0" onClick={() => setRemoveExistingAttachment(true)} aria-label="Remover anexo">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : attachmentFile ? (
+                <div className="mt-1 flex items-center justify-between rounded-xl border border-input bg-muted/40 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2 truncate">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{attachmentFile.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">({formatBytes(attachmentFile.size)})</span>
+                  </span>
+                  <button type="button" className="text-muted-foreground hover:text-foreground shrink-0" onClick={() => setAttachmentFile(null)} aria-label="Remover arquivo selecionado">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <Input
+                  type="file"
+                  accept={ATTACHMENT_ACCEPT}
+                  className="mt-1"
+                  onChange={e => handleAttachmentPick(e.target.files?.[0] || null)}
+                />
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Imagens (JPG/PNG/WEBP) ou PDF, até 10MB.</p>
             </div>
+
+            <div>
+              <Label>Expiração {publishMode !== "draft" && <span className="text-destructive">*</span>}</Label>
+              <Input type="datetime-local" value={expiresAtDate} onChange={e => setExpiresAtDate(e.target.value)} />
+              {publishMode === "draft" ? (
+                <p className="text-xs text-muted-foreground mt-1">Opcional em rascunho — obrigatória ao publicar ou agendar.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">Obrigatória: o anúncio some do mural após esta data e o anexo é removido do armazenamento.</p>
+              )}
+            </div>
+
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>

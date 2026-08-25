@@ -9,9 +9,10 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { adminDb } from "@/lib/firebaseAdmin";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
+import { requiresExpiresAt, readDateFlexible } from "@/lib/anuncios/expiration";
 
 import type { GuardRole } from "@/lib/apiGuard";
 const MANAGERS: GuardRole[] = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
@@ -123,8 +124,20 @@ export async function POST(req: Request) {
     if (!["CONDOMINIO", "BLOCO"].includes(targetScope)) return jsonError("targetScope inválido", 400);
     if (!["RASCUNHO", "AGENDADO", "PUBLICADO"].includes(status)) return jsonError("status inválido", 400);
     if (targetScope === "BLOCO" && !targetBlocoId) return jsonError("targetBlocoId obrigatório para BLOCO", 400);
-    if (expiresAt && publishAt && new Date(expiresAt) <= new Date(publishAt)) return jsonError("expiresAt deve ser posterior a publishAt", 400);
     if (status === "AGENDADO" && !publishAt) return jsonError("publishAt obrigatório para AGENDADO", 400);
+
+    // FEATURE.ANUNCIOS.1: expiração é obrigatória para publicar/agendar.
+    // RASCUNHO continua podendo ficar incompleto (comportamento já suportado).
+    let expiresAtParsed: Date | null = null;
+    if (expiresAt) {
+      expiresAtParsed = readDateFlexible(expiresAt);
+      if (!expiresAtParsed) return jsonError("Expiração inválida.", 400);
+    }
+    if (requiresExpiresAt(status)) {
+      if (!expiresAtParsed) return jsonError("Expiração é obrigatória para publicar ou agendar um anúncio.", 400);
+      if (expiresAtParsed.getTime() <= Date.now()) return jsonError("Expiração deve ser uma data futura.", 400);
+    }
+    if (expiresAtParsed && publishAt && expiresAtParsed <= new Date(publishAt)) return jsonError("expiresAt deve ser posterior a publishAt", 400);
 
     const ctx = await apiGuard({
       request: req,
@@ -152,7 +165,7 @@ export async function POST(req: Request) {
       titulo, mensagem,
       targetScope, targetBlocoId: targetBlocoId || null, targetBlocoNome,
       status, publishAt: publishAt || null, publishedAt,
-      expiresAt: expiresAt || null,
+      expiresAt: expiresAtParsed ? Timestamp.fromDate(expiresAtParsed) : null,
       archivedAt: null,
       createdByUid: ctx.uid,
       updatedByUid: null,

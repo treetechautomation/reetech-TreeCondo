@@ -2,6 +2,7 @@ import { getApps, initializeApp, getApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getStorage } from "firebase-admin/storage";
 import { credential } from "firebase-admin";
 
 // --- Singleton instances ---
@@ -9,6 +10,7 @@ let _app: App | null = null;
 let _db: ReturnType<typeof getFirestore> | null = null;
 let _auth: ReturnType<typeof getAuth> | null = null;
 let _msg: ReturnType<typeof getMessaging> | null = null;
+let _storageBucket: ReturnType<ReturnType<typeof getStorage>["bucket"]> | null = null;
 
 // --- Configuration ---
 const PRODUCTION_PROJECT_ID = "studio-7559545170-41328";
@@ -104,4 +106,18 @@ export function adminMessaging() {
   if (_msg) return _msg;
   _msg = getMessaging(getAdminApp());
   return _msg;
+}
+
+/**
+ * Bucket do Storage do projeto alvo (staging ou produção conforme
+ * resolveTargetProjectId()). Reaproveita NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+ * — mesma env já usada pelo client SDK — para garantir que admin e client
+ * sempre apontem para o mesmo bucket, sem uma segunda convenção de nome.
+ */
+export function adminStorage() {
+  if (_storageBucket) return _storageBucket;
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  const storage = getStorage(getAdminApp());
+  _storageBucket = bucketName ? storage.bucket(bucketName) : storage.bucket();
+  return _storageBucket;
 }

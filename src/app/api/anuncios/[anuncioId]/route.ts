@@ -8,9 +8,10 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { adminDb } from "@/lib/firebaseAdmin";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
+import { requiresExpiresAt, readDateFlexible } from "@/lib/anuncios/expiration";
 
 export async function PUT(
   req: Request,
@@ -79,18 +80,44 @@ export async function PUT(
       }
     }
 
-    if (body.status !== undefined) {
+    const currentData = snap.data() || {};
+    const statusProvided = body.status !== undefined;
+    const expiresAtProvided = body.expiresAt !== undefined;
+
+    if (statusProvided) {
       const s = String(body.status).toUpperCase();
       if (!["RASCUNHO", "AGENDADO", "PUBLICADO"].includes(s)) return jsonError("status inválido", 400);
       patch.status = s;
       if (s === "PUBLICADO") patch.publishedAt = FieldValue.serverTimestamp();
-      if (s === "AGENDADO" && !body.publishAt && !((snap.data() || {}).publishAt)) return jsonError("publishAt obrigatório para AGENDADO", 400);
+      if (s === "AGENDADO" && !body.publishAt && !currentData.publishAt) return jsonError("publishAt obrigatório para AGENDADO", 400);
     }
 
     if (body.publishAt !== undefined) patch.publishAt = body.publishAt || null;
-    if (body.expiresAt !== undefined) {
-      patch.expiresAt = body.expiresAt || null;
-      if (body.publishAt && body.expiresAt && new Date(body.expiresAt) <= new Date(body.publishAt)) return jsonError("expiresAt deve ser posterior a publishAt", 400);
+
+    // FEATURE.ANUNCIOS.1: expiração é obrigatória para publicar/agendar.
+    // Só valida quando o pedido está explicitamente transicionando status
+    // ou tocando expiresAt — uma edição que não mexe em nenhum dos dois
+    // (ex.: corrigir o título de um anúncio legado já publicado) não é
+    // retroativamente bloqueada por uma expiração que ele nunca teve.
+    let expiresAtParsed: Date | null = null;
+    if (expiresAtProvided) {
+      if (body.expiresAt) {
+        expiresAtParsed = readDateFlexible(body.expiresAt);
+        if (!expiresAtParsed) return jsonError("Expiração inválida.", 400);
+      }
+      patch.expiresAt = expiresAtParsed ? Timestamp.fromDate(expiresAtParsed) : null;
+      if (body.publishAt && expiresAtParsed && expiresAtParsed <= new Date(body.publishAt)) {
+        return jsonError("expiresAt deve ser posterior a publishAt", 400);
+      }
+    }
+
+    const effectiveStatus = statusProvided ? patch.status : String(currentData.status || "RASCUNHO").toUpperCase();
+    if (requiresExpiresAt(effectiveStatus) && (statusProvided || expiresAtProvided)) {
+      const effectiveExpiresAt = expiresAtProvided ? expiresAtParsed : readDateFlexible(currentData.expiresAt);
+      if (!effectiveExpiresAt) return jsonError("Expiração é obrigatória para publicar ou agendar um anúncio.", 400);
+    }
+    if (expiresAtProvided && expiresAtParsed && requiresExpiresAt(effectiveStatus) && expiresAtParsed.getTime() <= Date.now()) {
+      return jsonError("Expiração deve ser uma data futura.", 400);
     }
 
     await ref.update(patch);

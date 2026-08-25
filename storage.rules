@@ -109,6 +109,16 @@ service firebase.storage {
     }
 
     // ------------------------------------------------------------
+    // ANUNCIOS — Anexos (FEATURE.ANUNCIOS.1)
+    // Escrita/delete SOMENTE via API admin (apiGuard valida MIME/tamanho e
+    // deriva o storagePath server-side) — client nunca escreve direto aqui.
+    // ------------------------------------------------------------
+    match /condominios/{condId}/anuncios/{anuncioId}/{fileName} {
+      allow read: if isSuper() || isMembroAtivo(condId);
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------
     // TREEMIDIA — Campanhas (multi-tenant)
     // ------------------------------------------------------------
     match /condominios/{condId}/treemidia/campanhas/{campanhaId}/{fileName} {
