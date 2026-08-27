@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,9 +53,7 @@ function deepMerge(base: MenuPermissions, incoming: MenuPermissions | null): Men
 export default function AdministradorGlobalPage() {
   const { session, isSessionLoading } = useSession();
 
-  const isSuperAdmin =
-    session?.superAdmin === true ||
-    (session?.user?.email || "").toLowerCase() === "treecommunity@treetechautomation.com";
+  const isSuperAdmin = session?.superAdmin === true;
 
   const [condominioId, setCondominioId] = React.useState<string>("");
   const [loading, setLoading] = React.useState(false);
@@ -127,37 +124,32 @@ export default function AdministradorGlobalPage() {
 
   if (isSessionLoading) {
     return (
-      <AppLayout pageTitle="Administrador Global">
-        <Card>
-          <CardHeader>
-            <CardTitle>Administrador Global</CardTitle>
-            <CardDescription>Carregando sessão…</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-600">Aguarde…</CardContent>
-        </Card>
-      </AppLayout>
+      <Card>
+        <CardHeader>
+          <CardTitle>Administrador Global</CardTitle>
+          <CardDescription>Carregando sessão…</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-slate-600">Aguarde…</CardContent>
+      </Card>
     );
   }
 
   if (!isSuperAdmin) {
     return (
-      <AppLayout pageTitle="Administrador Global">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sem permissão</CardTitle>
-            <CardDescription>Esta área é exclusiva do SUPER_ADMIN.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-600">
-            Se você é super admin, faça logout/login para atualizar o token.
-          </CardContent>
-        </Card>
-      </AppLayout>
+      <Card>
+        <CardHeader>
+          <CardTitle>Sem permissão</CardTitle>
+          <CardDescription>Esta área é exclusiva do SUPER_ADMIN.</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-slate-600">
+          Se você é super admin, faça logout/login para atualizar o token.
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <AppLayout pageTitle="Administrador Global">
-      <div className="space-y-6">
+    <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Permissões de menu por perfil</CardTitle>
@@ -246,7 +238,6 @@ export default function AdministradorGlobalPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </AppLayout>
+    </div>
   );
 }

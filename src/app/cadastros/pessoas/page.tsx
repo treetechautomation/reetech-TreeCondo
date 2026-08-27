@@ -41,10 +41,21 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { upsertBlocoEspecial } from "@/firebase/firestore/blocos.service";
 import { upsertUnidadeEspecial } from "@/firebase/firestore/unidades.service";
+import { VALID_CATEGORIAS_PESSOA, type CategoriaPessoa } from "@/lib/pessoas/types";
 
 type MembroRole = "MORADOR" | "SINDICO" | "PORTEIRO" | "ZELADOR" | "FUNCIONARIO" | "ADMIN_CONDOMINIO";
 type FuncionarioTipo = "SEGURANCA" | "LIMPEZA" | "MANUTENCAO";
 type TipoVinculoPessoa = "PROPRIETARIO" | "INQUILINO" | "MORADOR_PERMANENTE" | "DEPENDENTE";
+
+const CATEGORIA_PESSOA_LABEL: Record<CategoriaPessoa, string> = {
+  MORADOR: "Morador",
+  SINDICO_PROFISSIONAL: "Síndico profissional",
+  ADMINISTRADORA: "Administradora",
+  FUNCIONARIO: "Funcionário",
+  PRESTADOR: "Prestador de serviço",
+  VISITANTE_FIXO: "Visitante fixo",
+  OUTRO: "Outro",
+};
 
 type Membro = {
   id: string;
@@ -134,6 +145,9 @@ export default function PessoasPage() {
     email: string;
     telefone: string;
     role: MembroRole;
+    categoriaPessoa: CategoriaPessoa | "";
+    moraNoCondominio: boolean | null;
+    blocoAtuacaoId: string;
     blocoId: string;
     unidadeId: string;
     unitDocId: string;
@@ -146,6 +160,9 @@ export default function PessoasPage() {
     email: "",
     telefone: "",
     role: "MORADOR" as MembroRole,
+    categoriaPessoa: "",
+    moraNoCondominio: null,
+    blocoAtuacaoId: "",
     blocoId: "",
     unidadeId: "",
     unitDocId: "",
@@ -175,9 +192,20 @@ export default function PessoasPage() {
 
         setLoadingBlocos(true);
 
+        let token: string | undefined;
+        if (session?.user) {
+          token = await session.user.getIdToken(true);
+        }
+
         const r = await fetch(`/api/condominios/${condominioAtivoId}/blocos`, {
           cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
+
+        if (!r.ok) {
+          const errText = await r.text().catch(() => "");
+          throw new Error(`Erro ${r.status} ao carregar blocos: ${errText || r.statusText}`);
+        }
 
         const j = await r.json();
         const list = (j?.blocos ?? j?.data ?? []) as any[];
@@ -203,7 +231,7 @@ export default function PessoasPage() {
     return () => {
       alive = false;
     };
-  }, [condominioAtivoId]);
+  }, [condominioAtivoId, session?.user]);
 
   // Carrega unidades do bloco selecionado (catálogo canônico UN.3)
   useEffect(() => {
@@ -324,6 +352,16 @@ export default function PessoasPage() {
         return;
       }
     }
+    if (form.role !== "MORADOR" && form.moraNoCondominio === true) {
+      if (!form.blocoId?.trim()) {
+        toast({ variant: "destructive", title: "Selecione o bloco de residência." });
+        return;
+      }
+      if (!form.unitDocId?.trim()) {
+        toast({ variant: "destructive", title: "Selecione a unidade de residência." });
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -362,6 +400,9 @@ export default function PessoasPage() {
             tipoVinculo: form.permitirAcessoApp ? form.tipoVinculo : null,
             permitirAcessoApp: form.permitirAcessoApp,
             modoAcesso: form.permitirAcessoApp ? form.modoAcesso : null,
+            categoriaPessoa: form.categoriaPessoa || null,
+            moraNoCondominio: form.role === "MORADOR" ? true : form.moraNoCondominio,
+            blocoAtuacaoId: form.blocoAtuacaoId || null,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -404,7 +445,8 @@ export default function PessoasPage() {
       }
 
       setForm({
-        nome: "", email: "", telefone: "", role: "MORADOR", blocoId: "", unidadeId: "", unitDocId: "",
+        nome: "", email: "", telefone: "", role: "MORADOR", categoriaPessoa: "", moraNoCondominio: null,
+        blocoAtuacaoId: "", blocoId: "", unidadeId: "", unitDocId: "",
         tipoVinculo: "PROPRIETARIO", funcionarioTipo: "SEGURANCA", permitirAcessoApp: true, modoAcesso: "SELF_ONBOARDING",
       });
     } catch (err: any) {
@@ -612,7 +654,7 @@ export default function PessoasPage() {
                         setForm((f) => ({
                           ...f,
                           role,
-                          ...(role === "MORADOR" ? {} : { blocoId: "", unidadeId: "" }),
+                          ...(role === "MORADOR" ? {} : { blocoId: "", unidadeId: "", unitDocId: "" }),
                         }));
                       }}
                     >
@@ -622,6 +664,28 @@ export default function PessoasPage() {
                       <option value="PORTEIRO">Porteiro</option>
                       <option value="FUNCIONARIO">Funcionário</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="categoriaPessoa">Categoria da pessoa</Label>
+                    <select
+                      id="categoriaPessoa"
+                      className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                      value={form.categoriaPessoa}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, categoriaPessoa: e.target.value as CategoriaPessoa | "" }))
+                      }
+                    >
+                      <option value="">Não classificar</option>
+                      {VALID_CATEGORIAS_PESSOA.map((c) => (
+                        <option key={c} value={c}>
+                          {CATEGORIA_PESSOA_LABEL[c]}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Classificação de domínio — não altera as permissões do perfil selecionado acima.
+                    </p>
                   </div>
 
                   {form.role === "FUNCIONARIO" && (
@@ -659,38 +723,87 @@ export default function PessoasPage() {
             ) : (
               /* Etapa 2: Local */
               <>
-                {/* Seção: Localização */}
-                <div className="mb-5">
-                  <h3 className="mb-3 text-sm font-semibold text-foreground">Localização</h3>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="bloco">Bloco</Label>
-                      <select
-                        id="bloco"
-                        className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                        value={form.blocoId}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, blocoId: e.target.value, unitDocId: "", unidadeId: "" }))
-                        }
-                        disabled={!condominioAtivoId || loadingBlocos}
-                      >
-                        <option value="">
-                          {loadingBlocos ? "Carregando..." : "Selecione o bloco"}
-                        </option>
-                        {blocos.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.nome}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-muted-foreground">
-                        {form.role === "MORADOR"
-                          ? "Obrigatório para morador."
-                          : "Opcional para síndico/porteiro/funcionário."}
+                {/* Seção: Moradia */}
+                {form.role !== "MORADOR" && (
+                  <div className="mb-5">
+                    <h3 className="mb-3 text-sm font-semibold text-foreground">Moradia</h3>
+                    <div className="rounded-xl border border-border bg-muted/30 p-4">
+                      <div className="mb-3 text-xs font-semibold text-muted-foreground">
+                        Essa pessoa mora no condomínio?
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label
+                          className={cn(
+                            "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors",
+                            form.moraNoCondominio === true
+                              ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                              : "border-border hover:border-slate-300"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="moraNoCondominio"
+                            checked={form.moraNoCondominio === true}
+                            onChange={() => setForm((f) => ({ ...f, moraNoCondominio: true }))}
+                            className="h-4 w-4 text-primary focus:ring-primary"
+                          />
+                          <div className="text-sm font-medium text-foreground">Sim</div>
+                        </label>
+                        <label
+                          className={cn(
+                            "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors",
+                            form.moraNoCondominio === false
+                              ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                              : "border-border hover:border-slate-300"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="moraNoCondominio"
+                            checked={form.moraNoCondominio === false}
+                            onChange={() =>
+                              setForm((f) => ({ ...f, moraNoCondominio: false, blocoId: "", unidadeId: "", unitDocId: "" }))
+                            }
+                            className="h-4 w-4 text-primary focus:ring-primary"
+                          />
+                          <div className="text-sm font-medium text-foreground">Não</div>
+                        </label>
+                      </div>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Não afeta as permissões do perfil — só classifica se a pessoa reside no condomínio.
                       </p>
                     </div>
+                  </div>
+                )}
 
-                    {form.role === "MORADOR" && (
+                {/* Seção: Localização */}
+                {(form.role === "MORADOR" || form.moraNoCondominio === true) && (
+                  <div className="mb-5">
+                    <h3 className="mb-3 text-sm font-semibold text-foreground">Localização</h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="bloco">Bloco</Label>
+                        <select
+                          id="bloco"
+                          className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                          value={form.blocoId}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, blocoId: e.target.value, unitDocId: "", unidadeId: "" }))
+                          }
+                          disabled={!condominioAtivoId || loadingBlocos}
+                        >
+                          <option value="">
+                            {loadingBlocos ? "Carregando..." : "Selecione o bloco"}
+                          </option>
+                          {blocos.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.nome}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">Obrigatório para residente.</p>
+                      </div>
+
                       <div className="space-y-1.5">
                         <Label htmlFor="unidade">Unidade / Apartamento</Label>
                         {blocos.length > 0 && form.blocoId ? (
@@ -727,30 +840,57 @@ export default function PessoasPage() {
                             <option value="">Selecione o bloco primeiro</option>
                           </select>
                         )}
-                        <p className="text-xs text-muted-foreground">Obrigatório para morador.</p>
+                        <p className="text-xs text-muted-foreground">Obrigatório para residente.</p>
                       </div>
-                    )}
-                  </div>
-
-                  {form.permitirAcessoApp && (
-                    <div className="mt-4 space-y-1.5">
-                      <Label htmlFor="tipoVinculo">Tipo de vínculo</Label>
-                      <select
-                        id="tipoVinculo"
-                        className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                        value={form.tipoVinculo}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, tipoVinculo: e.target.value as TipoVinculoPessoa }))
-                        }
-                      >
-                        <option value="PROPRIETARIO">Proprietário</option>
-                        <option value="INQUILINO">Inquilino</option>
-                        <option value="MORADOR_PERMANENTE">Morador permanente</option>
-                        <option value="DEPENDENTE">Dependente</option>
-                      </select>
                     </div>
-                  )}
+                  </div>
+                )}
+
+                {/* Seção: Local de atuação/referência (nunca é vínculo residencial) */}
+                <div className="mb-5">
+                  <h3 className="mb-3 text-sm font-semibold text-foreground">Local de atuação / referência</h3>
+                  <div className="space-y-1.5 sm:max-w-xs">
+                    <Label htmlFor="blocoAtuacao">Bloco de atuação (opcional)</Label>
+                    <select
+                      id="blocoAtuacao"
+                      className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                      value={form.blocoAtuacaoId}
+                      onChange={(e) => setForm((f) => ({ ...f, blocoAtuacaoId: e.target.value }))}
+                      disabled={!condominioAtivoId || loadingBlocos}
+                    >
+                      <option value="">
+                        {loadingBlocos ? "Carregando..." : "Nenhum"}
+                      </option>
+                      {blocos.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.nome}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Onde a pessoa atua/atende (ex.: administração) — não é residência nem unidade.
+                    </p>
+                  </div>
                 </div>
+
+                {form.permitirAcessoApp && (
+                  <div className="mb-5 mt-4 space-y-1.5">
+                    <Label htmlFor="tipoVinculo">Tipo de vínculo</Label>
+                    <select
+                      id="tipoVinculo"
+                      className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                      value={form.tipoVinculo}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, tipoVinculo: e.target.value as TipoVinculoPessoa }))
+                      }
+                    >
+                      <option value="PROPRIETARIO">Proprietário</option>
+                      <option value="INQUILINO">Inquilino</option>
+                      <option value="MORADOR_PERMANENTE">Morador permanente</option>
+                      <option value="DEPENDENTE">Dependente</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Seção: Acesso ao aplicativo */}
                 <div className="border-t pt-5">

@@ -16,21 +16,25 @@ export const runtime = "nodejs";
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { checkAdminAuth } from "@/lib/pessoas/authorization";
-import { buildPessoaDoc, validatePersonPayload, maskPersonId, sanitizeLogData } from "@/lib/pessoas/service";
+import {
+  buildPessoaDoc,
+  validatePersonPayload,
+  validateCategoriaPessoa,
+  validateMoraNoCondominio,
+  validateBlocoAtuacaoId,
+  maskPersonId,
+  sanitizeLogData,
+} from "@/lib/pessoas/service";
 import { normEmail, sanitizeOnboardingLog } from "@/lib/onboarding/service";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
 import type { AdminPersonPayload, AdminPersonResult } from "@/lib/pessoas/types";
+import { jsonError } from "@/lib/jsonError";
+import { apiGuard } from "@/lib/apiGuard";
 
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
-}
-
-const ADMIN_ROLES = ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"] as const;
+import type { GuardRole } from "@/lib/apiGuard";
+const ALLOWED_ROLES: GuardRole[] = ["ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
 
 export async function POST(req: Request) {
-  const db = adminDb();
-
   try {
     const body = (await req.json().catch(() => ({}))) as AdminPersonPayload;
 
@@ -56,21 +60,32 @@ export async function POST(req: Request) {
       return jsonError("Formato de e-mail inválido.", 400);
     }
 
-    const auth = await checkAdminAuth({
+    const categoriaPessoaError = validateCategoriaPessoa(body.categoriaPessoa);
+    if (categoriaPessoaError) return jsonError(categoriaPessoaError, 400);
+
+    const moraNoCondominioError = validateMoraNoCondominio(body.moraNoCondominio);
+    if (moraNoCondominioError) return jsonError(moraNoCondominioError, 400);
+
+    const blocoAtuacaoIdError = validateBlocoAtuacaoId(body.blocoAtuacaoId);
+    if (blocoAtuacaoIdError) return jsonError(blocoAtuacaoIdError, 400);
+
+    const categoriaPessoa = body.categoriaPessoa ?? null;
+    const moraNoCondominio = body.moraNoCondominio ?? null;
+    const blocoAtuacaoId = body.blocoAtuacaoId ? String(body.blocoAtuacaoId).trim() : null;
+
+    const ctx = await apiGuard({
       request: req,
       condominioId,
-      allowedRoles: [...ADMIN_ROLES],
+      allowedRoles: ALLOWED_ROLES,
     });
 
-    if (!auth.ok) return jsonError(auth.error || "Acesso negado.", auth.status || 403);
-
+    const db = adminDb();
     const condoRef = db.collection("condominios").doc(condominioId);
     const condoSnap = await condoRef.get();
     if (!condoSnap.exists) {
       return jsonError("Condomínio não encontrado.", 404);
     }
 
-    // Validate bloco × unidade if both provided
     if (blocoId && unitDocId) {
       const blocoRef = db.collection("condominios").doc(condominioId).collection("blocos").doc(blocoId);
       const blocoSnap = await blocoRef.get();
@@ -91,7 +106,14 @@ export async function POST(req: Request) {
       }
     }
 
-    // Create or resolve Pessoa
+    if (blocoAtuacaoId) {
+      const blocoAtuacaoRef = db.collection("condominios").doc(condominioId).collection("blocos").doc(blocoAtuacaoId);
+      const blocoAtuacaoSnap = await blocoAtuacaoRef.get();
+      if (!blocoAtuacaoSnap.exists) {
+        return jsonError("Bloco de atuação não pertence a este condomínio.", 400);
+      }
+    }
+
     let personId: string;
 
     if (emailNorm) {
@@ -108,12 +130,16 @@ export async function POST(req: Request) {
         personId = existingByEmail.docs[0].id;
       } else {
         const newRef = db.collection("condominios").doc(condominioId).collection("pessoas").doc();
-        await newRef.set(buildPessoaDoc({ condominioId, nome, email, telefone, metadata: { origem: "CADASTRO_MANUAL" } }));
+        await newRef.set(
+          buildPessoaDoc({ condominioId, nome, email, telefone, categoriaPessoa, moraNoCondominio, blocoAtuacaoId, metadata: { origem: "CADASTRO_MANUAL" } }),
+        );
         personId = newRef.id;
       }
     } else {
       const newRef = db.collection("condominios").doc(condominioId).collection("pessoas").doc();
-      await newRef.set(buildPessoaDoc({ condominioId, nome, email, telefone, metadata: { origem: "CADASTRO_MANUAL" } }));
+      await newRef.set(
+        buildPessoaDoc({ condominioId, nome, email, telefone, categoriaPessoa, moraNoCondominio, blocoAtuacaoId, metadata: { origem: "CADASTRO_MANUAL" } }),
+      );
       personId = newRef.id;
     }
 
@@ -122,7 +148,6 @@ export async function POST(req: Request) {
       personId,
     };
 
-    // Create accessLink if self-onboarding
     if (permitirAcessoApp && modoAcesso === "SELF_ONBOARDING" && email && emailNorm && blocoId && unitDocId && tipoVinculo) {
       const condominioDoc = await db.collection("condominios").doc(condominioId).get();
       const condominioNome = condominioDoc.exists ? String(condominioDoc.data()?.nome || condominioId) : condominioId;
@@ -211,8 +236,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(result);
-  } catch (err: any) {
-    console.error("[pessoas/create-or-update] Erro:", err?.message);
-    return jsonError(err?.message || "Erro inesperado", 500);
+  } catch (e: any) {
+    if (e instanceof Response) return e;
+    console.error("[pessoas/create-or-update] Erro:", e?.message);
+    return jsonError(e?.message || "Erro inesperado", 500);
   }
 }

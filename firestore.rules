@@ -116,6 +116,88 @@ function isOperador(condominioId) {
       allow write: if isSuper();
     }
 
+    // ── G1.6.1 — CLIENTE GLOBAL (Painel Global Treetech) ──
+    // Entidade comercial, separada de Condomínio. Acesso exclusivo SUPER_ADMIN,
+    // sem papel tenant-scoped. Exclusão negada nesta fase (ver G1.6 — Etapa 5).
+    match /globalClientes/{clienteId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.6.5 — EMPRESA GLOBAL (Painel Global Treetech) ──
+    // Fundação da entidade Empresa, mesmo padrão de acesso de globalClientes.
+    // Ainda sem nenhum relacionamento com Cliente/Condomínio/Produto. Exclusão
+    // negada nesta fase.
+    match /globalEmpresas/{empresaId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.7 — PRODUTO GLOBAL (Painel Global Treetech) ──
+    // Fundação da entidade Produto, mesmo padrão de acesso de globalClientes/
+    // globalEmpresas. Sem nenhum relacionamento com Empresa/Cliente/
+    // Condomínio nesta fase. Exclusão negada nesta fase.
+    match /globalProdutos/{produtoId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.7.1 — LICENCIAMENTO GLOBAL (Painel Global Treetech) ──
+    // Fundação do relacionamento Empresa ↔ Produto, mesmo padrão de acesso de
+    // globalClientes/globalEmpresas/globalProdutos. Sem relacionamento
+    // bidirecional (Empresa/Produto não referenciam licenças). Exclusão
+    // negada nesta fase.
+    match /globalLicencas/{licencaId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.7.2 — PLANO GLOBAL (Painel Global Treetech) ──
+    // Fundação da entidade Plano, pertencente exclusivamente a um Produto,
+    // mesmo padrão de acesso de globalClientes/globalEmpresas/globalProdutos/
+    // globalLicencas. Sem relacionamento com Empresa/Cliente/Licença/
+    // Assinatura nesta fase. Exclusão negada nesta fase.
+    match /globalPlanos/{planoId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.7.3 — ASSINATURA GLOBAL (Painel Global Treetech) ──
+    // Conecta comercialmente Empresa → Assinatura → Plano → Produto, sem
+    // substituir globalLicencas (Licença ≠ Assinatura). Mesmo padrão de
+    // acesso das demais entidades globais. Sem relacionamento bidirecional
+    // — Empresa/Produto/Plano/Licença não referenciam a lista de
+    // assinaturas. Exclusão negada nesta fase.
+    match /globalAssinaturas/{assinaturaId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.7.5 — CATÁLOGO GLOBAL DE RECURSOS (Painel Global Treetech) ──
+    // Catálogo de capacidades por Produto (produtoId), mesmo padrão de
+    // acesso das demais entidades globais. Sem concessão/contratação nesta
+    // fase (globalRecursosContratados é entidade futura, não implementada).
+    // Exclusão negada nesta fase.
+    match /globalRecursos/{recursoId} {
+      allow read: if isSuper();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // ── G1.6.1 — AUDITORIA GLOBAL (Painel Global Treetech) ──
+    // Append-only. Escrita apenas via Admin SDK (rotas server-side, que ignoram
+    // as Rules) — client nunca escreve diretamente.
+    match /globalAuditLogs/{logId} {
+      allow read: if isSuper();
+      allow create, update, delete: if false;
+    }
+
     // -------------------------
     // Condomínios e Subcoleções
     // -------------------------
