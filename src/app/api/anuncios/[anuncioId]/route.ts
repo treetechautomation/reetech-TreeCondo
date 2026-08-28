@@ -12,6 +12,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
 import { requiresExpiresAt, readDateFlexible } from "@/lib/anuncios/expiration";
+import { parseZonedDateTimeLocal } from "@/lib/anuncios/scheduling";
 
 export async function PUT(
   req: Request,
@@ -92,21 +93,35 @@ export async function PUT(
       if (s === "AGENDADO" && !body.publishAt && !currentData.publishAt) return jsonError("publishAt obrigatório para AGENDADO", 400);
     }
 
-    if (body.publishAt !== undefined) patch.publishAt = body.publishAt || null;
+    // FIX.ANUNCIOS.2A: mesmo contrato temporal de POST /api/anuncios —
+    // ver src/lib/anuncios/scheduling.ts. publishAt nunca é gravado cru.
+    let publishAtParsed: Date | null = null;
+    if (body.publishAt !== undefined) {
+      if (body.publishAt) {
+        publishAtParsed = parseZonedDateTimeLocal(body.publishAt);
+        if (!publishAtParsed) return jsonError("publishAt inválido.", 400);
+      }
+      patch.publishAt = publishAtParsed ? Timestamp.fromDate(publishAtParsed) : null;
+    }
 
     // FEATURE.ANUNCIOS.1: expiração é obrigatória para publicar/agendar.
     // Só valida quando o pedido está explicitamente transicionando status
     // ou tocando expiresAt — uma edição que não mexe em nenhum dos dois
     // (ex.: corrigir o título de um anúncio legado já publicado) não é
     // retroativamente bloqueada por uma expiração que ele nunca teve.
+    // FIX.ANUNCIOS.2A.1: mesmo contrato temporal de publishAt — ver
+    // src/lib/anuncios/scheduling.ts. expiresAt não é mais parseado com
+    // readDateFlexible aqui (que assumiria timezone do host, UTC);
+    // readDateFlexible continua correto para LER um Timestamp já
+    // persistido (ver effectiveExpiresAt logo abaixo).
     let expiresAtParsed: Date | null = null;
     if (expiresAtProvided) {
       if (body.expiresAt) {
-        expiresAtParsed = readDateFlexible(body.expiresAt);
+        expiresAtParsed = parseZonedDateTimeLocal(body.expiresAt);
         if (!expiresAtParsed) return jsonError("Expiração inválida.", 400);
       }
       patch.expiresAt = expiresAtParsed ? Timestamp.fromDate(expiresAtParsed) : null;
-      if (body.publishAt && expiresAtParsed && expiresAtParsed <= new Date(body.publishAt)) {
+      if (publishAtParsed && expiresAtParsed && expiresAtParsed <= publishAtParsed) {
         return jsonError("expiresAt deve ser posterior a publishAt", 400);
       }
     }
