@@ -67,6 +67,16 @@ export async function resolveAnnouncementRecipients(
 
 /**
  * Cria notificações in-app para um anúncio publicado.
+ *
+ * FIX.ANUNCIOS.2A: o ID do documento de notificação é determinístico
+ * (`anuncio_{anuncioId}_{uid}`), não mais um ID aleatório. Isso torna a
+ * função idempotente por construção: reenviar para o mesmo anúncio (ex.:
+ * uma execução de cron que reivindica uma notificação travada após um
+ * crash, ver src/lib/anuncios/scheduling.ts) sobrescreve o mesmo
+ * documento (`{merge:true}`) em vez de criar um duplicado — mesmo que o
+ * mecanismo de reivindicação a montante falhe em prevenir uma segunda
+ * tentativa, o morador nunca recebe dois registros de notificação
+ * separados para o mesmo anúncio.
  */
 export async function sendAnnouncementNotifications(
   condominioId: string,
@@ -82,7 +92,7 @@ export async function sendAnnouncementNotifications(
   const batch = db.batch();
   uids.forEach(uid => {
     const ref = db.collection("condominios").doc(condominioId)
-      .collection("notificacoes").doc();
+      .collection("notificacoes").doc(`anuncio_${anuncioId}_${uid}`);
     batch.set(ref, {
       tipo: "ANUNCIO_PUBLICADO",
       title: "Novo anúncio",

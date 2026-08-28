@@ -13,6 +13,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
 import { requiresExpiresAt, readDateFlexible } from "@/lib/anuncios/expiration";
+import { parseZonedDateTimeLocal } from "@/lib/anuncios/scheduling";
 
 import type { GuardRole } from "@/lib/apiGuard";
 const MANAGERS: GuardRole[] = ["SUPER_ADMIN", "ADMIN_CONDOMINIO", "ADMIN", "SINDICO"];
@@ -126,6 +127,18 @@ export async function POST(req: Request) {
     if (targetScope === "BLOCO" && !targetBlocoId) return jsonError("targetBlocoId obrigatório para BLOCO", 400);
     if (status === "AGENDADO" && !publishAt) return jsonError("publishAt obrigatório para AGENDADO", 400);
 
+    // FIX.ANUNCIOS.2A: publishAt chega como string "datetime-local" (sem
+    // timezone) e precisa ser normalizado para um instante absoluto antes
+    // de ser persistido — ver src/lib/anuncios/scheduling.ts para o
+    // contrato temporal completo. Nunca aceitar silenciosamente um valor
+    // não-parseável quando o status exige agendamento.
+    let publishAtParsed: Date | null = null;
+    if (publishAt) {
+      publishAtParsed = parseZonedDateTimeLocal(publishAt);
+      if (!publishAtParsed) return jsonError("publishAt inválido.", 400);
+    }
+    if (status === "AGENDADO" && !publishAtParsed) return jsonError("publishAt obrigatório para AGENDADO", 400);
+
     // FEATURE.ANUNCIOS.1: expiração é obrigatória para publicar/agendar.
     // RASCUNHO continua podendo ficar incompleto (comportamento já suportado).
     let expiresAtParsed: Date | null = null;
@@ -137,7 +150,7 @@ export async function POST(req: Request) {
       if (!expiresAtParsed) return jsonError("Expiração é obrigatória para publicar ou agendar um anúncio.", 400);
       if (expiresAtParsed.getTime() <= Date.now()) return jsonError("Expiração deve ser uma data futura.", 400);
     }
-    if (expiresAtParsed && publishAt && expiresAtParsed <= new Date(publishAt)) return jsonError("expiresAt deve ser posterior a publishAt", 400);
+    if (expiresAtParsed && publishAtParsed && expiresAtParsed <= publishAtParsed) return jsonError("expiresAt deve ser posterior a publishAt", 400);
 
     const ctx = await apiGuard({
       request: req,
@@ -164,7 +177,7 @@ export async function POST(req: Request) {
     const data: Record<string, any> = {
       titulo, mensagem,
       targetScope, targetBlocoId: targetBlocoId || null, targetBlocoNome,
-      status, publishAt: publishAt || null, publishedAt,
+      status, publishAt: publishAtParsed ? Timestamp.fromDate(publishAtParsed) : null, publishedAt,
       expiresAt: expiresAtParsed ? Timestamp.fromDate(expiresAtParsed) : null,
       archivedAt: null,
       createdByUid: ctx.uid,
