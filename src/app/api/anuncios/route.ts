@@ -12,7 +12,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
-import { requiresExpiresAt, readDateFlexible } from "@/lib/anuncios/expiration";
+import { requiresExpiresAt } from "@/lib/anuncios/expiration";
 import { parseZonedDateTimeLocal } from "@/lib/anuncios/scheduling";
 
 import type { GuardRole } from "@/lib/apiGuard";
@@ -141,9 +141,14 @@ export async function POST(req: Request) {
 
     // FEATURE.ANUNCIOS.1: expiração é obrigatória para publicar/agendar.
     // RASCUNHO continua podendo ficar incompleto (comportamento já suportado).
+    // FIX.ANUNCIOS.2A.1: expiresAt chega como a mesma string datetime-local
+    // (sem timezone) que publishAt — usa o mesmo contrato temporal
+    // explícito (America/Sao_Paulo), não mais o parsing ambíguo de
+    // readDateFlexible (que interpretaria a string pelo timezone do host,
+    // UTC, gerando um desvio de 3h em relação à intenção do operador).
     let expiresAtParsed: Date | null = null;
     if (expiresAt) {
-      expiresAtParsed = readDateFlexible(expiresAt);
+      expiresAtParsed = parseZonedDateTimeLocal(expiresAt);
       if (!expiresAtParsed) return jsonError("Expiração inválida.", 400);
     }
     if (requiresExpiresAt(status)) {

@@ -66,6 +66,33 @@ test("parseZonedDateTimeLocal: funciona para outro timezone (UTC), confirmando q
   assert.equal(d!.toISOString(), "2026-09-01T10:00:00.000Z");
 });
 
+// --- FIX.ANUNCIOS.2A.1: expiresAt usa exatamente o mesmo parser que publishAt ---
+
+test("FIX.2A.1: expiresAt e publishAt com o mesmo horário civil produzem o MESMO instante (mesmo parser, mesma interpretação)", () => {
+  const publishAt = parseZonedDateTimeLocal("2026-09-01T10:00");
+  const expiresAt = parseZonedDateTimeLocal("2026-09-01T10:00");
+  assert.equal(publishAt!.getTime(), expiresAt!.getTime());
+});
+
+test("FIX.2A.1: demonstra explicitamente o desvio de 3h que existiria com new Date(string-sem-offset) no host (UTC) vs. o resultado correto em America/Sao_Paulo", () => {
+  const INPUT = "2026-09-01T10:00";
+
+  // Comportamento ANTIGO (o que readDateFlexible/new Date(string) produzia
+  // rodando no host de produção, que está em UTC — confirmado
+  // independentemente do TZ de onde este teste é executado, forçando a
+  // interpretação "como se já fosse UTC" explicitamente com um sufixo Z):
+  // 10:00 "virava" 10:00Z.
+  const oldAmbiguousResult = new Date(INPUT + "Z");
+
+  // Comportamento CORRIGIDO: 10:00 é horário civil em America/Sao_Paulo
+  // (UTC-3), logo o instante real é 13:00Z.
+  const correctResult = parseZonedDateTimeLocal(INPUT, "America/Sao_Paulo");
+
+  assert.equal(correctResult!.toISOString(), "2026-09-01T13:00:00.000Z");
+  const diffHours = (correctResult!.getTime() - oldAmbiguousResult.getTime()) / (60 * 60 * 1000);
+  assert.equal(diffHours, 3, "o desvio entre a interpretação antiga (ambígua) e a corrigida deve ser exatamente 3h");
+});
+
 // --- evaluateSchedulingEligibility ---
 
 test("evaluateSchedulingEligibility: publishAt no futuro NÃO é elegível", () => {

@@ -109,10 +109,15 @@ export async function PUT(
     // ou tocando expiresAt — uma edição que não mexe em nenhum dos dois
     // (ex.: corrigir o título de um anúncio legado já publicado) não é
     // retroativamente bloqueada por uma expiração que ele nunca teve.
+    // FIX.ANUNCIOS.2A.1: mesmo contrato temporal de publishAt — ver
+    // src/lib/anuncios/scheduling.ts. expiresAt não é mais parseado com
+    // readDateFlexible aqui (que assumiria timezone do host, UTC);
+    // readDateFlexible continua correto para LER um Timestamp já
+    // persistido (ver effectiveExpiresAt logo abaixo).
     let expiresAtParsed: Date | null = null;
     if (expiresAtProvided) {
       if (body.expiresAt) {
-        expiresAtParsed = readDateFlexible(body.expiresAt);
+        expiresAtParsed = parseZonedDateTimeLocal(body.expiresAt);
         if (!expiresAtParsed) return jsonError("Expiração inválida.", 400);
       }
       patch.expiresAt = expiresAtParsed ? Timestamp.fromDate(expiresAtParsed) : null;

@@ -23,7 +23,10 @@ async function read(p: string) { return fs.readFile(p, "utf8"); }
 // A1/A2 — create/publicar e agendar sem expiração => reject.
 test("POST /api/anuncios: requiresExpiresAt(status) bloqueia PUBLICADO/AGENDADO sem expiresAt válido", async () => {
   const src = await read(POST_ROUTE);
-  assert.match(src, /import \{ requiresExpiresAt, readDateFlexible \} from "@\/lib\/anuncios\/expiration";/);
+  // FIX.ANUNCIOS.2A.1: POST não importa mais readDateFlexible — expiresAt
+  // agora é parseado com parseZonedDateTimeLocal (contrato de timezone
+  // explícito), ver src/app/api/anuncios/__tests__/scheduling-static.test.ts.
+  assert.match(src, /import \{ requiresExpiresAt \} from "@\/lib\/anuncios\/expiration";/);
   assert.match(src, /if \(requiresExpiresAt\(status\)\) \{\s*\n\s*if \(!expiresAtParsed\) return jsonError\("Expiração é obrigatória/);
 });
 

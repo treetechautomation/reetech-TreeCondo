@@ -84,7 +84,7 @@ test("PUT [anuncioId]: publishAt não tocado nesta requisição (body.publishAt 
 test("regressão: expiresAt continua obrigatório para PUBLICADO/AGENDADO em POST e PUT (requiresExpiresAt intacto)", async () => {
   const postSrc = await read(POST_ROUTE);
   const putSrc = await read(PUT_ROUTE);
-  assert.match(postSrc, /import \{ requiresExpiresAt, readDateFlexible \} from "@\/lib\/anuncios\/expiration";/);
+  assert.match(postSrc, /import \{ requiresExpiresAt \} from "@\/lib\/anuncios\/expiration";/);
   assert.match(putSrc, /import \{ requiresExpiresAt, readDateFlexible \} from "@\/lib\/anuncios\/expiration";/);
   assert.match(postSrc, /if \(requiresExpiresAt\(status\)\) \{/);
   assert.match(putSrc, /requiresExpiresAt\(effectiveStatus\) && \(statusProvided \|\| expiresAtProvided\)/);
@@ -168,4 +168,57 @@ test("sendAnnouncementNotifications: ID do documento de notificação é determi
 test("sendAnnouncementNotifications: continua usando merge:true no set (upsert seguro em reenvio)", async () => {
   const src = await read(NOTIF_LIB);
   assert.match(src, /\}, \{ merge: true \}\);/);
+});
+
+// --- FIX.ANUNCIOS.2A.1: expiresAt alinhado ao mesmo contrato temporal de publishAt ---
+
+test("POST /api/anuncios: expiresAt agora é parseado com parseZonedDateTimeLocal, não mais readDateFlexible", async () => {
+  const src = await read(POST_ROUTE);
+  assert.match(src, /expiresAtParsed = parseZonedDateTimeLocal\(expiresAt\);/);
+  assert.doesNotMatch(src, /expiresAtParsed = readDateFlexible\(expiresAt\);/, "parsing de escrita não deve mais usar readDateFlexible (ambíguo quanto a timezone)");
+});
+
+test("POST /api/anuncios: readDateFlexible não é mais importado (nenhum uso restante nesta rota)", async () => {
+  const src = await read(POST_ROUTE);
+  assert.doesNotMatch(src, /import \{ requiresExpiresAt, readDateFlexible \}/);
+  assert.match(src, /import \{ requiresExpiresAt \} from "@\/lib\/anuncios\/expiration";/);
+});
+
+test("PUT [anuncioId]: expiresAt fornecido no body agora é parseado com parseZonedDateTimeLocal, não mais readDateFlexible", async () => {
+  const src = await read(PUT_ROUTE);
+  assert.match(src, /expiresAtParsed = parseZonedDateTimeLocal\(body\.expiresAt\);/);
+  assert.doesNotMatch(src, /expiresAtParsed = readDateFlexible\(body\.expiresAt\);/);
+});
+
+test("PUT [anuncioId]: readDateFlexible continua importado e usado — mas só para LER o Timestamp já persistido (effectiveExpiresAt), nunca para parsear um novo valor do body", async () => {
+  const src = await read(PUT_ROUTE);
+  assert.match(src, /import \{ requiresExpiresAt, readDateFlexible \} from "@\/lib\/anuncios\/expiration";/);
+  assert.match(src, /readDateFlexible\(currentData\.expiresAt\)/);
+});
+
+test("regressão: PUT sem expiresAt no body não toca patch.expiresAt (expiresAtProvided guarda o bloco inteiro)", async () => {
+  const src = await read(PUT_ROUTE);
+  assert.match(src, /const expiresAtProvided = body\.expiresAt !== undefined;/);
+  assert.match(src, /if \(expiresAtProvided\) \{/);
+});
+
+test("regressão: PUT com body.expiresAt explicitamente null/vazio continua limpando a expiração (patch.expiresAt = null), sem exigir parse", async () => {
+  const src = await read(PUT_ROUTE);
+  // if (body.expiresAt) { parse... } — bloco de parse só roda quando o
+  // valor é truthy; quando expiresAtProvided=true mas body.expiresAt é
+  // null/"" (falsy), expiresAtParsed permanece null e a linha abaixo
+  // grava null — comportamento de "remover expiração" preservado.
+  assert.match(src, /if \(body\.expiresAt\) \{\s*\n\s*expiresAtParsed = parseZonedDateTimeLocal\(body\.expiresAt\);/);
+  assert.match(src, /patch\.expiresAt = expiresAtParsed \? Timestamp\.fromDate\(expiresAtParsed\) : null;/);
+});
+
+test("cron processar-expiracao: NÃO foi alterado — continua usando readDateFlexible para ler o Timestamp já persistido", async () => {
+  const src = await read(path.resolve(__dirname, "../../cron/anuncios/processar-expiracao/route.ts"));
+  assert.match(src, /import \{ readDateFlexible \} from "@\/lib\/anuncios\/expiration";/);
+  assert.match(src, /const expiresAt = readDateFlexible\(data\.expiresAt\);/);
+});
+
+test("GET /api/anuncios (query-time expiration): NÃO foi alterado — continua interpretando expiresAt.toDate() diretamente", async () => {
+  const src = await read(POST_ROUTE);
+  assert.match(src, /const exp = a\.expiresAt\.toDate \? a\.expiresAt\.toDate\(\) : new Date\(a\.expiresAt\._seconds \* 1000\);/);
 });
