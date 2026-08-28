@@ -392,11 +392,45 @@ function isOperador(condominioId) {
       }
 
       // --- REGRAS DE QR CODES DE PORTARIA ---
+      // ACCESS.1A (2026-08-28): hotfix de segurança sobre o protótipo legado.
+      // - leitura: restrita ao próprio criador (nunca "qualquer membro ativo",
+      //   que expunha nome/CPF de visitantes de outras unidades) + portaria/
+      //   operador para fins operacionais de validação.
+      // - create: porteiro/segurança NUNCA cria passe (MORADOR AUTORIZA,
+      //   PORTARIA VALIDA) — apenas isPortaria() foi removido do universo de
+      //   isMembroAtivo, demais papéis (morador/admin/síndico) inalterados.
+      // - update: state machine explícita, nunca permite voltar a ATIVO
+      //   (fecha o replay de "reativar passe usado/cancelado" via client SDK)
+      //   e restringe os campos que cada lado pode alterar.
       match /portariaQrCodes/{qrId} {
-        allow read: if isMembroAtivo(condominioId) || isSuper() || isPortariaOrOperador(condominioId);
-        allow create: if isMembroAtivo(condominioId) && request.resource.data.criadoPor == request.auth.uid;
-        allow update: if isPortariaOrOperador(condominioId) 
-                      || (isMembroAtivo(condominioId) && resource.data.criadoPor == request.auth.uid);
+        allow read: if isSuper()
+          || isPortariaOrOperador(condominioId)
+          || (isMembroAtivo(condominioId) && resource.data.criadoPor == request.auth.uid);
+
+        allow create: if isMembroAtivo(condominioId)
+          && !isPortaria(condominioId)
+          && request.resource.data.criadoPor == request.auth.uid
+          && request.resource.data.status == "ATIVO";
+
+        // portaria/operador: só pode consumir um passe ATIVO (ATIVO -> UTILIZADO), nunca reverter.
+        // criador: só pode cancelar o próprio passe ATIVO (ATIVO -> CANCELADO), nunca reverter.
+        allow update: if (
+            isPortariaOrOperador(condominioId)
+            && resource.data.status == "ATIVO"
+            && request.resource.data.status == "UTILIZADO"
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status", "utilizadoEm", "validadoPorNome", "validadoPorUid", "updatedAt"
+            ])
+          ) || (
+            isMembroAtivo(condominioId)
+            && resource.data.criadoPor == request.auth.uid
+            && resource.data.status == "ATIVO"
+            && request.resource.data.status == "CANCELADO"
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status", "canceladoEm", "updatedAt"
+            ])
+          );
+
         allow delete: if isMembroAtivo(condominioId) && resource.data.criadoPor == request.auth.uid;
       }
 
