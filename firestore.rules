@@ -434,6 +434,43 @@ function isOperador(condominioId) {
         allow delete: if isMembroAtivo(condominioId) && resource.data.criadoPor == request.auth.uid;
       }
 
+      // --- REGRAS DE CONTROLE DE ACESSO (ACCESS.3) ---
+      // Domínio novo (ACCESS.2 congelado, ACCESS.3 implementado). Toda
+      // escrita security-sensitive é server-authority (apiGuard + Admin
+      // SDK, que ignora estas Rules) — nenhum papel escreve diretamente
+      // via client SDK em nenhuma das quatro coleções. Leitura é
+      // least-privilege: apenas o necessário para UI em tempo real do
+      // próprio morador; leituras operacionais amplas (ocupação,
+      // histórico, resolução de credencial) passam pela API (ACCESS.4+),
+      // não por listagem direta do Firestore.
+      match /accessAuthorizations/{authorizationId} {
+        allow read: if isSuper()
+          || isOperador(condominioId)
+          || (isMembroAtivo(condominioId) && resource.data.createdByUid == request.auth.uid);
+        allow create, update, delete: if false;
+      }
+
+      match /accessCredentials/{credentialId} {
+        // Nunca lido/listado/escrito pelo cliente, para nenhum papel —
+        // resolução de credencial (QR/PIN) acontece exclusivamente via
+        // API server-side (ACCESS.6), nunca por leitura direta do
+        // Firestore, para não permitir enumeração de credenciais
+        // válidas/inválidas por um chamador não autorizado.
+        allow read, create, update, delete: if false;
+      }
+
+      match /accessStays/{stayId} {
+        allow read: if isSuper() || isOperador(condominioId);
+        allow create, update, delete: if false;
+      }
+
+      match /accessEvents/{eventId} {
+        // Append-only, server-only em toda a superfície. Histórico é
+        // servido via API (ACCESS.4+), não por leitura direta.
+        allow read: if isSuper() || isOperador(condominioId);
+        allow create, update, delete: if false;
+      }
+
       // --- REGRAS DE FINANCEIRO ---
       match /financeiro/{cobrancaId} {
         allow read: if isSuper() || canManageCondo(condominioId);
