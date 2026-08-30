@@ -84,3 +84,70 @@ export function selectUnit(eligible: EligibleUnit[], requestedUnitId?: string | 
   if (!match) return { ok: false, reason: "INVALID_UNIT" };
   return { ok: true, unit: match };
 }
+
+// ─────────────────────────── ACCESS.5B — labels for UI discovery ───────────────────────────
+
+export interface EligibleUnitWithLabel extends EligibleUnit {
+  label: string;
+}
+
+/**
+ * Enriquece o MESMO conjunto retornado por `resolveEligibleUnits` (a
+ * única fonte de verdade de elegibilidade, também usada pelo CREATE)
+ * com um label humano, derivado dos campos canônicos reais de
+ * `blocos/{blocoId}` (`nome`/legado `blocoNome`) e
+ * `blocos/{blocoId}/unidades/{unitId}` (`numero`/legado
+ * `unidadeNumero`) — mesmos campos já usados em
+ * `/api/acessos/create` e `/api/anuncios`. Nunca inventa formato novo;
+ * se nenhum metadado de nome/número existir, usa o próprio ID como
+ * último recurso (nunca deveria acontecer em dados reais, mas não
+ * lança).
+ *
+ * Usada SOMENTE pelo endpoint de contexto (`GET
+ * /api/acesso-controle/contexto`) — o CREATE continua chamando
+ * `resolveEligibleUnits`/`selectUnit` diretamente, sem depender desta
+ * função nem dos campos de label.
+ */
+export async function listEligibleUnitsWithLabels(
+  db: FirebaseFirestore.Firestore,
+  condominioId: string,
+  uid: string,
+  membroData: Record<string, any> | null,
+): Promise<EligibleUnitWithLabel[]> {
+  const eligible = await resolveEligibleUnits(db, condominioId, uid, membroData);
+  if (eligible.length === 0) return [];
+
+  const blocoCache = new Map<string, { nome: string }>();
+
+  const withLabels = await Promise.all(
+    eligible.map(async (unit) => {
+      let blocoNome = "";
+      if (unit.blocoId) {
+        if (!blocoCache.has(unit.blocoId)) {
+          const blocoSnap = await db.collection("condominios").doc(condominioId).collection("blocos").doc(unit.blocoId).get();
+          const bd = blocoSnap.exists ? (blocoSnap.data() || {}) : {};
+          blocoCache.set(unit.blocoId, { nome: String(bd.nome || bd.blocoNome || unit.blocoId) });
+        }
+        blocoNome = blocoCache.get(unit.blocoId)!.nome;
+      }
+
+      let unidadeNumero = unit.unitId;
+      if (unit.blocoId) {
+        const unidadeSnap = await db
+          .collection("condominios").doc(condominioId)
+          .collection("blocos").doc(unit.blocoId)
+          .collection("unidades").doc(unit.unitId)
+          .get();
+        if (unidadeSnap.exists) {
+          const ud = unidadeSnap.data() || {};
+          unidadeNumero = String(ud.numero || ud.unidadeNumero || unit.unitId);
+        }
+      }
+
+      const label = blocoNome ? `Apto ${unidadeNumero} — ${blocoNome}` : `Unidade ${unidadeNumero}`;
+      return { ...unit, label };
+    }),
+  );
+
+  return withLabels;
+}
