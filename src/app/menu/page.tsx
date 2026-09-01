@@ -190,8 +190,17 @@ export default function MenuPage() {
     },
   ];
 
+  // ACCESS.5C: MORADOR usa o novo domínio de acesso (/acessos, API-driven);
+  // demais papéis (porteiro/admin/síndico) continuam em /acesso (legado,
+  // operacional) — mesma entrada/permissão "acesso", destino por papel.
+  const role = session?.role;
   const filtered = categories
-    .map((c) => ({ ...c, items: c.items.filter((i) => isAllowed(i.key)) }))
+    .map((c) => ({
+      ...c,
+      items: c.items
+        .filter((i) => isAllowed(i.key))
+        .map((i) => (i.key === "acesso" && role === "MORADOR" ? { ...i, href: "/acessos" } : i)),
+    }))
     .filter((c) => c.items.length > 0);
 
   return (

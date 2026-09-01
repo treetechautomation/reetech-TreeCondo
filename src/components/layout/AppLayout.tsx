@@ -253,7 +253,12 @@ React.useEffect(() => {
     return !!fallback;
   }
 
-  const filteredNav = NAV_ITEMS.filter((i) => isAllowed(i.key));
+  // ACCESS.5C: MORADOR usa o novo domínio de acesso (/acessos, API-driven);
+  // demais papéis (porteiro/admin/síndico) continuam em /acesso (legado,
+  // operacional) — mesma entrada/permissão "acesso", destino por papel.
+  const filteredNav = NAV_ITEMS.filter((i) => isAllowed(i.key)).map((i) =>
+    i.key === "acesso" && session?.role === "MORADOR" ? { ...i, href: "/acessos" } : i
+  );
 
   const handleLogout = async () => {
     try {
