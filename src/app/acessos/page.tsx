@@ -195,7 +195,7 @@ function CreateAccessSheet({
         )}
 
         {!contextLoading && !contextError && !blocked && (
-        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} noValidate className="grid gap-4 py-4">
           <div className="grid gap-1.5">
             <Label htmlFor="acesso-nome">Nome *</Label>
             <Input id="acesso-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder="Nome do visitante" required />
@@ -576,7 +576,7 @@ export default function AcessosPage() {
     return (
       <div className="grid gap-3">
         {items.map((item) => (
-          <Card key={item.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setDetailItem(item)}>
+          <Card key={item.id} className="min-w-0 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setDetailItem(item)}>
             <CardContent className="flex items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="font-medium truncate">{item.visitorSnapshot.nome}</p>

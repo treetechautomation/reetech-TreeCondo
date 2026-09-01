@@ -55,3 +55,22 @@ test("uiClient.ts: getAccessContext hits the read-only contexto endpoint, not a 
   const src = fs.readFileSync(path.join(process.cwd(), "src/lib/access/uiClient.ts"), "utf8");
   assert.match(src, /\/api\/acesso-controle\/contexto/);
 });
+
+// ═══════════ ACCESS.5D — mobile polish (badge clipping / native validation) ═══════════
+
+test("page.tsx: create form disables native browser validation, keeping the app's own Portuguese messages authoritative", () => {
+  const src = readPage();
+  assert.match(src, /<form onSubmit=\{handleSubmit\} noValidate/);
+});
+
+test("page.tsx: the existing Portuguese validation path (nome/data/unidade) is still present and untouched", () => {
+  const src = readPage();
+  assert.match(src, /title: "Nome obrigatório", description: "Informe o nome do visitante\."/);
+  assert.match(src, /title: "Data obrigatória", description: "Informe a data da visita\."/);
+  assert.match(src, /title: "Selecione a unidade", description: "Escolha a unidade para esta autorização\."/);
+});
+
+test("page.tsx: list card grid item allows shrinking so the status badge can't force horizontal overflow (source-level contract only — visual correctness verified separately in staging)", () => {
+  const src = readPage();
+  assert.match(src, /<Card key=\{item\.id\} className="min-w-0 cursor-pointer/);
+});
