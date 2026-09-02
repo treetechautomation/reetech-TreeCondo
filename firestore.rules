@@ -312,12 +312,15 @@ function isOperador(condominioId) {
 
           allow read: if isSuper() || canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId)
                       || (isMembroAtivo(condominioId) && isMyUnidade());
-          
-          allow create: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
 
-          allow update: if canManageCondo(condominioId) || isPorteiro(condominioId) || isZelador(condominioId);
-
-          allow delete: if isSuper() || canManageCondo(condominioId);
+          // ENCOMENDAS.2B — server-authority only. Every legitimate mutation
+          // (create, withdraw, batch withdraw) already goes exclusively
+          // through Admin SDK API routes, which bypass these rules entirely
+          // — confirmed zero legitimate live client writers (onSnapshot/
+          // getDocs are read-only). Client SDK must never be able to write
+          // status/credential-hash/custody fields directly (same pattern as
+          // accessCredentials/accessAuthorizations for ACCESS).
+          allow create, update, delete: if false;
         }
 
         match /notificacoes/{notificacaoId} {
