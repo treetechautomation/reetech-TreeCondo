@@ -5,6 +5,12 @@ import { ai } from "@/ai/genkit";
 import { z } from "zod";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
+import {
+  AI_LABEL_ALLOWED_ROLES,
+  validateImagePayload,
+  sanitizeAiOutput,
+} from "@/lib/encomendas/aiLabelIntake";
+import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
 
 const RotuloOutput = z.object({
   unidadeId: z.string().nullable(),
@@ -15,17 +21,32 @@ const RotuloOutput = z.object({
 });
 
 export async function POST(req: Request) {
+  const correlationId = extractCorrelationId(req);
+  const startedAt = Date.now();
+  let condominioId: string | null = null;
+  let actorUid: string | null = null;
+  let actorRole: string | null = null;
+
   try {
+    const body = await req.json().catch(() => ({}));
+    condominioId = typeof body?.condominioId === "string" ? body.condominioId.trim() : "";
+
+    if (!condominioId) {
+      return jsonError("condominioId é obrigatório", 400);
+    }
+
     const ctx = await apiGuard({
       request: req,
+      condominioId,
+      allowedRoles: AI_LABEL_ALLOWED_ROLES,
       rateLimit: { limit: 10, windowSec: 60 },
     });
+    actorUid = ctx.uid;
+    actorRole = ctx.role;
 
-    const body = await req.json().catch(() => ({}));
-    const imageBase64 = body?.image;
-
-    if (!imageBase64) {
-      return jsonError("Imagem é obrigatória", 400);
+    const imageValidation = validateImagePayload(body?.image);
+    if (!imageValidation.ok) {
+      return jsonError(imageValidation.error, 400);
     }
 
     const { output } = await ai.generate({
@@ -43,16 +64,45 @@ Retorne null para os campos não identificados com clareza.`,
         },
         {
           media: {
-            url: imageBase64,
+            url: body.image,
           },
         },
       ],
       output: { schema: RotuloOutput },
     });
 
-    return NextResponse.json({ ok: true, data: output });
+    const safeOutput = sanitizeAiOutput(output);
+
+    logEncomendaEvent({
+      event: "PACKAGE_OCR_SUCCESS",
+      timestamp: new Date().toISOString(),
+      operation: "ai_ler_rotulo",
+      result: "success",
+      condominioId,
+      actorUid,
+      actorRole,
+      correlationId,
+      durationMs: Date.now() - startedAt,
+    });
+
+    return NextResponse.json({ ok: true, data: safeOutput });
   } catch (e: any) {
     if (e instanceof Response) return e;
+
+    logEncomendaEvent({
+      event: "PACKAGE_OCR_FAILED",
+      timestamp: new Date().toISOString(),
+      operation: "ai_ler_rotulo",
+      result: "error",
+      condominioId,
+      actorUid,
+      actorRole,
+      correlationId,
+      durationMs: Date.now() - startedAt,
+      errorCode: "OCR_EXCEPTION",
+      errorMessage: e?.message ? String(e.message).slice(0, 300) : "unknown",
+    });
+
     console.error("[ler-rotulo] Erro ao processar rótulo com IA:", e);
     return jsonError(e?.message || "Erro interno ao processar imagem.", 500);
   }

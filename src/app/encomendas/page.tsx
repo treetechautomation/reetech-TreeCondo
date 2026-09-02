@@ -253,7 +253,7 @@ export default function EncomendasPage() {
       reader.onloadend = async () => {
         const base64 = reader.result as string;
         try {
-          const resp = await apiPost("/api/ai/ler-rotulo", { image: base64 });
+          const resp = await apiPost("/api/ai/ler-rotulo", { image: base64, condominioId: condId });
           if (resp?.ok && resp?.data) {
             const info = resp.data;
             if (info.unidadeId) setUnidadeId(info.unidadeId);
