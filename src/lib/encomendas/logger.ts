@@ -39,6 +39,10 @@ export interface EncomendaLogEntry {
   durationMs?: number;
   errorCode?: string | null;
   errorMessage?: string | null;
+  /** Número da tentativa (1-based) — ENCOMENDAS.2D, apenas para PIN_FAILED. Nunca o PIN em si. */
+  attempt?: number | null;
+  /** Timestamp ISO até quando o bloqueio está ativo — ENCOMENDAS.2D, apenas para PIN_LOCKED. */
+  lockedUntil?: string | null;
 }
 
 function sanitize(entry: EncomendaLogEntry): EncomendaLogEntry {

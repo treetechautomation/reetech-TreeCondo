@@ -5,11 +5,36 @@ import { createHash } from "crypto";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createWithdrawEvent } from "@/lib/encomendas/withdrawal";
+import { evaluatePackagePinAttempt, type PackagePinOutcome } from "@/lib/encomendas/packagePinPolicy";
 import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
 import { notifyUnidade } from "@/lib/notifications/notifyUnidade";
+
+/**
+ * ENCOMENDAS.2D — mapeamento seguro de outcome -> resposta HTTP.
+ * Nenhuma mensagem revela hash, PIN esperado, ou detalhes de implementação
+ * além do necessário para a UX (ex.: até quando o bloqueio dura).
+ */
+function packagePinOutcomeToResponse(outcome: PackagePinOutcome): { message: string; status: number } {
+  switch (outcome.code) {
+    case "PIN_INVALID":
+      return { message: "PIN incorreto.", status: 403 };
+    case "PIN_LOCKED":
+      return { message: `PIN bloqueado por excesso de tentativas. Tente novamente após ${outcome.lockedUntil}.`, status: 429 };
+    case "PIN_EXPIRED":
+      return { message: "PIN expirado.", status: 410 };
+    case "CREDENTIAL_NOT_CONFIGURED":
+      return { message: "PIN de retirada não configurado para esta encomenda.", status: 400 };
+    case "PACKAGE_ALREADY_WITHDRAWN":
+      return { message: "Essa encomenda já foi retirada.", status: 409 };
+    case "STATUS_INVALID":
+      return { message: "Encomenda não está aguardando retirada.", status: 409 };
+    default:
+      return { message: "Não foi possível confirmar a retirada.", status: 400 };
+  }
+}
 
 function sha256(v: string) {
   return createHash("sha256").update(v, "utf8").digest("hex");
@@ -151,44 +176,108 @@ export async function POST(req: Request) {
       });
 
     } else if (codigo) {
-      if (sha256(codigo) !== String(data?.codigoRetiradaHash || "")) {
-        return jsonError("Código de retirada inválido.", 403);
-      }
+      // ENCOMENDAS.2D: a credencial ativa por encomenda é pinHash (emitida/
+      // reemitida por /api/encomendas/credencial), não codigoRetiradaHash
+      // (campo legado, nunca atualizado na reemissão — ver ENCOMENDAS.2D
+      // finding). Toda a decisão de segurança acontece dentro da MESMA
+      // transação, sobre leitura fresca, seguindo evaluatePackagePinAttempt.
+      let pinOutcome: PackagePinOutcome | undefined;
+
       await db.runTransaction(async (tx) => {
         const fresh = await tx.get(ref);
         if (!fresh.exists) {
           throw Object.assign(new Error("Encomenda não encontrada."), { status: 404 });
         }
         const freshData = fresh.data() as any;
-        if (String(freshData?.status || "").toUpperCase() !== "AGUARDANDO") {
-          throw Object.assign(new Error("Essa encomenda já foi retirada."), { status: 409 });
+        const evalResult = evaluatePackagePinAttempt(freshData, codigo, new Date());
+        pinOutcome = evalResult.outcome;
+
+        // Mutação de tentativa/bloqueio/reset SEMPRE commita, mesmo quando
+        // o resultado final é rejeição — do contrário o Firestore reverteria
+        // o incremento junto com o restante do callback (ver ENCOMENDAS.2D
+        // Fase 10). Por isso este bloco nunca lança para PIN_INVALID/
+        // PIN_LOCKED/PIN_EXPIRED — apenas aplica a mutação e retorna.
+        if (evalResult.mutation) {
+          tx.update(ref, evalResult.mutation);
         }
-        if (sha256(codigo) !== String(freshData?.codigoRetiradaHash || "")) {
-          throw Object.assign(new Error("Código de retirada inválido."), { status: 403 });
+
+        if (evalResult.outcome.code === "SUCCESS") {
+          tx.update(ref, {
+            status: "RETIRADA",
+            retiradaEm: FieldValue.serverTimestamp(),
+            retiradoEm: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            registradoPorUid: actorUid,
+            registradoPorNome: String(ctx.decodedToken?.name || ctx.decodedToken?.email || "Operador"),
+            retiradoPorUid: actorUid,
+            retiradoPorNome: actorNome,
+            retiradoPorEmail: actorEmail,
+            retiradoPorRole: actorRole,
+            retiradaRecebedorNome: recebedorNome || "Próprio morador",
+            withdrawMethod: "PIN",
+          });
+          const eventRef2 = ref.collection("events").doc();
+          tx.set(eventRef2, createWithdrawEvent(
+            "WITHDRAWN",
+            actorUid,
+            actorRole,
+            actorNome,
+            { method: "PIN", encomendaId, condominioId },
+          ));
         }
-        tx.update(ref, {
-          status: "RETIRADA",
-          retiradaEm: FieldValue.serverTimestamp(),
-          retiradoEm: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-          registradoPorUid: actorUid,
-          registradoPorNome: String(ctx.decodedToken?.name || ctx.decodedToken?.email || "Operador"),
-          retiradoPorUid: actorUid,
-          retiradoPorNome: actorNome,
-          retiradoPorEmail: actorEmail,
-          retiradoPorRole: actorRole,
-          retiradaRecebedorNome: recebedorNome || "Próprio morador",
-          withdrawMethod: "PORTEIRO",
-        });
-        const eventRef2 = ref.collection("events").doc();
-        tx.set(eventRef2, createWithdrawEvent(
-          "WITHDRAWN",
-          actorUid,
-          actorRole,
-          actorNome,
-          { method: "PORTEIRO", encomendaId, condominioId },
-        ));
       });
+
+      if (!pinOutcome || pinOutcome.code !== "SUCCESS") {
+        const outcome = pinOutcome as PackagePinOutcome;
+        const { message, status } = packagePinOutcomeToResponse(outcome);
+
+        if (outcome.code === "PIN_INVALID") {
+          logEncomendaEvent({
+            event: "PACKAGE_PIN_FAILED",
+            timestamp: new Date().toISOString(),
+            operation: "retirar",
+            result: "failed",
+            condominioId,
+            encomendaId,
+            actorUid,
+            actorRole,
+            method: "PIN",
+            attempt: outcome.attempt,
+            correlationId,
+          });
+          if (outcome.locked && outcome.lockedUntil) {
+            logEncomendaEvent({
+              event: "PACKAGE_PIN_LOCKED",
+              timestamp: new Date().toISOString(),
+              operation: "retirar",
+              result: "blocked",
+              condominioId,
+              encomendaId,
+              actorUid,
+              actorRole,
+              method: "PIN",
+              lockedUntil: outcome.lockedUntil,
+              correlationId,
+            });
+          }
+        } else if (outcome.code === "PIN_LOCKED") {
+          logEncomendaEvent({
+            event: "PACKAGE_PIN_LOCKED",
+            timestamp: new Date().toISOString(),
+            operation: "retirar",
+            result: "blocked",
+            condominioId,
+            encomendaId,
+            actorUid,
+            actorRole,
+            method: "PIN",
+            lockedUntil: outcome.lockedUntil,
+            correlationId,
+          });
+        }
+
+        return jsonError(message, status);
+      }
     } else {
       return jsonError("Informe o código da encomenda (PKG-...) ou use o modo 'Sem Celular' com PIN do morador.", 400);
     }
@@ -204,8 +293,12 @@ export async function POST(req: Request) {
       console.error("[encomendas/retirar] falha ao notificar:", e?.message || e);
     }
 
+    // ENCOMENDAS.2D: os dois branches restantes (PIN pessoal do morador e
+    // PIN da encomenda) só chegam aqui em sucesso — ambos são credenciais
+    // tipo PIN validadas via hash; nenhum branch de "PORTEIRO sem
+    // credencial" existe mais nesta rota.
     logEncomendaEvent({
-      event: moradorUid && pinMorador ? "PACKAGE_WITHDRAW_PIN_SUCCESS" : "PACKAGE_WITHDRAW_MANUAL_SUCCESS",
+      event: "PACKAGE_WITHDRAW_PIN_SUCCESS",
       timestamp: new Date().toISOString(),
       operation: "retirar",
       result: "success",
@@ -213,7 +306,7 @@ export async function POST(req: Request) {
       encomendaId,
       actorUid,
       actorRole,
-      method: moradorUid && pinMorador ? "PIN" : "PORTEIRO",
+      method: "PIN",
       correlationId,
     });
 
