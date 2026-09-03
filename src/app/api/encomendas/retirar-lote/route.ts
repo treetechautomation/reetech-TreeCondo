@@ -149,13 +149,16 @@ export async function POST(req: Request) {
             retiradaRecebedorNome: recebedorNome,
             withdrawMethod: "QR_CODE",
           });
+          // ENCOMENDAS.2G-FIX.1: tokenLote (o bearer credential do lote) não
+          // entra mais em metadata de evento — ver comentário em
+          // withdrawal.ts junto a SAFE_EVENT_METADATA_KEYS.
           const eventRef = encRefs[i].collection("events").doc();
           tx.set(eventRef, createWithdrawEvent(
             "WITHDRAWN",
             actorUid,
             actorRole,
             actorNome,
-            { method: "QR_CODE", encomendaId: encomendaIds[i], condominioId, lote: tokenLote },
+            { method: "QR_CODE", encomendaId: encomendaIds[i], condominioId },
           ));
           notifData.push({
             encomendaId: encomendaIds[i],

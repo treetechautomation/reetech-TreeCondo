@@ -6,7 +6,7 @@ import { adminDb, adminMessaging } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
-import { generatePin, hashPin, last4, generateQRToken, hashQRToken, normalizeCode, createWithdrawEvent } from "@/lib/encomendas/withdrawal";
+import { generatePin, hashPin, generateQRToken, hashQRToken, normalizeCode, createWithdrawEvent } from "@/lib/encomendas/withdrawal";
 import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
 import { normUnidade, normBloco } from "@/lib/normalization/location";
 import { notifyUnidade } from "@/lib/notifications/notifyUnidade";
@@ -187,7 +187,6 @@ export async function POST(req: Request) {
     const codigo = `PKG-${randomCode(8)}`;
     const pinRaw = generatePin(4);
     const pinHashVal = hashPin(pinRaw);
-    const pinLast4Val = last4(pinRaw);
     const qrToken = generateQRToken(72 * 60);
     const qrTokenHashVal = qrToken.hash;
 
@@ -211,7 +210,9 @@ export async function POST(req: Request) {
         chegouEm: FieldValue.serverTimestamp(),
         codigo: codigo,
         pinHash: pinHashVal,
-        pinLast4: pinLast4Val,
+        // ENCOMENDAS.2G-FIX.1: pinLast4 removido — para um PIN de 4 dígitos,
+        // "últimos 4 dígitos" É o PIN inteiro. Não persistir nenhum campo
+        // que reconstrua ou equivalha ao PIN utilizável.
         pinExpiresAt: new Date(Date.now() + 72 * 3600000).toISOString(),
         pinAttempts: 0,
         pinLockedUntil: null,
@@ -305,7 +306,6 @@ export async function POST(req: Request) {
       ok: true,
       encomendaId: encomendaRef.id,
       codigo,
-      pinLast4: pinLast4Val,
     });
   } catch (err: any) {
     if (err instanceof Response) return err;

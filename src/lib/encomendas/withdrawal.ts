@@ -139,11 +139,18 @@ export function validateWithdrawByPIN(
  * inofensiva — o modelo de segurança é "só o que está explicitamente
  * permitido entra", não "bloquear o que é conhecido como perigoso".
  */
+// ENCOMENDAS.2G-FIX.1: "lote" removido — não é uma referência inócua, é o
+// próprio token portador (bearer) usado para autorizar retirada/confirmação
+// em lote (mesmo valor do ID do documento retiradas_lote/{token}). Persistir
+// isso em metadata de evento gravava a credencial viva em um registro
+// durável, depois exposto pela API de auditoria (2F). Nenhum identificador
+// não-secreto equivalente existe hoje — omitir a referência de lote do
+// evento é a correção mínima, em vez de trocá-la por um hash (um segredo de
+// baixa entropia continua enumerável offline mesmo com hash).
 export const SAFE_EVENT_METADATA_KEYS = [
   "method",
   "encomendaId",
   "condominioId",
-  "lote",
   "scannerSource",
   "attempt",
   "lockedUntil",
