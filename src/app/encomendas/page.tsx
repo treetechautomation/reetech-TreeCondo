@@ -324,13 +324,23 @@ const [scanOpen, setScanOpen] = React.useState(false);
         setQrCodeUrl("");
         setIsQrDialogOpen(true);
 
-        const code = String((pkg as any)?.codigo ?? "").trim();
-        if (!code) {
-          console.warn("[encomendas] showQrCode: pkg sem codigo:", pkg?.id, pkg);
+        // ENCOMENDAS.2E: o QR apresentado ao morador deve codificar o
+        // token opaco de retirada (validado por /api/encomendas/retirar/qr
+        // via qrTokenHash), nunca o identificador PKG-XXXXXXXX em texto
+        // puro — o código PKG não autentica nada.
+        if (!condId) return;
+        const resp = await apiPost("/api/encomendas/credencial", {
+          encomendaId: pkg.id,
+          condominioId: condId,
+          tipo: "QR",
+        });
+        const rawToken = String(resp?.qrToken ?? "").trim();
+        if (!rawToken) {
+          console.warn("[encomendas] showQrCode: credencial sem qrToken:", pkg?.id);
           return;
         }
 
-        const url = await QRCode.toDataURL(code, {
+        const url = await QRCode.toDataURL(rawToken, {
           width: 320,
           margin: 2,
           errorCorrectionLevel: "M",
@@ -670,9 +680,28 @@ React.useEffect(() => {
       setOpenRetirar(true);
     }
 
+  // ENCOMENDAS.2E: leitura de QR pela portaria é o método PREFERENCIAL de
+  // retirada — chama diretamente /api/encomendas/retirar/qr (token opaco,
+  // transacional), em vez de reaproveitar o campo manual de PIN.
+  async function handleQrWithdraw(qrToken: string) {
+    if (!condId) return;
+    setRetirarError(null);
+    setSavingRetirar(true);
+    try {
+      await apiPost("/api/encomendas/retirar/qr", { condominioId: condId, qrToken });
+      alert("✅ Retirada registrada!");
+      setOpenRetirar(false);
+    } catch (e: any) {
+      console.error("[encomendas] erro retirar via QR:", e);
+      setRetirarError(e?.message || "Erro ao registrar retirada via QR.");
+    } finally {
+      setSavingRetirar(false);
+    }
+  }
+
   async function handleRetirar() {
     if (!condId || !retirarEncomenda) return;
-    
+
     setRetirarError(null);
 
     const payload: any = {
@@ -692,7 +721,7 @@ React.useEffect(() => {
       payload.recebedorParentesco = recebedorParentesco;
     } else {
       if (!codigoInput.trim()) {
-        setRetirarError("Informe o código de retirada (PKG-...).");
+        setRetirarError("Informe o PIN de retirada (4 dígitos) ou use o leitor de QR.");
         return;
       }
       payload.codigo = codigoInput;
@@ -1250,7 +1279,8 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
                           Gerando QR Code...
                         </div>
                       )}
-                    <code className="mt-4 text-lg font-bold tracking-wider">{selectedPkgForQr?.codigo}</code>
+                    <p className="mt-4 text-xs text-muted-foreground">Código da encomenda (identificação, não é senha):</p>
+                    <code className="text-lg font-bold tracking-wider">{selectedPkgForQr?.codigo}</code>
                 </div>
                 <DialogFooter>
                     <Button onClick={() => setIsQrDialogOpen(false)}>Fechar</Button>
@@ -1319,10 +1349,12 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
                 ) : (
   <>
     <div className="grid grid-cols-4 items-center gap-4">
-      <Label htmlFor="codigo" className="text-right">Código</Label>
+      <Label htmlFor="codigo" className="text-right">PIN de retirada</Label>
       <Input
         id="codigo"
-        placeholder="Ex: PKG-7Q9K2M"
+        placeholder="Ex: 4821 (4 dígitos, não é o código PKG)"
+        inputMode="numeric"
+        maxLength={4}
         className="col-span-3"
         value={codigoInput}
         onChange={(e) => setCodigoInput(e.target.value)}
@@ -1351,8 +1383,8 @@ const historyFiltered = (!isOperador || !buscaQ) ? history : history.filter((pkg
             onResult={(text) => {
               const t = String(text || "").trim();
               if (!t) return;
-              setCodigoInput(t);
               setScanOpen(false);
+              handleQrWithdraw(t);
             }}
             onError={(e) => console.warn("[QrScanner]", e)}
           />

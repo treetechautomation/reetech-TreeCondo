@@ -219,8 +219,9 @@ export async function POST(req: Request) {
         qrIssuedAt: new Date().toISOString(),
         qrExpiresAt: qrToken.expiresAt.toISOString(),
         qrUsed: false,
-        codigoRetiradaHash: pinHashVal,
-        codigoRetiradaLast4: pinLast4Val,
+        // ENCOMENDAS.2E: codigoRetiradaHash removido — campo legado nunca
+        // autentica retirada (pinHash é a credencial ativa desde o 2D);
+        // manter a escrita só perpetuava um segredo morto sem consumidor.
         retiradaEm: null,
         retiradoPorUid: null,
         criadoPorUid: actorUid,
