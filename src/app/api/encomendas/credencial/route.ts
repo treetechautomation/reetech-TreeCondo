@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { generatePin, hashPin, last4, generateQRToken, hashQRToken } from "@/lib/encomendas/withdrawal";
+import { generatePin, hashPin, generateQRToken, hashQRToken } from "@/lib/encomendas/withdrawal";
 import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
@@ -89,9 +89,11 @@ export async function POST(req: Request) {
     const pinRaw = generatePin(4);
     const pinHashVal = hashPin(pinRaw);
 
+    // ENCOMENDAS.2G-FIX.1: pinLast4 removido — para um PIN de 4 dígitos,
+    // "últimos 4 dígitos" É o PIN inteiro. Não persistir nenhum campo
+    // que reconstrua ou equivalha ao PIN utilizável.
     await encomendaRef.update({
       pinHash: pinHashVal,
-      pinLast4: last4(pinRaw),
       pinExpiresAt: new Date(Date.now() + 72 * 3600000).toISOString(),
       pinAttempts: 0,
       pinLockedUntil: null,
@@ -115,7 +117,6 @@ export async function POST(req: Request) {
       ok: true,
       type: "PIN",
       pin: pinRaw,
-      pinLast4: last4(pinRaw),
     });
   } catch (err: any) {
     if (err instanceof Response) return err;
