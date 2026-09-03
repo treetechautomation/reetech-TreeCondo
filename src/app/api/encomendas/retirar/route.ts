@@ -148,13 +148,15 @@ export async function POST(req: Request) {
         if (failedAttempts > 0) {
           tx.update(membroRef, { encomendaPinFailedAttempts: 0 });
         }
+        // ENCOMENDAS.2F: registradoPor* é a identidade de CRIAÇÃO (quem
+        // registrou o pacote na portaria) — imutável após a criação. Nunca
+        // reescrever aqui; retiradoPor* já é o campo dedicado ao ator que
+        // confirma a retirada.
         tx.update(ref, {
           status: "RETIRADA",
           retiradaEm: FieldValue.serverTimestamp(),
           retiradoEm: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
-          registradoPorUid: actorUid,
-          registradoPorNome: String(ctx.decodedToken?.name || ctx.decodedToken?.email || "Operador"),
           retiradoPorUid: actorUid,
           retiradoPorNome: actorNome,
           retiradoPorEmail: actorEmail,
@@ -202,13 +204,13 @@ export async function POST(req: Request) {
         }
 
         if (evalResult.outcome.code === "SUCCESS") {
+          // ENCOMENDAS.2F: registradoPor* preservado — identidade de
+          // criação imutável (ver comentário equivalente acima).
           tx.update(ref, {
             status: "RETIRADA",
             retiradaEm: FieldValue.serverTimestamp(),
             retiradoEm: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
-            registradoPorUid: actorUid,
-            registradoPorNome: String(ctx.decodedToken?.name || ctx.decodedToken?.email || "Operador"),
             retiradoPorUid: actorUid,
             retiradoPorNome: actorNome,
             retiradoPorEmail: actorEmail,
@@ -223,6 +225,24 @@ export async function POST(req: Request) {
             actorRole,
             actorNome,
             { method: "PIN", encomendaId, condominioId },
+          ));
+        } else if (evalResult.outcome.code === "PIN_INVALID") {
+          // ENCOMENDAS.2F: pacote já está resolvido nesta transação (fresh
+          // lido acima) — registrar o evento de auditoria custa zero
+          // round-trips extras e não expõe o PIN enviado nem o hash.
+          const failEventRef = ref.collection("events").doc();
+          tx.set(failEventRef, createWithdrawEvent(
+            evalResult.outcome.locked ? "PIN_LOCKED" : "PIN_FAILED",
+            actorUid,
+            actorRole,
+            actorNome,
+            {
+              method: "PIN",
+              encomendaId,
+              condominioId,
+              attempt: evalResult.outcome.attempt,
+              lockedUntil: evalResult.outcome.lockedUntil ?? undefined,
+            },
           ));
         }
       });

@@ -150,7 +150,13 @@ export type EncomendaEventType =
   | "WITHDRAWN"
   | "RETURNED"
   | "CANCELLED"
-  | "LOST";
+  | "LOST"
+  // ENCOMENDAS.2F — tentativas de credencial rejeitadas contra um pacote já
+  // resolvido (nunca para hash/token que não localiza documento nenhum —
+  // isso permanece só em log de aplicação, ver retirar/qr/route.ts).
+  | "PIN_FAILED"
+  | "PIN_LOCKED"
+  | "QR_REJECTED";
 
 export interface EncomendaEvent {
   type: EncomendaEventType;

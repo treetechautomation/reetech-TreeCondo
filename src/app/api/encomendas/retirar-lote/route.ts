@@ -134,13 +134,14 @@ export async function POST(req: Request) {
 
         for (let i = 0; i < encRefs.length; i++) {
           const e = encSnaps[i].data() || {};
+          // ENCOMENDAS.2F: registradoPor* é identidade de criação imutável
+          // — nunca reescrita na retirada (retiradoPor* já é o campo do
+          // ator que confirma).
           tx.update(encRefs[i], {
             status: "RETIRADA",
             retiradaEm: FieldValue.serverTimestamp(),
             retiradoEm: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
-            registradoPorUid: actorUid,
-            registradoPorNome: String(ctx.decodedToken?.name || ctx.decodedToken?.email || "Operador"),
             retiradoPorUid: actorUid,
             retiradoPorNome: actorNome,
             retiradoPorEmail: actorEmail,
@@ -219,13 +220,13 @@ export async function POST(req: Request) {
 
       for (let i = 0; i < refs.length; i++) {
         const e = snaps[i].data() || {};
+        // ENCOMENDAS.2F: registradoPor* preservado — ver comentário
+        // equivalente acima.
         tx.update(refs[i], {
           status: "RETIRADA",
           retiradaEm: FieldValue.serverTimestamp(),
           retiradoEm: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
-          registradoPorUid: actorUid,
-          registradoPorNome: String(ctx.decodedToken?.name || ctx.decodedToken?.email || "Operador"),
           retiradoPorUid: actorUid,
           retiradoPorNome: actorNome,
           retiradoPorEmail: actorEmail,
