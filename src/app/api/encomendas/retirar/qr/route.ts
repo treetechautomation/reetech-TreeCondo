@@ -3,10 +3,33 @@ export const runtime = "nodejs";
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { hashQRToken, isQRExpired, createWithdrawEvent } from "@/lib/encomendas/withdrawal";
+import { hashQRToken, createWithdrawEvent } from "@/lib/encomendas/withdrawal";
+import { evaluatePackageQrAttempt } from "@/lib/encomendas/packageQrPolicy";
 import { logEncomendaEvent, extractCorrelationId } from "@/lib/encomendas/logger";
 import { jsonError } from "@/lib/jsonError";
 import { apiGuard } from "@/lib/apiGuard";
+
+/**
+ * ENCOMENDAS.2E — mapeamento seguro de outcome -> resposta HTTP + evento
+ * de auditoria. Nenhuma mensagem revela o hash armazenado ou o token
+ * esperado.
+ */
+function qrOutcomeToResponse(code: string): { message: string; status: number; errorCode: string } {
+  switch (code) {
+    case "QR_EXPIRED":
+      return { message: "QR expirado.", status: 410, errorCode: "QR_EXPIRED" };
+    case "QR_ALREADY_USED":
+      return { message: "QR já foi utilizado.", status: 409, errorCode: "QR_ALREADY_USED" };
+    case "PACKAGE_ALREADY_WITHDRAWN":
+      return { message: "Essa encomenda já foi retirada.", status: 409, errorCode: "PACKAGE_ALREADY_WITHDRAWN" };
+    case "STATUS_INVALID":
+      return { message: "Encomenda não está aguardando retirada.", status: 409, errorCode: "STATUS_INVALID" };
+    case "QR_NOT_FOUND":
+      return { message: "QR não encontrado ou inválido.", status: 404, errorCode: "QR_NOT_FOUND" };
+    default:
+      return { message: "Não foi possível confirmar a retirada.", status: 400, errorCode: "UNKNOWN" };
+  }
+}
 
 export async function POST(req: Request) {
   const db = adminDb();
@@ -42,28 +65,20 @@ export async function POST(req: Request) {
           .limit(1)
       );
 
+      // Hash sem match nenhum: falha fechada por construção — a query já
+      // não localiza nenhum documento (nenhum "QR quase certo" existe).
       if (encomendasSnap.empty) {
-        throw Object.assign(new Error("QR não encontrado ou inválido."), { status: 404, code: "QR_NOT_FOUND" });
+        return { ok: false as const, code: "QR_NOT_FOUND" };
       }
 
       const encomendaRef = encomendasSnap.docs[0].ref;
       const data = encomendasSnap.docs[0].data() || {};
 
-      const status = String(data.status || "").toUpperCase();
-      if (status !== "AGUARDANDO_RETIRADA" && status !== "AGUARDANDO" && status !== "PENDENTE") {
-        throw Object.assign(new Error("Encomenda não está aguardando retirada."), { status: 409, code: "STATUS_INVALID" });
+      const outcome = evaluatePackageQrAttempt(data, new Date());
+      if (outcome.code !== "SUCCESS") {
+        return { ok: false as const, code: outcome.code };
       }
 
-      const expiresAt = data.qrExpiresAt ? String(data.qrExpiresAt) : null;
-      if (expiresAt && isQRExpired(expiresAt)) {
-        throw Object.assign(new Error("QR expirado."), { status: 410, code: "QR_EXPIRED" });
-      }
-
-      if (data.qrUsed === true) {
-        throw Object.assign(new Error("QR já foi utilizado."), { status: 409, code: "QR_ALREADY_USED" });
-      }
-
-      const now = new Date().toISOString();
       const actorNome = ctx.decodedToken?.name || ctx.decodedToken?.email || uid;
 
       tx.update(encomendaRef, {
@@ -86,8 +101,27 @@ export async function POST(req: Request) {
         { method: "QR_CODE", encomendaId: encomendaRef.id, condominioId },
       ));
 
-      return { encomendaId: encomendaRef.id };
+      return { ok: true as const, encomendaId: encomendaRef.id as string };
     });
+
+    if (!result.ok) {
+      const { message, status, errorCode } = qrOutcomeToResponse(result.code);
+      logEncomendaEvent({
+        event: result.code === "QR_ALREADY_USED" ? "PACKAGE_WITHDRAW_REPLAY_BLOCKED"
+          : result.code === "QR_EXPIRED" ? "PACKAGE_QR_EXPIRED"
+          : "PACKAGE_QR_INVALID",
+        timestamp: new Date().toISOString(),
+        operation: "retirar/qr",
+        result: result.code === "QR_ALREADY_USED" ? "blocked" : "failed",
+        condominioId,
+        actorUid: uid,
+        actorRole,
+        method: "QR_CODE",
+        correlationId,
+        errorCode,
+      });
+      return jsonError(message, status);
+    }
 
     logEncomendaEvent({
       event: "PACKAGE_WITHDRAW_QR_SUCCESS",
@@ -95,7 +129,7 @@ export async function POST(req: Request) {
       operation: "retirar/qr",
       result: "success",
       condominioId,
-      encomendaId: (result as any).encomendaId,
+      encomendaId: result.encomendaId,
       actorUid: uid,
       actorRole,
       method: "QR_CODE",
@@ -104,23 +138,22 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      encomendaId: (result as any).encomendaId,
+      encomendaId: result.encomendaId,
       message: "Retirada confirmada via QR Code.",
     });
   } catch (err: any) {
     if (err instanceof Response) return err;
     const status = err?.status || 500;
-    const code = err?.code || "UNKNOWN";
     logEncomendaEvent({
-      event: code === "QR_ALREADY_USED" ? "PACKAGE_WITHDRAW_REPLAY_BLOCKED" : "PACKAGE_WITHDRAW_QR_SUCCESS",
+      event: "PACKAGE_QR_INVALID",
       timestamp: new Date().toISOString(),
       operation: "retirar/qr",
-      result: code === "QR_ALREADY_USED" ? "blocked" : "error",
-      condominioId: body?.condominioId || null,
+      result: "error",
+      condominioId: condominioId || null,
       actorUid: null,
       method: "QR_CODE",
       correlationId,
-      errorCode: code,
+      errorCode: "EXCEPTION",
       errorMessage: err?.message || "Erro inesperado.",
     });
     return jsonError(err?.message || "Erro inesperado.", status);
