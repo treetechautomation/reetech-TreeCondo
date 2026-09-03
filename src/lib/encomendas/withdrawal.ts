@@ -133,6 +133,34 @@ export function validateWithdrawByPIN(
 
 // ═══════════════════════════ EVENTOS ═══════════════════════════
 
+/**
+ * ENCOMENDAS.2F — allowlist de chaves de metadata permitidas em um evento
+ * de auditoria. Qualquer chave fora desta lista é descartada, mesmo que
+ * inofensiva — o modelo de segurança é "só o que está explicitamente
+ * permitido entra", não "bloquear o que é conhecido como perigoso".
+ */
+export const SAFE_EVENT_METADATA_KEYS = [
+  "method",
+  "encomendaId",
+  "condominioId",
+  "lote",
+  "scannerSource",
+  "attempt",
+  "lockedUntil",
+  "reason",
+] as const;
+
+function buildSafeEventMetadata(metadata?: Record<string, unknown>): Record<string, unknown> {
+  if (!metadata) return {};
+  const safe: Record<string, unknown> = {};
+  for (const key of SAFE_EVENT_METADATA_KEYS) {
+    if (metadata[key] !== undefined) {
+      safe[key] = metadata[key];
+    }
+  }
+  return safe;
+}
+
 export function createWithdrawEvent(
   type: EncomendaEvent["type"],
   actorUid?: string | null,
@@ -140,21 +168,13 @@ export function createWithdrawEvent(
   actorName?: string | null,
   metadata?: Record<string, unknown>,
 ): EncomendaEvent {
-  // Garantir que metadata NUNCA contenha segredo
-  const safeMeta = metadata ? { ...metadata } : {};
-  delete safeMeta["token"];
-  delete safeMeta["pin"];
-  delete safeMeta["hash"];
-  delete safeMeta["qrToken"];
-  delete safeMeta["pinHash"];
-  delete safeMeta["codigoRetirada"];
   return {
     type,
     timestamp: new Date().toISOString(),
     actorUid: actorUid ?? null,
     actorRole: actorRole ?? null,
     actorName: actorName ?? null,
-    metadata: safeMeta,
+    metadata: buildSafeEventMetadata(metadata),
   };
 }
 

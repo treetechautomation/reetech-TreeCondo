@@ -73,13 +73,23 @@ export async function POST(req: Request) {
 
       const encomendaRef = encomendasSnap.docs[0].ref;
       const data = encomendasSnap.docs[0].data() || {};
+      const actorNome = ctx.decodedToken?.name || ctx.decodedToken?.email || uid;
 
       const outcome = evaluatePackageQrAttempt(data, new Date());
       if (outcome.code !== "SUCCESS") {
+        // ENCOMENDAS.2F: pacote já está resolvido (localizado pela query
+        // acima) — registrar rejeição na MESMA transação, sem custo extra
+        // de round-trip e sem expor o token/hash.
+        const rejectEventRef = encomendaRef.collection("events").doc();
+        tx.set(rejectEventRef, createWithdrawEvent(
+          "QR_REJECTED",
+          uid,
+          actorRole,
+          actorNome,
+          { method: "QR_CODE", encomendaId: encomendaRef.id, condominioId, reason: outcome.code },
+        ));
         return { ok: false as const, code: outcome.code };
       }
-
-      const actorNome = ctx.decodedToken?.name || ctx.decodedToken?.email || uid;
 
       tx.update(encomendaRef, {
         status: "RETIRADA",
